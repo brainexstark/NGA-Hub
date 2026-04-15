@@ -18,9 +18,10 @@ import { useToast } from '../../hooks/use-toast';
 import { Dialog, DialogContent, DialogTitle } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
 
-type ProtocolStatus = 'MISSION_REQUIRED' | 'AUTHORIZED' | 'ENTERTANING';
+type ProtocolStatus = 'MISSION_REQUIRED' | 'AUTHORIZED' | 'ENTERTANING' | 'EDU_LIMIT';
 
-const SESSION_LIMIT = 1800; // STARK-B STRICT GOVERNANCE LIMIT (30 Minutes)
+const ENTERTAINMENT_LIMIT = 3600; // 1 hour entertainment
+const EDUCATIONAL_LIMIT = 1800;   // 30 minutes educational
 
 const XIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -63,12 +64,10 @@ function MobileSwipeHandler({ children }: { children: React.ReactNode }) {
 
 export default function AppLayout({ 
   children,
-  params 
 }: { 
   children: React.ReactNode;
-  params: Promise<{ ageGroup?: string }>;
 }) {
-  const { ageGroup: urlAgeGroup } = React.use(params);
+  const urlAgeGroup = undefined;
   
   const [mounted, setMounted] = React.useState(false);
   const { user, isUserLoading } = useUser();
@@ -81,7 +80,8 @@ export default function AppLayout({
   const [profileLoading, setProfileLoading] = React.useState(true);
   
   const [protocolStatus, setProtocolStatus] = React.useState<ProtocolStatus>('AUTHORIZED');
-  const [remainingSeconds, setRemainingSeconds] = React.useState(SESSION_LIMIT);
+  const [remainingSeconds, setRemainingSeconds] = React.useState(ENTERTAINMENT_LIMIT);
+  const [eduRemainingSeconds, setEduRemainingSeconds] = React.useState(EDUCATIONAL_LIMIT);
   const [themeVariant, setThemeVariant] = React.useState(0);
   const [showBranding, setShowBranding] = React.useState(false);
 
@@ -111,31 +111,52 @@ export default function AppLayout({
   React.useEffect(() => {
     const handleEngagement = () => {
         setProtocolStatus('ENTERTANING');
-        setRemainingSeconds(SESSION_LIMIT);
+        setRemainingSeconds(prev => prev > 0 ? prev : ENTERTAINMENT_LIMIT);
     };
     const handleMission = () => {
         setProtocolStatus('AUTHORIZED');
-        setRemainingSeconds(SESSION_LIMIT);
+        setEduRemainingSeconds(prev => prev > 0 ? prev : EDUCATIONAL_LIMIT);
+    };
+    const handleEduReset = () => {
+        setProtocolStatus('AUTHORIZED');
+        setEduRemainingSeconds(EDUCATIONAL_LIMIT);
     };
     window.addEventListener('stark-b-entertainment-engaged', handleEngagement);
     window.addEventListener('stark-b-mission-complete', handleMission);
+    window.addEventListener('stark-b-edu-reset', handleEduReset);
     return () => {
         window.removeEventListener('stark-b-entertainment-engaged', handleEngagement);
         window.removeEventListener('stark-b-mission-complete', handleMission);
+        window.removeEventListener('stark-b-edu-reset', handleEduReset);
     };
   }, []);
 
+  // Entertainment countdown — 1 hour
   React.useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (protocolStatus === 'ENTERTANING' && remainingSeconds > 0) {
-        interval = setInterval(() => {
-            setRemainingSeconds(prev => prev - 1);
-        }, 1000);
-    } else if (remainingSeconds === 0 && protocolStatus === 'ENTERTANING') {
+    if (protocolStatus === 'ENTERTANING') {
+      if (remainingSeconds > 0) {
+        interval = setInterval(() => setRemainingSeconds(prev => prev - 1), 1000);
+      } else {
         setProtocolStatus('MISSION_REQUIRED');
+      }
     }
     return () => clearInterval(interval);
   }, [protocolStatus, remainingSeconds]);
+
+  // Educational countdown — 30 minutes (only while on educational paths)
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    const isEduPath = educationalPathsForTimer.some(p => pathname.startsWith(p));
+    if (protocolStatus === 'AUTHORIZED' && isEduPath) {
+      if (eduRemainingSeconds > 0) {
+        interval = setInterval(() => setEduRemainingSeconds(prev => prev - 1), 1000);
+      } else {
+        setProtocolStatus('EDU_LIMIT');
+      }
+    }
+    return () => clearInterval(interval);
+  }, [protocolStatus, eduRemainingSeconds, pathname]);
 
   React.useEffect(() => {
     if (!user || !firestore || !mounted) {
@@ -199,14 +220,17 @@ export default function AppLayout({
 
   const ageGroup = userProfile?.ageGroup || urlAgeGroup || 'under-10';
   const educationalPaths = ['/learning-hub', '/announcements', '/assignments', '/competitions', '/discussions', '/settings', '/activity', '/security', '/video-bank', '/network', '/search', '/adult-guidance'];
+  const educationalPathsForTimer = educationalPaths;
   const isEducationalNode = educationalPaths.some(path => pathname.startsWith(path));
-  const shouldShowLockdown = protocolStatus === 'MISSION_REQUIRED' && !isEducationalNode;
+  const shouldShowLockdown = (protocolStatus === 'MISSION_REQUIRED' && !isEducationalNode) || (protocolStatus === 'EDU_LIMIT' && isEducationalNode);
+  // Active timer to show in header
+  const activeTimer = protocolStatus === 'ENTERTANING' ? remainingSeconds : (isEducationalNode ? eduRemainingSeconds : null);
 
   return (
     <div className={`theme-${ageGroup}-v${themeVariant} min-h-screen bg-background`}>
       <SidebarProvider>
         <AppSidebar 
-          remainingSeconds={remainingSeconds} 
+          remainingSeconds={protocolStatus === 'ENTERTANING' ? remainingSeconds : eduRemainingSeconds} 
           ageGroup={ageGroup}
           protocolStatus={protocolStatus}
         />
@@ -214,9 +238,9 @@ export default function AppLayout({
           <header className="flex md:hidden items-center justify-between p-4 sticky top-0 bg-background/80 backdrop-blur-xl z-[60] border-b border-white/5">
               <Logo className="scale-75 origin-left" />
               <div className="flex items-center gap-4">
-                  {protocolStatus === 'ENTERTANING' && (
-                      <div className="bg-primary/10 px-3 py-1 rounded-full border border-primary/20 text-[10px] font-black tabular-nums text-primary shadow-lg">
-                          {remainingSeconds}s
+                  {activeTimer !== null && (
+                      <div className={`px-3 py-1 rounded-full border text-[10px] font-black tabular-nums shadow-lg ${protocolStatus === 'ENTERTANING' ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-orange-500/10 border-orange-500/20 text-orange-400'}`}>
+                          {Math.floor(activeTimer / 60)}:{String(activeTimer % 60).padStart(2, '0')}
                       </div>
                   )}
                   <Link href="/favorites" className="text-foreground/60 hover:text-primary transition-colors">
@@ -267,7 +291,7 @@ export default function AppLayout({
                  
                  {shouldShowLockdown && (
                      <div className="fixed inset-0 z-[9998] bg-background/80 backdrop-blur-md">
-                       <TimesUp />
+                       <TimesUp mode={protocolStatus === 'EDU_LIMIT' ? 'educational' : 'entertainment'} />
                      </div>
                  )}
               </main>

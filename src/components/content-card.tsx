@@ -81,10 +81,15 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
             <DialogTrigger asChild>
                 <div className="w-full h-full relative" onClick={handleEngagement}>
                     <Image src={image.imageUrl} alt={title} fill className="object-cover transition-transform duration-1000 group-hover:scale-105" />
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                        <div className="p-5 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
-                            <PlayCircle className="h-12 w-12 text-white" />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div className="p-5 rounded-full bg-red-600 shadow-2xl shadow-red-600/40 scale-90 group-hover:scale-100 transition-transform duration-300">
+                            <PlayCircle className="h-12 w-12 text-white fill-white" />
                         </div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white bg-black/60 px-3 py-1 rounded-full">Watch on YouTube</span>
+                    </div>
+                    {/* Always-visible subtle play indicator */}
+                    <div className="absolute bottom-3 right-3 bg-red-600/80 backdrop-blur-sm rounded-full p-2 shadow-lg">
+                        <PlayCircle className="h-5 w-5 text-white" />
                     </div>
                 </div>
             </DialogTrigger>

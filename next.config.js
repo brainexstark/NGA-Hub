@@ -1,14 +1,8 @@
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
   trailingSlash: true,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  typescript: { ignoreBuildErrors: true },
   images: {
     unoptimized: true,
     remotePatterns: [
@@ -25,6 +19,11 @@ const nextConfig = {
       { protocol: 'https', hostname: 'chatgpt.com' },
     ],
   },
+  // Performance: compress responses
+  compress: true,
+  // Performance: power-up static generation
+  staticPageGenerationTimeout: 120,
+  experimental: {},
 };
 
 module.exports = nextConfig;

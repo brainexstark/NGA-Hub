@@ -27,6 +27,7 @@ import { useToast } from '../../../../hooks/use-toast';
 import { cn, getEmbedUrl } from '../../../../lib/utils';
 import { getRecommendedContent } from '../../../../lib/recommendation-engine';
 import { Logo } from '../../../../components/logo';
+import { SocialStatsPopover } from '../../../../components/social-stats-popover';
 
 const InternalPlayer = ({ url }: { url: string }) => {
     const embedUrl = getEmbedUrl(url);
@@ -88,14 +89,8 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                         <Rocket className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex items-center gap-4 border-l border-white/10 pl-4">
-                        <div className="flex flex-col items-center">
-                            <span className="text-[14px] font-black text-cyan-400 leading-none tabular-nums">{profile?.disciplesCount || 0}</span>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-white">Disciples</span>
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-[14px] font-black text-pink-400 leading-none tabular-nums">{profile?.followersCount || 0}</span>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-white">Followers</span>
-                        </div>
+                        <SocialStatsPopover type="disciples" count={profile?.disciplesCount || 0} label="Disciples" colorClass="text-cyan-400" />
+                        <SocialStatsPopover type="followers" count={profile?.followersCount || 0} label="Followers" colorClass="text-pink-400" />
                     </div>
                 </div>
                 <nav className="flex items-center gap-3">
@@ -219,18 +214,9 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
         <div className="flex items-center gap-8">
             <Logo className="scale-90" />
             <div className="flex items-center gap-6 border-l border-primary/10 pl-8">
-                <div className="flex flex-col">
-                    <span className="text-sm font-black text-primary leading-none tabular-nums">{profile?.disciplesCount || 0}</span>
-                    <span className="text-[10px] font-black uppercase tracking-widest mt-1">Disciples</span>
-                </div>
-                <div className="flex flex-col">
-                    <span className="text-sm font-black text-accent leading-none tabular-nums">{profile?.followersCount || 0}</span>
-                    <span className="text-[10px] font-black uppercase tracking-widest mt-1">Followers</span>
-                </div>
-                <div className="flex flex-col">
-                    <span className="text-sm font-black text-foreground leading-none tabular-nums">{profile?.followingCount || 0}</span>
-                    <span className="text-[10px] font-black uppercase tracking-widest mt-1">Following</span>
-                </div>
+                <SocialStatsPopover type="disciples" count={profile?.disciplesCount || 0} label="Disciples" colorClass="text-sm font-black text-primary" />
+                <SocialStatsPopover type="followers" count={profile?.followersCount || 0} label="Followers" colorClass="text-sm font-black text-accent" />
+                <SocialStatsPopover type="following" count={profile?.followingCount || 0} label="Following" colorClass="text-sm font-black text-foreground" />
             </div>
         </div>
         <div className="flex items-center gap-5">

@@ -45,11 +45,13 @@ import type { UserProfile } from '../../../lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../../../components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
 import { Label } from '../../../components/ui/label';
+import { useHardwareAccess } from '../../../components/hardware-permissions';
 
 export default function ChatPage() {
     const { user } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
+    const { requestMicrophone, requestBoth } = useHardwareAccess();
     
     // Sector Synchronization Node
     const profileRef = useMemoFirebase(() => {
@@ -261,7 +263,7 @@ export default function ChatPage() {
                         </div>
                         <div className="flex items-center gap-4">
                             <button onClick={() => setIsAddUserOpen(true)} className="p-2 hover:bg-white/10 rounded-xl transition-all"><UserPlus2 className="h-5 w-5" /></button>
-                            <button className="p-2 hover:bg-white/10 rounded-xl transition-all"><MoreVertical className="h-5 w-5" /></button>
+                            <button onClick={() => toast({ title: "Options", description: "New group, starred messages, settings." })} className="p-2 hover:bg-white/10 rounded-xl transition-all"><MoreVertical className="h-5 w-5" /></button>
                         </div>
                     </div>
 
@@ -424,17 +426,38 @@ export default function ChatPage() {
                         )}
 
                         {activeTab === 'calls' && (
-                            <div className="py-20 text-center space-y-6 animate-in fade-in zoom-in-95 duration-500">
-                                <div className="h-24 w-24 bg-white/5 rounded-full flex items-center justify-center mx-auto border-2 border-dashed border-white/10">
-                                    <Phone className="h-10 w-10 opacity-20" />
+                            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-500">
+                                <div className="flex gap-3 mb-4">
+                                    <Button className="flex-1 h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest" onClick={() => toast({ title: "New Call", description: "Select a contact to call." })}>
+                                        <Phone className="mr-2 h-4 w-4" /> Voice Call
+                                    </Button>
+                                    <Button variant="outline" className="flex-1 h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest border-white/10" onClick={() => toast({ title: "Video Call", description: "Select a contact for video." })}>
+                                        <Camera className="mr-2 h-4 w-4" /> Video Call
+                                    </Button>
                                 </div>
-                                <div className="space-y-2">
-                                    <p className="font-black text-xl uppercase tracking-tighter">{isUnder10 ? "No Fun Calls" : "No Live Links"}</p>
-                                    <p className="text-xs text-muted-foreground italic font-medium px-12">
-                                        {isUnder10 ? "Ask your parents to start a video call!" : "Encrypted voice and video nodes will appear here once synchronized."}
-                                    </p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 ml-2">Recent Calls</p>
+                                <div className="space-y-1 divide-y divide-white/5">
+                                    {contacts.map((contact, i) => (
+                                        <div key={contact.id} className="flex items-center gap-4 p-4 hover:bg-white/5 rounded-3xl transition-all cursor-pointer group">
+                                            <Avatar className="h-12 w-12 border border-white/10">
+                                                <AvatarImage src={contact.avatar} />
+                                                <AvatarFallback>{contact.name[0]}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex-1">
+                                                <p className="font-black text-sm">{contact.name}</p>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">{i % 2 === 0 ? 'Incoming' : 'Outgoing'} · {i + 1}h ago</p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => requestMicrophone().then(s => { if(s) toast({ title: `Calling ${contact.name}` }); })} className="p-2 rounded-full bg-green-500/10 hover:bg-green-500/20 text-green-400 transition-all">
+                                                    <Phone className="h-4 w-4" />
+                                                </button>
+                                                <button onClick={() => requestBoth().then(s => { if(s) toast({ title: `Video calling ${contact.name}` }); })} className="p-2 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-all">
+                                                    <Camera className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                                <Button className="rounded-full px-8 h-12 font-black uppercase text-[10px] tracking-widest" onClick={() => toast({ title: "Initializing Encrypted Link" })}>Initialize Link</Button>
                             </div>
                         )}
                     </div>
@@ -452,15 +475,15 @@ export default function ChatPage() {
 
                 <footer className="h-20 border-t border-white/5 bg-background/80 backdrop-blur-xl flex items-center justify-around px-6">
                     {[
-                        { icon: MessageSquare, label: isUnder10 ? 'Fun' : 'Transmissions', active: activeTab === 'chats', tab: 'chats' },
-                        { icon: CircleDashed, label: isUnder10 ? 'Play' : 'Status', active: activeTab === 'status', tab: 'status' },
-                        { icon: Sparkles, label: isUnder10 ? 'AI' : 'Node AI', tab: 'chats' },
-                        { icon: Phone, label: isUnder10 ? 'Call' : 'Live Link', active: activeTab === 'calls', tab: 'calls' },
-                        { icon: Users, label: isUnder10 ? 'Team' : 'Lineage', tab: 'chats' }
+                        { icon: MessageSquare, label: isUnder10 ? 'Fun' : 'Chats', active: activeTab === 'chats', tab: 'chats' },
+                        { icon: CircleDashed, label: isUnder10 ? 'Moments' : 'Status', active: activeTab === 'status', tab: 'status' },
+                        { icon: Sparkles, label: isUnder10 ? 'AI' : 'Node AI', active: false, tab: 'chats', action: () => { setActiveTab('chats'); setIsNewChatOpen(true); } },
+                        { icon: Phone, label: isUnder10 ? 'Calls' : 'Live Links', active: activeTab === 'calls', tab: 'calls' },
+                        { icon: Users, label: isUnder10 ? 'Friends' : 'Contacts', active: false, tab: 'chats', action: () => setIsNewChatOpen(true) }
                     ].map((item, i) => (
                         <button 
                             key={i} 
-                            onClick={() => item.tab && setActiveTab(item.tab as any)}
+                            onClick={() => item.action ? item.action() : item.tab && setActiveTab(item.tab as any)}
                             className={cn(
                                 "flex flex-col items-center gap-1.5 transition-all",
                                 item.active ? "text-primary scale-110" : "text-muted-foreground/40 hover:text-primary"
@@ -598,9 +621,9 @@ export default function ChatPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-4 relative z-10">
-                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-xl h-10 w-10"><Phone className="h-5 w-5" /></Button>
-                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-xl h-10 w-10"><Camera className="h-5 w-5" /></Button>
-                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-xl h-10 w-10"><MoreVertical className="h-5 w-5" /></Button>
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-xl h-10 w-10" onClick={() => requestMicrophone().then(s => { if(s) toast({ title: `Calling ${activeChat?.name}`, description: 'Voice link active — speak now.' }); })}><Phone className="h-5 w-5" /></Button>
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-xl h-10 w-10" onClick={() => requestBoth().then(s => { if(s) toast({ title: `Video call with ${activeChat?.name}`, description: 'Camera & mic active.' }); })}><Camera className="h-5 w-5" /></Button>
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-xl h-10 w-10" onClick={() => toast({ title: "Chat Options", description: "Clear chat, mute, block — coming soon." })}><MoreVertical className="h-5 w-5" /></Button>
                 </div>
             </header>
 
@@ -642,7 +665,7 @@ export default function ChatPage() {
 
             <footer className="p-4 bg-background/80 backdrop-blur-xl border-t border-white/5 flex items-center gap-3">
                 <div className="flex-1 flex items-center gap-3 bg-white/5 rounded-[2rem] px-5 py-2 border border-white/5 focus-within:border-primary/40 transition-all shadow-inner">
-                    <button className="text-muted-foreground/40 hover:text-primary transition-colors"><Plus className="h-5 w-5" /></button>
+                    <button className="text-muted-foreground/40 hover:text-primary transition-colors" onClick={() => toast({ title: "Attach File", description: "File attachment coming soon." })}><Plus className="h-5 w-5" /></button>
                     <Input 
                         placeholder={isUnder10 ? "Type something fun..." : "Type a transmission..."}
                         className="border-none bg-transparent focus-visible:ring-0 shadow-none h-10 placeholder:opacity-30 text-base font-medium p-0"
@@ -650,8 +673,8 @@ export default function ChatPage() {
                         onChange={e => setInputValue(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
                     />
-                    <button className="text-muted-foreground/40 hover:text-primary transition-colors"><Paperclip className="h-5 w-5" /></button>
-                    <button className="text-muted-foreground/40 hover:text-primary transition-colors"><Camera className="h-5 w-5" /></button>
+                    <button className="text-muted-foreground/40 hover:text-primary transition-colors" onClick={() => toast({ title: "Attach File", description: "File attachment coming soon." })}><Paperclip className="h-5 w-5" /></button>
+                    <button className="text-muted-foreground/40 hover:text-primary transition-colors" onClick={() => toast({ title: "Camera", description: "Camera capture coming soon." })}><Camera className="h-5 w-5" /></button>
                 </div>
                 <Button 
                     onClick={handleSendMessage} 

@@ -5,6 +5,7 @@ import { Toaster } from '../components/ui/toaster';
 import { PwaInstaller } from '../components/pwa-installer';
 import './globals.css';
 import { FirebaseClientProvider } from '../firebase/client-provider';
+import { RateAppDialog } from '../components/rate-app-dialog';
 
 /**
  * STARK-B ROOT IDENTITY NODE (v3.0 - SSR Neutralized)
@@ -27,12 +28,24 @@ export default function RootLayout({
       <head>
         <title>NGA Hub</title>
         <meta name="description" content="A modern social platform - NGA Hub" />
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="icon" sizes="32x32" href="/icons/icon-32.png" />
-        <link rel="icon" sizes="16x16" href="/icons/icon-16.png" />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        {/* Favicons */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
+        <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+        {/* Apple */}
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+        {/* PWA */}
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#0a0a0a" />
+        <meta name="theme-color" content="#ff007f" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="NGA Hub" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="application-name" content="NGA Hub" />
+        {/* Microsoft */}
+        <meta name="msapplication-TileColor" content="#ff007f" />
+        <meta name="msapplication-TileImage" content="/icons/icon-192.png" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
       <body className="min-h-screen font-sans antialiased bg-[#0a051a]" suppressHydrationWarning>
@@ -45,6 +58,7 @@ export default function RootLayout({
             </div>
           )}
           <Toaster />
+          <RateAppDialog />
         </FirebaseClientProvider>
       </body>
     </html>

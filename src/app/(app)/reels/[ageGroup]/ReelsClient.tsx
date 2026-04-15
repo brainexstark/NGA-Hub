@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "../../../../components/ui/a
 import { Button } from "../../../../components/ui/button";
 import { Card } from "../../../../components/ui/card";
 import { PlaceHolderImages } from "../../../../lib/placeholder-images";
-import { Heart, MessageCircle, Download, PlayCircle, Share2, Zap } from "lucide-react";
+import { Heart, MessageCircle, Download, PlayCircle, Share2, Zap, Globe, Newspaper, Music, Trophy, Tv } from "lucide-react";
 import Image from "next/image";
 import { useToast } from "../../../../hooks/use-toast";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "../../../../components/ui/dialog";
@@ -16,6 +16,14 @@ import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from "../../../../firebase";
 import { collection, serverTimestamp, doc, addDoc } from "firebase/firestore";
 import type { UserProfile } from '../../../../lib/types';
+
+const CATEGORIES = [
+  { id: 'all', label: 'All', icon: Globe },
+  { id: 'news', label: 'News', icon: Newspaper },
+  { id: 'music', label: 'Music', icon: Music },
+  { id: 'sports', label: 'Sports', icon: Trophy },
+  { id: 'entertainment', label: 'Fun', icon: Tv },
+];
 
 const InternalPlayer = ({ url }: { url: string }) => {
     const embedUrl = getEmbedUrl(url);
@@ -35,8 +43,14 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
 
   const [likedReels, setLikedReels] = React.useState<Record<string, boolean>>({});
   const [followedUsers, setFollowedUsers] = React.useState<Record<string, boolean>>({});
+  const [activeCategory, setActiveCategory] = React.useState('all');
 
-  const reels = React.useMemo(() => aiDatabase.reels[ageGroup as keyof typeof aiDatabase.reels] || aiDatabase.reels['10-16'], [ageGroup]);
+  const allReels = React.useMemo(() => aiDatabase.reels[ageGroup as keyof typeof aiDatabase.reels] || aiDatabase.reels['10-16'], [ageGroup]);
+
+  const reels = React.useMemo(() => {
+    if (activeCategory === 'all') return allReels;
+    return allReels.filter((r: any) => r.category === activeCategory);
+  }, [allReels, activeCategory]);
 
   const handleTriggerCycle = () => {
     window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
@@ -71,8 +85,33 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
   };
 
   return (
-    <div className="h-[calc(100vh-80px)] overflow-y-auto snap-y snap-mandatory no-scrollbar animate-in fade-in duration-700">
-      {reels.map((reel) => (
+    <div className="flex flex-col h-[calc(100vh-80px)]">
+      {/* Category filter bar */}
+      <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 py-3 bg-background/80 backdrop-blur-xl border-b border-white/5 shrink-0">
+        {CATEGORIES.map((cat) => (
+          <button
+            key={cat.id}
+            onClick={() => setActiveCategory(cat.id)}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest whitespace-nowrap transition-all border shrink-0",
+              activeCategory === cat.id
+                ? "bg-primary text-white border-primary shadow-lg"
+                : "bg-white/5 text-white/40 border-white/10 hover:text-white"
+            )}
+          >
+            <cat.icon className="h-3 w-3" />
+            {cat.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 overflow-y-auto snap-y snap-mandatory no-scrollbar animate-in fade-in duration-700">
+      {reels.length === 0 && (
+        <div className="h-full flex items-center justify-center opacity-30 flex-col gap-4">
+          <Globe className="h-12 w-12" />
+          <p className="font-black uppercase tracking-widest text-sm">No {activeCategory} reels</p>
+        </div>
+      )}
+      {reels.map((reel: any) => (
         <div key={reel.id} className="h-full w-full flex items-center justify-center snap-center p-4">
           <Card className="w-full max-w-sm h-full flex flex-col overflow-hidden relative shadow-2xl border-none bg-black rounded-[2.5rem]">
               <Dialog>
@@ -151,6 +190,7 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
           </Card>
         </div>
       ))}
+      </div>
     </div>
   );
 }
