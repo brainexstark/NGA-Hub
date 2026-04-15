@@ -69,6 +69,8 @@ export default function AppLayout({
 }) {
   const urlAgeGroup = undefined;
   
+  const educationalPaths = ['/learning-hub', '/announcements', '/assignments', '/competitions', '/discussions', '/settings', '/activity', '/security', '/video-bank', '/network', '/search', '/adult-guidance'];
+
   const [mounted, setMounted] = React.useState(false);
   const { user, isUserLoading } = useUser();
   const router = useRouter();
@@ -147,7 +149,7 @@ export default function AppLayout({
   // Educational countdown — 30 minutes (only while on educational paths)
   React.useEffect(() => {
     let interval: NodeJS.Timeout;
-    const isEduPath = educationalPathsForTimer.some(p => pathname.startsWith(p));
+    const isEduPath = educationalPaths.some(p => pathname.startsWith(p));
     if (protocolStatus === 'AUTHORIZED' && isEduPath) {
       if (eduRemainingSeconds > 0) {
         interval = setInterval(() => setEduRemainingSeconds(prev => prev - 1), 1000);
@@ -219,8 +221,6 @@ export default function AppLayout({
   if (isAuthFlow || pathname === '/') return <div className={`theme-${userProfile?.ageGroup || '10-16'}-v${themeVariant}`}>{children}</div>;
 
   const ageGroup = userProfile?.ageGroup || urlAgeGroup || 'under-10';
-  const educationalPaths = ['/learning-hub', '/announcements', '/assignments', '/competitions', '/discussions', '/settings', '/activity', '/security', '/video-bank', '/network', '/search', '/adult-guidance'];
-  const educationalPathsForTimer = educationalPaths;
   const isEducationalNode = educationalPaths.some(path => pathname.startsWith(path));
   const shouldShowLockdown = (protocolStatus === 'MISSION_REQUIRED' && !isEducationalNode) || (protocolStatus === 'EDU_LIMIT' && isEducationalNode);
   // Active timer to show in header
