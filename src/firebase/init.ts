@@ -5,9 +5,6 @@ import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 
-/**
- * STARK-B GLOBAL SINGLETON REGISTRY
- */
 interface FirebaseServices {
   firebaseApp: FirebaseApp;
   auth: Auth;
@@ -23,19 +20,23 @@ export function initializeFirebase(): FirebaseServices | null {
   if (win[STARK_B_KEY]) return win[STARK_B_KEY];
 
   try {
+    // Validate config before initializing
+    if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+      console.error('Firebase config missing required fields');
+      return null;
+    }
+
     const apps = getApps();
     const app = apps.length > 0 ? apps[0] : initializeApp(firebaseConfig);
-    
-    const services = {
-      firebaseApp: app,
-      auth: getAuth(app),
-      firestore: getFirestore(app),
-    };
 
+    const auth = getAuth(app);
+    const firestore = getFirestore(app);
+
+    const services = { firebaseApp: app, auth, firestore };
     win[STARK_B_KEY] = services;
     return services;
-  } catch (error) {
-    console.error("STARK-B Initialization Failure:", error);
+  } catch (error: any) {
+    console.error('Firebase init error:', error?.message || error);
     return null;
   }
 }
