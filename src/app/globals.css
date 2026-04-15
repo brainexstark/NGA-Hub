@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Permanent Deep Purple-Pink Aesthetic (Zero White) */
+    --background: 285 70% 5%; 
+    --foreground: 320 100% 95%;
+    --card: 285 70% 8%;
+    --card-foreground: 320 100% 95%;
+    --popover: 285 70% 8%;
+    --popover-foreground: 320 100% 95%;
+    --primary: 320 100% 60%; /* Vibrant Pink Core */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 285 50% 12%;
+    --secondary-foreground: 320 100% 70%;
+    --muted: 285 50% 12%;
+    --muted-foreground: 320 20% 65%;
+    --accent: 265 100% 65%; /* Radiant Purple Node */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 285 50% 18%;
+    --input: 285 50% 18%;
+    --ring: 320 100% 60%;
+    --radius: 1.5rem;
+  }
+
+  /* DYNAMIC PURPLE-PINK-BLUE VARIANTS */
+  .theme-under-10-v0 { --primary: 325 100% 65%; --accent: 285 100% 60%; }
+  .theme-under-10-v1 { --primary: 345 100% 60%; --accent: 305 100% 55%; }
+  .theme-under-10-v2 { --primary: 305 100% 70%; --accent: 335 100% 65%; }
+  .theme-under-10-v3 { --primary: 355 100% 60%; --accent: 275 100% 65%; }
+  .theme-under-10-v4 { --primary: 315 100% 60%; --accent: 225 100% 60%; }
+  .theme-under-10-v5 { --primary: 295 100% 65%; --accent: 345 100% 60%; }
+
+  .theme-10-16-v0 { --primary: 285 100% 65%; --accent: 325 100% 60%; }
+  .theme-10-16-v1 { --primary: 305 100% 60%; --accent: 265 100% 65%; }
+  .theme-10-16-v2 { --primary: 335 100% 65%; --accent: 295 100% 60%; }
+  .theme-10-16-v3 { --primary: 315 100% 60%; --accent: 280 100% 65%; }
+  .theme-10-16-v4 { --primary: 275 100% 70%; --accent: 345 100% 60%; }
+  .theme-10-16-v5 { --primary: 325 100% 55%; --accent: 305 100% 65%; }
+
+  .theme-16-plus-v0 { --primary: 285 85% 45%; --accent: 325 95% 55%; }
+  .theme-16-plus-v1 { --primary: 305 95% 55%; --accent: 265 95% 50%; }
+  .theme-16-plus-v2 { --primary: 335 95% 50%; --accent: 295 85% 40%; }
+  .theme-16-plus-v3 { --primary: 315 85% 40%; --accent: 345 85% 45%; }
+  .theme-16-plus-v4 { --primary: 345 85% 50%; --accent: 285 85% 45%; }
+  .theme-16-plus-v5 { --primary: 295 85% 50%; --accent: 315 85% 50%; }
+
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground;
+    background-image: radial-gradient(circle at 50% 0%, hsla(var(--primary), 0.2) 0%, transparent 85%);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    transition: background-color 0.8s ease, color 0.8s ease;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-card/40 backdrop-blur-xl border border-white/5 shadow-2xl;
+  }
+  
+  .logo-dynamics {
+    @apply bg-clip-text text-transparent bg-[length:300%_300%];
+    background-image: linear-gradient(
+      -45deg, 
+      hsla(var(--primary), 1), 
+      hsla(var(--accent), 1),
+      #ff00ff,
+      hsla(var(--primary), 0.8)
+    );
+    animation: logoGradient 8s ease infinite;
+  }
+
+  @keyframes logoGradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .dynamic-text-mesh {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(-45deg, #ff007f, #9d00ff, #0044ff, #ff007f);
+    background-size: 400% 400%;
+    animation: meshGradient 10s ease infinite;
+  }
+
+  @keyframes meshGradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  /* COLOR SYNC ANIMATION: PINK -> PURPLE -> BLUE */
+  @keyframes text-color-sync {
+    0%, 100% { color: #ff007f; } /* Deep Pink */
+    33% { color: #9d00ff; }      /* Purple */
+    66% { color: #0044ff; }      /* Deep Blue */
+  }
+
+  .animate-text-color-sync {
+    animation: text-color-sync 10s ease-in-out infinite;
+  }
+
+  @keyframes bg-color-sync {
+    0%, 100% { background-color: #ff007f; }
+    33% { background-color: #9d00ff; }
+    66% { background-color: #0044ff; }
+  }
+
+  .animate-bg-color-sync {
+    animation: bg-color-sync 10s ease-in-out infinite;
+  }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .animate-float-logo {
+    animation: floatLogo 6s ease-in-out infinite;
+  }
+
+  @keyframes floatLogo {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-10px) rotate(2deg); }
+  }
+}

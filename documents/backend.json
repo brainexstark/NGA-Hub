@@ -1,0 +1,305 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user in the NGA Hub application.",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Unique identifier for the User entity, from Firebase Auth."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "ageGroup": {
+          "type": "string",
+          "description": "The age group the user belongs to (under-10, 10-16, 16-plus)."
+        },
+        "profilePicture": {
+          "type": "string",
+          "description": "URL of the user's profile picture.",
+          "format": "uri"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The user's phone number. Required for users in the 16-plus age group."
+        },
+        "premiumFeatures": {
+          "type": "boolean",
+          "description": "Indicates whether the user has premium features."
+        },
+        "channelId": {
+          "type": "string",
+          "description": "Reference to Channel. (Relationship: User 1:1 Channel)"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "email",
+        "ageGroup"
+      ]
+    },
+    "Content": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Content",
+      "type": "object",
+      "description": "Represents content within the NGA Hub application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Content entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the content."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the content."
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of content (e.g., video, article, lesson)."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL of the content.",
+          "format": "uri"
+        },
+        "ageAppropriate": {
+          "type": "string",
+          "description": "Age bracket the content is appropriate for (under 10, 10-16, 16+)."
+        },
+        "channelId": {
+          "type": "string",
+          "description": "Reference to Channel. (Relationship: Channel 1:N Content)"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "type",
+        "url",
+        "ageAppropriate"
+      ]
+    },
+    "Channel": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Channel",
+      "type": "object",
+      "description": "Represents a channel within the NGA Hub application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Channel entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the channel."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the channel."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:1 Channel)"
+        },
+        "followerIds": {
+          "type": "array",
+          "description": "References to Users. (Relationship: User N:N Channel)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "followingIds": {
+          "type": "array",
+          "description": "References to Users. (Relationship: User N:N Channel)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "ownerId"
+      ]
+    },
+    "FeatureRequest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FeatureRequest",
+      "type": "object",
+      "description": "Represents a feature request submitted by a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the FeatureRequest entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N FeatureRequest)"
+        },
+        "requestText": {
+          "type": "string",
+          "description": "The text of the feature request."
+        },
+        "submissionDate": {
+          "type": "string",
+          "description": "The date and time the feature request was submitted.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the feature request (e.g., open, in progress, closed)."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "requestText",
+        "submissionDate"
+      ]
+    },
+    "AiAssistantFeedback": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AiAssistantFeedback",
+      "type": "object",
+      "description": "Represents feedback generated by the AI assistant.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AiAssistantFeedback entity."
+        },
+        "contentId": {
+          "type": "string",
+          "description": "Reference to Content. (Relationship: Content 1:N AiAssistantFeedback)"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N AiAssistantFeedback)"
+        },
+        "feedbackText": {
+          "type": "string",
+          "description": "The feedback text generated by the AI assistant."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp of when the feedback was generated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "contentId",
+        "userId",
+        "feedbackText",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "google.com"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. Path-based ownership ensures only the user can access their own profile. Includes denormalized 'channelId' for quick access to the user's channel.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/channels/{channelId}",
+        "definition": {
+          "entityName": "Channel",
+          "schema": {
+            "$ref": "#/backend/entities/Channel"
+          },
+          "description": "Stores channel information. Includes 'ownerId' which is denormalized into content documents for authorization independence.  Also includes 'followerIds' and 'followingIds' for relationship management. This path supports listing of public channels and access control for channel owners.",
+          "params": [
+            {
+              "name": "channelId",
+              "description": "The unique identifier for the channel."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/channels/{channelId}/contents/{contentId}",
+        "definition": {
+          "entityName": "Content",
+          "schema": {
+            "$ref": "#/backend/entities/Content"
+          },
+          "description": "Stores content associated with a channel. Includes denormalized 'ageAppropriate' to enable QAPs.  Access control is based on channel ownership and content age appropriateness.",
+          "params": [
+            {
+              "name": "channelId",
+              "description": "The unique identifier for the channel."
+            },
+            {
+              "name": "contentId",
+              "description": "The unique identifier for the content."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/feature_requests/{featureRequestId}",
+        "definition": {
+          "entityName": "FeatureRequest",
+          "schema": {
+            "$ref": "#/backend/entities/FeatureRequest"
+          },
+          "description": "Stores feature requests submitted by users. Access control is based on the user ID.",
+          "params": [
+            {
+              "name": "featureRequestId",
+              "description": "The unique identifier for the feature request."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/ai_assistant_feedback/{feedbackId}",
+        "definition": {
+          "entityName": "AiAssistantFeedback",
+          "schema": {
+            "$ref": "#/backend/entities/AiAssistantFeedback"
+          },
+          "description": "Stores feedback generated by the AI assistant for content. Access control is based on the user and content ID.",
+          "params": [
+            {
+              "name": "feedbackId",
+              "description": "The unique identifier for the AI assistant feedback."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to address the 'auth/operation-not-allowed' error, ensure security, scalability, and debuggability, focusing on authorization independence and clear security rules. This error indicates that email/password authentication is not enabled in the Firebase project. The structure is designed to facilitate the app's core features, including user segmentation, content feeds, AI moderation, and social interaction. The design adheres to the principles of Authorization Independence, Clarity of Intent, DBAC (Database-Based Access Control), and Rules are not Filters (QAPs). This is achieved through denormalization of authorization data, structural segregation for homogeneous security postures, and standardized access modeling. \n\nAuthorization Independence: Achieved by denormalizing authorization data. For example, the `Channel` document includes the `ownerId`, which is copied to documents in the `contents` subcollection.  If content needs more complex auth, the content document can include a `member` map. This approach eliminates the need for `get()` calls in security rules, enabling atomic operations. All content must have the `ageAppropriate` property defined to ensure proper filtering.\n\nStructural Segregation: Implemented by segregating data with different access needs into separate collections. User profiles are stored under `/users/{userId}`, channels are under `/channels/{channelId}`. This simplifies security rules by ensuring that all documents within a collection share the same security requirements.\n\nAccess Modeling: Path-based ownership is used for private user data (`/users/{userId}`). Collaborative data is modeled using membership maps (though not explicitly shown in this base structure, it's ready for extension). Global roles are managed by existence checks in dedicated collections (e.g., `/roles_admin/{uid}`).\n\nQAPs: Supported by the structural segregation. Listing content is secured by requiring that queries filter based on `ageAppropriate` and, if necessary, check for membership in a channel.\n\nInvariants: Ownership and timestamps can be enforced through security rules within each collection and subcollection. Denormalized data integrity (e.g., `ownerId` in channel documents) can be maintained through server-side functions triggered by updates to user documents. The predictable schema and explicit state modeling make data access and manipulation more predictable and reliable."
+  }
+}

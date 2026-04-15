@@ -1,0 +1,51 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+
+  <defs>
+    <!-- Background -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0a0a"></stop>
+      <stop offset="100%" stop-color="#000000"></stop>
+    </linearGradient>
+
+    <!-- Gold -->
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5d97b"></stop>
+      <stop offset="50%" stop-color="#d4af37"></stop>
+      <stop offset="100%" stop-color="#8c6b1f"></stop>
+    </linearGradient>
+
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="120" fill="url(#bg)"></rect>
+
+  <!-- Clear atomic orbits -->
+  <g stroke="url(#gold)" fill="none" opacity="0.85">
+    <ellipse cx="256" cy="220" rx="165" ry="95" stroke-width="2.5"></ellipse>
+    <ellipse cx="256" cy="220" rx="165" ry="95" stroke-width="2" transform="rotate(45 256 220)"></ellipse>
+    <ellipse cx="256" cy="220" rx="165" ry="95" stroke-width="1.8" transform="rotate(90 256 220)"></ellipse>
+    <ellipse cx="256" cy="220" rx="165" ry="95" stroke-width="1.6" transform="rotate(135 256 220)"></ellipse>
+  </g>
+
+  <!-- Orbit nodes -->
+  <g fill="url(#gold)">
+    <circle cx="256" cy="105" r="4"></circle>
+    <circle cx="420" cy="220" r="4"></circle>
+    <circle cx="256" cy="335" r="4"></circle>
+    <circle cx="95" cy="220" r="4"></circle>
+  </g>
+
+  <!-- Equilateral Play Triangle -->
+  <!-- Centered at (256,220) -->
+  <polygon points="
+    226,175
+    226,265
+    304,220
+  " fill="url(#gold)"></polygon>
+
+  <!-- NGA text (Magneto-style with fallback) -->
+  <text x="50%" y="390" text-anchor="middle" fill="url(#gold)" font-family="Magneto, 'Brush Script MT', cursive" font-size="72" letter-spacing="3">
+    NGA
+  </text>
+
+</svg>

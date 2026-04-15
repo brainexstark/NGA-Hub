@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // AUTH PROTOCOLS
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isDocOwner() {
+      return isSignedIn() && request.auth.uid == resource.data.userId;
+    }
+
+    // USER DATA NODES (Strict Ownership - Eliminating Synchronization Breaches)
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // COMMUNITY BROADCASTS (POSTS, REELS, STORIES)
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isDocOwner();
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow update, delete: if isDocOwner();
+      }
+    }
+
+    match /reels/{reelId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isDocOwner();
+    }
+
+    match /stories/{storyId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isDocOwner();
+    }
+
+    // CHAT CLUSTERS
+    match /chats/{chatId} {
+      allow read, create: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isDocOwner();
+      }
+    }
+
+    // SYSTEM STATUS
+    match /app_status/{id} {
+      allow read: if true;
+      allow write: if false; 
+    }
+
+    // GLOBAL FALLBACK (Authorized discovery only)
+    match /{document=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+  }
+}
