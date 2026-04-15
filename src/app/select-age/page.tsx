@@ -9,8 +9,6 @@ import { useUser, useFirestore } from '../../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { useToast } from '../../hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { errorEmitter } from '../../firebase/error-emitter';
-import { FirestorePermissionError } from '../../firebase/errors';
 
 export default function SelectAgePage() {
   const { user, isUserLoading } = useUser();
@@ -20,40 +18,52 @@ export default function SelectAgePage() {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const handleSelectAgeGroup = async (ageGroup: 'under-10' | '10-16' | '16-plus') => {
-    if (!user || !firestore) {
-      if (!user) {
-        toast({ variant: 'destructive', title: 'Not logged in' });
-        router.push('/sign-in');
-      }
+    if (!user) {
+      toast({ variant: 'destructive', title: 'Not logged in', description: 'Please sign in first.' });
+      router.push('/sign-in');
+      return;
+    }
+
+    if (!firestore) {
+      toast({ variant: 'destructive', title: 'Still connecting...', description: 'Please wait a moment and try again.' });
       return;
     }
 
     setIsUpdating(true);
-    const userRef = doc(firestore, 'users', user.uid);
-    const userData = { ageGroup };
-    
-    setDoc(userRef, userData, { merge: true })
-      .then(() => {
-        toast({ title: 'Age group saved!' });
-        router.push(`/HomeTon/${ageGroup}`);
-      })
-      .catch(async () => {
-        const permissionError = new FirestorePermissionError({
-            path: userRef.path,
-            operation: 'update',
-            requestResourceData: userData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        setIsUpdating(false);
+    try {
+      const userRef = doc(firestore, 'users', user.uid);
+      await setDoc(userRef, { 
+        uid: user.uid,
+        displayName: user.displayName || user.email || 'User',
+        email: user.email,
+        ageGroup 
+      }, { merge: true });
+      toast({ title: 'Age group saved!' });
+      router.push(`/HomeTon/${ageGroup}`);
+    } catch (err: any) {
+      console.error('Age group save error:', err);
+      toast({ 
+        variant: 'destructive', 
+        title: 'Save failed', 
+        description: err?.message || 'Could not save age group. Please try again.' 
       });
+      setIsUpdating(false);
+    }
   };
-  
-  if (isUserLoading) {
-      return (
-          <div className="flex h-screen w-screen items-center justify-center bg-[#0a051a]">
-             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          </div>
-      )
+
+  // Show spinner while auth or firestore is loading
+  if (isUserLoading || (!firestore && user)) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0a051a]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Redirect if not logged in
+  if (!isUserLoading && !user) {
+    router.replace('/sign-in');
+    return null;
   }
 
   return (

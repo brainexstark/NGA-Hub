@@ -162,7 +162,8 @@ export default function AppLayout({
 
   React.useEffect(() => {
     if (!user || !firestore || !mounted) {
-        if (!user && mounted) setProfileLoading(false);
+        // Only mark loading done if user is confirmed absent — not if firestore just isn't ready yet
+        if (!user && mounted && !isUserLoading) setProfileLoading(false);
         return;
     }
     const syncProfile = async () => {
@@ -171,6 +172,8 @@ export default function AppLayout({
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 setUserProfile(docSnap.data() as UserProfile);
+            } else {
+                setUserProfile(null); // explicitly null = new user, no profile yet
             }
         } catch (error) {
             console.warn("Profile localization failed.");
@@ -179,30 +182,37 @@ export default function AppLayout({
         }
     };
     syncProfile();
-  }, [user, firestore, mounted]);
+  }, [user, firestore, mounted, isUserLoading]);
 
   React.useEffect(() => {
     if (!mounted || isUserLoading) return;
     if (!user) {
-      const publicPaths = ['/sign-in', '/sign-up', '/'];
-      if (!publicPaths.includes(pathname)) {
+      // Only redirect away from protected pages — never interrupt auth pages
+      const publicPaths = ['/sign-in', '/sign-up', '/select-age', '/add-phone', '/'];
+      if (!publicPaths.some(p => pathname.startsWith(p))) {
         router.replace('/sign-in');
       }
       return;
     }
-    if (!profileLoading && userProfile) {
+    // Wait for both profile loading to finish AND firestore to be ready
+    if (!profileLoading && firestore) {
       const isAuthFlow = ['/sign-in', '/sign-up', '/select-age', '/add-phone'].includes(pathname);
-      if (!userProfile.ageGroup) {
+      if (userProfile && !userProfile.ageGroup) {
         if (pathname !== '/select-age') router.replace('/select-age');
-        return; 
+        return;
       }
-      if (urlAgeGroup && userProfile.ageGroup !== urlAgeGroup) {
-        router.replace(pathname.replace(urlAgeGroup, userProfile.ageGroup));
-      } else if (isAuthFlow || pathname === '/') {
-         router.replace(`/HomeTon/${userProfile.ageGroup}`);
+      if (userProfile === null) {
+        // New user — no profile doc yet, send to select-age
+        if (pathname !== '/select-age') router.replace('/select-age');
+        return;
+      }
+      if (userProfile?.ageGroup) {
+        if (isAuthFlow || pathname === '/') {
+          router.replace(`/HomeTon/${userProfile.ageGroup}`);
+        }
       }
     }
-  }, [user, userProfile, isUserLoading, profileLoading, router, pathname, urlAgeGroup, mounted]);
+  }, [user, userProfile, isUserLoading, profileLoading, firestore, router, pathname, mounted]);
 
   if (!mounted) return null;
 
