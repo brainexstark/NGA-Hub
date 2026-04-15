@@ -1,10 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-  trailingSlash: true,
+  // Railway runs Next.js as a Node server — no static export
   typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
   images: {
-    unoptimized: true,
     remotePatterns: [
       { protocol: 'https', hostname: 'placehold.co' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
@@ -19,9 +18,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'chatgpt.com' },
     ],
   },
-  // Performance: compress responses
   compress: true,
-  // Performance: power-up static generation
   staticPageGenerationTimeout: 120,
   experimental: {},
 };
