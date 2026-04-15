@@ -9,7 +9,7 @@ import { Label } from "../../components/ui/label";
 import { Logo } from "../../components/logo";
 import { ArrowLeft, Loader2, Shield, Eye, EyeOff, Zap, Calendar, Smartphone } from "lucide-react";
 import Link from "next/link";
-import { GoogleAuthProvider, signInWithPopup, updateProfile, createUserWithEmailAndPassword } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, updateProfile, createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth, useFirestore } from "../../firebase";
 import { useToast } from "../../hooks/use-toast";
@@ -38,7 +38,21 @@ export default function SignUpPage() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    // Handle redirect result from Google sign-in
+    if (auth && firestore) {
+      getRedirectResult(auth)
+        .then(async (result) => {
+          if (result?.user) {
+            const user = result.user;
+            const userRef = doc(firestore, "users", user.uid);
+            await setDoc(userRef, { uid: user.uid, displayName: user.displayName, email: user.email, lastLogin: serverTimestamp() }, { merge: true });
+            toast({ title: "Authorized", description: "Google account synchronized." });
+            router.push('/select-age');
+          }
+        })
+        .catch((err) => { if (err?.code !== 'auth/no-current-user') console.error(err); });
+    }
+  }, [auth, firestore]);
 
   const validateAgeGroup = (birthDate: Date, group: AgeGroup): boolean => {
       const age = differenceInYears(new Date(), birthDate);
@@ -94,17 +108,30 @@ export default function SignUpPage() {
   const handleGoogleSignIn = async () => {
     if (!auth || !firestore) return;
     setIsGoogleLoading(true);
+    const provider = new GoogleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('profile');
     try {
-      const result = await signInWithPopup(auth, new GoogleAuthProvider());
+      const result = await signInWithPopup(auth, provider);
       const user = result.user;
       const userRef = doc(firestore, "users", user.uid);
       await setDoc(userRef, { uid: user.uid, displayName: user.displayName, email: user.email, lastLogin: serverTimestamp() }, { merge: true });
       toast({ title: "Authorized", description: "Google account synchronized." });
       router.push('/select-age');
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Sync Failed", description: err.message });
-    } finally {
-      setIsGoogleLoading(false);
+    } catch (popupError: any) {
+      if (popupError?.code === 'auth/popup-blocked' ||
+          popupError?.code === 'auth/popup-closed-by-user' ||
+          popupError?.code === 'auth/cancelled-popup-request') {
+        try {
+          await signInWithRedirect(auth, provider);
+        } catch (redirectError: any) {
+          toast({ variant: "destructive", title: "Sign In Failed", description: redirectError.message });
+          setIsGoogleLoading(false);
+        }
+      } else {
+        toast({ variant: "destructive", title: "Sign In Failed", description: popupError.message });
+        setIsGoogleLoading(false);
+      }
     }
   };
 

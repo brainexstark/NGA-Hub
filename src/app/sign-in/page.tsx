@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../..
 import { Logo } from "../../components/logo";
 import { ArrowLeft, Loader2, Eye, EyeOff, History, Zap, Shield } from "lucide-react";
 import Link from "next/link";
-import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword } from "firebase/auth";
 import { useAuth } from "../../firebase";
 import { useToast } from "../../hooks/use-toast";
 
@@ -32,13 +32,27 @@ export default function SignInPage() {
     setMounted(true);
     const saved = localStorage.getItem(RECENT_NODES_KEY);
     if (saved) {
-      try {
-        setRecentNodes(JSON.parse(saved));
-      } catch (e) {
-        console.warn("Node Cache Corrupt.");
-      }
+      try { setRecentNodes(JSON.parse(saved)); } catch {}
     }
-  }, []);
+    // Handle redirect result from Google sign-in
+    if (auth) {
+      setIsLoadingGoogle(true);
+      getRedirectResult(auth)
+        .then((result) => {
+          if (result?.user) {
+            if (result.user.email) saveRecentNode(result.user.email);
+            toast({ title: "Authorized", description: "Google synchronization complete." });
+            router.push('/');
+          }
+        })
+        .catch((err) => {
+          if (err?.code !== 'auth/no-current-user') {
+            console.error('Redirect result error:', err);
+          }
+        })
+        .finally(() => setIsLoadingGoogle(false));
+    }
+  }, [auth]);
 
   const saveRecentNode = (nodeEmail: string) => {
     const updated = Array.from(new Set([nodeEmail, ...recentNodes])).slice(0, 3);
@@ -49,7 +63,6 @@ export default function SignInPage() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
-    
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -57,7 +70,7 @@ export default function SignInPage() {
       toast({ title: "Authorized", description: "Node synchronized." });
       router.push('/');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: "Sync Failed", description: error.message });
+      toast({ variant: 'destructive', title: "Sign In Failed", description: error.message });
     } finally {
       setIsLoading(false);
     }
@@ -66,15 +79,31 @@ export default function SignInPage() {
   const handleGoogleSignIn = async () => {
     if (!auth) return;
     setIsLoadingGoogle(true);
+    const provider = new GoogleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('profile');
     try {
-      const result = await signInWithPopup(auth, new GoogleAuthProvider());
+      // Try popup first, fall back to redirect
+      const result = await signInWithPopup(auth, provider);
       if (result.user?.email) saveRecentNode(result.user.email);
       toast({ title: "Authorized", description: "Google synchronization complete." });
       router.push('/');
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Sync Failed", description: error.message });
-    } finally {
-      setIsLoadingGoogle(false);
+    } catch (popupError: any) {
+      // Popup blocked or not supported — use redirect
+      if (popupError?.code === 'auth/popup-blocked' || 
+          popupError?.code === 'auth/popup-closed-by-user' ||
+          popupError?.code === 'auth/cancelled-popup-request') {
+        try {
+          await signInWithRedirect(auth, provider);
+          // Page will redirect and come back — result handled in useEffect above
+        } catch (redirectError: any) {
+          toast({ variant: "destructive", title: "Sign In Failed", description: redirectError.message });
+          setIsLoadingGoogle(false);
+        }
+      } else {
+        toast({ variant: "destructive", title: "Sign In Failed", description: popupError.message });
+        setIsLoadingGoogle(false);
+      }
     }
   };
 
