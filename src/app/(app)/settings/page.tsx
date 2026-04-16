@@ -219,9 +219,20 @@ export default function SettingsPage() {
                   <AvatarImage key={profilePicture} src={profilePicture} className="object-cover" />
                   <AvatarFallback className="text-5xl font-black bg-primary/10 text-primary">{displayName.charAt(0) || 'U'}</AvatarFallback>
                 </Avatar>
-                <div className="absolute bottom-2 right-2 h-10 w-10 rounded-full bg-primary flex items-center justify-center border-4 border-background z-20 shadow-xl">
+                <button
+                  onClick={async () => {
+                    try {
+                      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                      stream.getTracks().forEach(t => t.stop());
+                      router.push('/record-video');
+                    } catch {
+                      toast({ variant: 'destructive', title: 'Camera Access Denied', description: 'Allow camera in browser settings.' });
+                    }
+                  }}
+                  className="absolute bottom-2 right-2 h-10 w-10 rounded-full bg-primary flex items-center justify-center border-4 border-background z-20 shadow-xl hover:scale-110 transition-transform active:scale-95"
+                >
                   <Camera className="h-5 w-5 text-primary-foreground" />
-                </div>
+                </button>
               </div>
               <div className="mt-8 text-center">
                 <p className="font-headline text-3xl font-bold tracking-tight">{displayName || 'Authorized User'}</p>

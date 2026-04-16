@@ -19,8 +19,8 @@ import {
   BookOpen
 } from 'lucide-react';
 import { ContentCard } from '../../../../components/content-card';
-import { doc } from 'firebase/firestore';
-import type { UserProfile } from '../../../../lib/types';
+import { doc, collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
+import type { Post, UserProfile } from '../../../../lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../../components/ui/avatar';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "../../../../components/ui/dialog";
 import { useToast } from '../../../../hooks/use-toast';
@@ -54,7 +54,34 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
   }, []);
 
   const storyImages = React.useMemo(() => getRecommendedContent(profile, 'story'), [profile]);
-  const feedPosts = React.useMemo(() => getRecommendedContent(profile, 'video'), [profile]);
+  const staticFeedPosts = React.useMemo(() => getRecommendedContent(profile, 'video'), [profile]);
+
+  // Realtime Firestore feed
+  const [realtimePosts, setRealtimePosts] = React.useState<Post[]>([]);
+  React.useEffect(() => {
+    if (!firestore) return;
+    const q = query(
+      collection(firestore, 'posts'),
+      where('ageGroup', '==', ageGroup),
+      where('isFlagged', '!=', true),
+      orderBy('isFlagged'),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    const unsub = onSnapshot(q, snap => {
+      setRealtimePosts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Post)));
+    }, () => {});
+    return () => unsub();
+  }, [firestore, ageGroup]);
+
+  const feedPosts = React.useMemo(() => {
+    if (realtimePosts.length > 0) return realtimePosts.map(p => ({
+      id: p.id, title: p.title || p.caption, caption: p.caption,
+      mediaUrl: p.mediaUrl, url: p.url, userName: p.userName,
+      userAvatar: p.userAvatar, category: p.category,
+    }));
+    return staticFeedPosts;
+  }, [realtimePosts, staticFeedPosts]);
 
   const handleTriggerCycle = () => {
     window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));

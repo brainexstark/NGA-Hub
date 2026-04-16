@@ -54,6 +54,7 @@ import {
   useSidebar
 } from './ui/sidebar';
 import React from 'react';
+import { X } from 'lucide-react';
 import { useUser, useFirestore } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { UserProfile } from '../lib/types';
@@ -206,7 +207,17 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
         isUnder10 ? "bg-[#05051a]/95" : "bg-background/80"
     )}>
       <SidebarHeader className="py-10 px-6">
-        <Logo className="scale-110" />
+        <div className="flex items-center justify-between">
+          <Logo className="scale-110" />
+          {/* Close button — mobile only */}
+          <button
+            onClick={() => setOpenMobile(false)}
+            className="md:hidden p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-all active:scale-90"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </SidebarHeader>
       <SidebarContent className="px-4 pb-20">
         <SidebarMenu className="space-y-1">

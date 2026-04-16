@@ -31,32 +31,60 @@ const XIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 function MobileSwipeHandler({ children }: { children: React.ReactNode }) {
   const { setOpenMobile, isMobile, openMobile } = useSidebar();
-  const [touchStart, setTouchStart] = React.useState<number | null>(null);
+  const touchStartX = React.useRef<number | null>(null);
+  const touchStartY = React.useRef<number | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (!isMobile || openMobile) return;
-    const x = e.touches[0].clientX;
-    if (x < 30) {
-      setTouchStart(x);
-    }
+    if (!isMobile) return;
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!isMobile || touchStart === null || openMobile) return;
-    const x = e.changedTouches[0].clientX;
-    const deltaX = x - touchStart;
-    if (deltaX > 50) {
+    if (!isMobile || touchStartX.current === null || touchStartY.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+
+    // Only trigger if horizontal swipe is dominant (not a scroll)
+    if (dy > Math.abs(dx)) {
+      touchStartX.current = null;
+      touchStartY.current = null;
+      return;
+    }
+
+    // Swipe right from left half → open
+    if (!openMobile && dx > 60 && touchStartX.current < 160) {
       setOpenMobile(true);
     }
-    setTouchStart(null);
+    // Swipe left anywhere when open → close
+    if (openMobile && dx < -60) {
+      setOpenMobile(false);
+    }
+
+    touchStartX.current = null;
+    touchStartY.current = null;
   };
 
   return (
-    <div 
-      className="flex-1 flex flex-col min-h-screen w-full relative" 
-      onTouchStart={handleTouchStart} 
+    <div
+      className="flex-1 flex flex-col min-h-screen w-full relative"
+      onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
+      {/* Pull handle — visible on mobile when sidebar is closed */}
+      {isMobile && !openMobile && (
+        <button
+          aria-label="Open menu"
+          onClick={() => setOpenMobile(true)}
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-[70] flex items-center justify-center w-5 h-16 bg-primary/80 backdrop-blur-md rounded-r-xl shadow-lg active:scale-95 transition-all"
+        >
+          <div className="flex flex-col gap-1">
+            <div className="w-1 h-1 rounded-full bg-white/80" />
+            <div className="w-1 h-1 rounded-full bg-white/80" />
+            <div className="w-1 h-1 rounded-full bg-white/80" />
+          </div>
+        </button>
+      )}
       {children}
     </div>
   );
@@ -89,8 +117,21 @@ export default function AppLayout({
 
   React.useEffect(() => {
     setMounted(true);
+    // Generate new random theme variant on mount (changes each session)
     setThemeVariant(Math.floor(Math.random() * 6));
   }, []);
+
+  // Save new theme to Firestore whenever user logs in fresh
+  React.useEffect(() => {
+    if (!user || !firestore || !mounted) return;
+    const newVariant = Math.floor(Math.random() * 6);
+    setThemeVariant(newVariant);
+    // Persist to Firestore so all devices get same theme this session
+    import('firebase/firestore').then(({ doc, updateDoc }) => {
+      updateDoc(doc(firestore, 'users', user.uid), { themeVariant: newVariant }).catch(() => {});
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]); // only fires when user changes (new login)
 
   React.useEffect(() => {
     if (user && mounted) {
@@ -171,9 +212,14 @@ export default function AppLayout({
             const docRef = doc(firestore, 'users', user.uid);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
-                setUserProfile(docSnap.data() as UserProfile);
+                const data = docSnap.data() as UserProfile;
+                setUserProfile(data);
+                // Restore saved theme variant if available
+                if (typeof data.themeVariant === 'number') {
+                  setThemeVariant(data.themeVariant);
+                }
             } else {
-                setUserProfile(null); // explicitly null = new user, no profile yet
+                setUserProfile(null);
             }
         } catch (error) {
             console.warn("Profile localization failed.");

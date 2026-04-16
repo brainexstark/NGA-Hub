@@ -26,6 +26,7 @@ import { moderateContent } from '../../../ai/flows/moderate-content';
 import Image from 'next/image';
 import type { UserProfile } from '../../../lib/types';
 import { getEmbedUrl } from '../../../lib/utils';
+import { publishPost } from '../../../hooks/use-realtime-feed';
 
 function CreatePostContent() {
   const { user } = useUser();
@@ -128,27 +129,25 @@ function CreatePostContent() {
       userAvatar: profile?.profilePicture || user.photoURL || '',
       type: mediaType,
       mediaUrl: finalMediaUrl,
+      url: finalMediaUrl,
       caption: content,
       title: title,
       ageGroup: profile?.ageGroup || '10-16',
       likesCount: 0,
       commentsCount: 0,
-      createdAt: serverTimestamp(),
+      isFlagged: false,
+      category: 'general',
     };
 
-    addDoc(collection(firestore, 'posts'), postData)
-      .then(() => {
-        toast({ title: 'Broadcast Successful', description: 'Node synchronized permanently.' });
-        setTimeout(() => router.push(`/HomeTon/${postData.ageGroup}`), 1000);
-      })
-      .catch(async () => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'posts',
-          operation: 'create',
-          requestResourceData: postData,
-        }));
-      })
-      .finally(() => setIsSubmitting(false));
+    try {
+      await publishPost(postData, firestore);
+      toast({ title: 'Broadcast Successful', description: 'Post live on the feed!' });
+      setTimeout(() => router.push(`/feed/${postData.ageGroup}`), 800);
+    } catch {
+      toast({ variant: 'destructive', title: 'Broadcast Failed', description: 'Could not publish post.' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const InternalPlayer = ({ url }: { url: string }) => {

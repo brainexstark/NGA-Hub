@@ -28,6 +28,8 @@ export interface UserProfile {
     interests?: Record<string, number>;
     searchHistory?: string[];
     watchHistory?: string[];
+    // Theme
+    themeVariant?: number;
 }
 
 export interface AppStatus {

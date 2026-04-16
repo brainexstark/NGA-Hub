@@ -1,72 +1,78 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // AUTH PROTOCOLS
+
     function isSignedIn() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    
+
     function isDocOwner() {
       return isSignedIn() && request.auth.uid == resource.data.userId;
     }
 
-    // USER DATA NODES (Strict Ownership - Eliminating Synchronization Breaches)
+    // USER PROFILES — owner read/write, others can read basic info
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId);
 
-      match /{document=**} {
+      match /{subcollection}/{docId} {
         allow read, write: if isOwner(userId);
       }
     }
 
-    // COMMUNITY BROADCASTS (POSTS, REELS, STORIES)
+    // POSTS — anyone signed in can read, owner can edit/delete
     match /posts/{postId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update, delete: if isDocOwner();
+      allow update: if isDocOwner() || isSignedIn(); // allow likes/comments count updates
+      allow delete: if isDocOwner();
 
       match /comments/{commentId} {
-        allow read: if true;
-        allow create: if isSignedIn();
-        allow update, delete: if isDocOwner();
-      }
-    }
-
-    match /reels/{reelId} {
-      allow read: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isDocOwner();
-    }
-
-    match /stories/{storyId} {
-      allow read: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isDocOwner();
-    }
-
-    // CHAT CLUSTERS
-    match /chats/{chatId} {
-      allow read, create: if isSignedIn();
-
-      match /messages/{messageId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn();
         allow update, delete: if isDocOwner();
       }
     }
 
-    // SYSTEM STATUS
-    match /app_status/{id} {
-      allow read: if true;
-      allow write: if false; 
+    // REELS & STORIES
+    match /reels/{reelId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isDocOwner();
     }
 
-    // GLOBAL FALLBACK (Authorized discovery only)
+    match /stories/{storyId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isDocOwner();
+    }
+
+    // FLAGGED CONTENT — write only, admin reads
+    match /flagged_content/{id} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isSignedIn() && request.auth.uid == 's1EFDYsBy3SryAxicoIivG46M353';
+    }
+
+    // CHAT
+    match /chats/{chatId} {
+      allow read, create: if isSignedIn();
+      match /messages/{messageId} {
+        allow read, create: if isSignedIn();
+        allow update, delete: if isDocOwner();
+      }
+    }
+
+    // APP STATUS — public read, admin write only
+    match /app_status/{id} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == 's1EFDYsBy3SryAxicoIivG46M353';
+    }
+
+    // CATCH-ALL — signed in users can read anything not covered above
     match /{document=**} {
       allow read: if isSignedIn();
       allow write: if false;
