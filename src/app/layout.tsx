@@ -21,6 +21,18 @@ export default function RootLayout({
 
   useEffect(() => {
     setMounted(true);
+    // Cycle theme-color meta tag for dynamic top bar
+    const colors = ['#ff007f','#9d00ff','#0044ff','#00c3ff','#00e676','#ff6d00','#ff4081','#7c4dff'];
+    let i = 0;
+    const interval = setInterval(() => {
+      i = (i + 1) % colors.length;
+      const meta = document.getElementById('theme-color-meta');
+      if (meta) meta.setAttribute('content', colors[i]);
+      // Also update the top bar div if present
+      const bar = document.getElementById('dynamic-top-bar');
+      if (bar) bar.style.background = colors[i];
+    }, 1500);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -37,7 +49,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
         {/* PWA */}
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#ff007f" />
+        <meta name="theme-color" content="#ff007f" id="theme-color-meta" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="NGA Hub" />
@@ -49,6 +61,8 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
       <body className="min-h-screen font-sans antialiased bg-[#0a051a]" suppressHydrationWarning>
+        {/* Dynamic colour bar at very top */}
+        <div id="dynamic-top-bar" className="fixed top-0 left-0 right-0 h-1 z-[9999] animate-topbar-cycle" style={{background:'#ff007f'}} />
         <FirebaseClientProvider>
           <PwaInstaller />
           {/* STARK-B Hydration Guard: Terminates SSR logic interference */}

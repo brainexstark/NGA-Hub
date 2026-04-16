@@ -7,7 +7,7 @@ import { SidebarProvider, SidebarInset, useSidebar } from '../../components/ui/s
 import { useUser, useFirestore } from '../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { UserProfile } from '../../lib/types';
-import { Loader2, Heart, Bell, Plus, Home, Search, GraduationCap, Instagram, Facebook, MessageSquareText, Zap, Power } from 'lucide-react';
+import { Loader2, Heart, Bell, Plus, Home, Search, GraduationCap, Instagram, Facebook, MessageSquareText, Zap, Power, Video, BookImage, Clapperboard, Radio, Camera } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { LockdownOverlay } from '../../components/lockdown-overlay';
 import { TimesUp } from '../../components/times-up';
@@ -17,6 +17,57 @@ import { Avatar, AvatarImage } from '../../components/ui/avatar';
 import { useToast } from '../../hooks/use-toast';
 import { Dialog, DialogContent, DialogTitle } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
+import { useRouter } from 'next/navigation';
+
+// Instagram-style create modal
+function CreateModal({ ageGroup }: { ageGroup: string }) {
+  const [open, setOpen] = React.useState(false);
+  const router = useRouter();
+
+  const options = [
+    { label: 'New Post', icon: BookImage, href: '/create-post', color: 'text-primary', desc: 'Photo or video to your feed' },
+    { label: 'Story', icon: Clapperboard, href: '/create-post?type=story', color: 'text-pink-400', desc: '24-hour story node' },
+    { label: 'Reel', icon: Video, href: '/create-post?type=reel', color: 'text-purple-400', desc: 'Short-form video reel' },
+    { label: 'Record', icon: Camera, href: '/record-video', color: 'text-orange-400', desc: 'Record directly from camera' },
+    { label: 'Go Live', icon: Radio, href: '/live-stream', color: 'text-red-400', desc: 'Start a live broadcast' },
+  ];
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="relative -top-6 h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-accent p-0.5 shadow-2xl flex items-center justify-center active:scale-95 transition-all"
+      >
+        <div className="h-full w-full bg-background rounded-[14px] flex items-center justify-center">
+          <Plus className="h-8 w-8 text-primary" />
+        </div>
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="bg-slate-900 border-primary/20 rounded-[2.5rem] max-w-sm p-6 shadow-2xl">
+          <DialogTitle className="text-sm font-black uppercase tracking-widest text-center mb-4">Create</DialogTitle>
+          <div className="space-y-2">
+            {options.map(opt => (
+              <button
+                key={opt.label}
+                onClick={() => { setOpen(false); router.push(opt.href); }}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-[0.98] transition-all border border-white/5"
+              >
+                <div className={`h-10 w-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0 ${opt.color}`}>
+                  <opt.icon className="h-5 w-5" />
+                </div>
+                <div className="text-left">
+                  <p className="font-black text-sm uppercase tracking-tight">{opt.label}</p>
+                  <p className="text-[10px] text-white/40 font-medium">{opt.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 type ProtocolStatus = 'MISSION_REQUIRED' | 'AUTHORIZED' | 'ENTERTANING' | 'EDU_LIMIT';
 
@@ -324,18 +375,19 @@ export default function AppLayout({
                       <Link href="/search" className={cn("transition-all", pathname === '/search' ? "text-primary" : "text-foreground/40")}>
                           <Search className="h-7 w-7" />
                       </Link>
-                      <Link href="/create-post" className="relative -top-6 h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-accent p-0.5 shadow-2xl flex items-center justify-center">
-                          <div className="h-full w-full bg-background rounded-[14px] flex items-center justify-center">
-                              <Plus className="h-8 w-8 text-primary" />
-                          </div>
-                      </Link>
+                      {/* Instagram-style + button */}
+                      <CreateModal ageGroup={ageGroup} />
                       <Link href="/learning-hub" className={cn("transition-all", pathname === '/learning-hub' ? "text-primary" : "text-foreground/40")}>
                           <GraduationCap className="h-7 w-7" />
                       </Link>
-                      <Link href="/settings" className={cn("transition-all", pathname === '/settings' ? "text-primary" : "text-foreground/40")}>
-                          <Avatar className={cn("h-7 w-7 border-2", pathname === '/settings' ? "border-primary" : "border-transparent")}>
+                      {/* Profile avatar with camera icon */}
+                      <Link href="/settings" className="relative group">
+                          <Avatar className={cn("h-7 w-7 border-2 transition-all", pathname === '/settings' ? "border-primary" : "border-transparent")}>
                               <AvatarImage src={userProfile?.profilePicture || user?.photoURL || ''} />
                           </Avatar>
+                          <Link href="/record-video" className="absolute -bottom-1 -right-1 h-4 w-4 bg-primary rounded-full flex items-center justify-center shadow-lg" onClick={e => e.stopPropagation()}>
+                              <Camera className="h-2.5 w-2.5 text-white" />
+                          </Link>
                       </Link>
                  </footer>
 

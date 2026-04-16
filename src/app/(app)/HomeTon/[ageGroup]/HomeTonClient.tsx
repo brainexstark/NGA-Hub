@@ -28,6 +28,10 @@ import { cn, getEmbedUrl } from '../../../../lib/utils';
 import { getRecommendedContent } from '../../../../lib/recommendation-engine';
 import { Logo } from '../../../../components/logo';
 import { SocialStatsPopover } from '../../../../components/social-stats-popover';
+import { fetchAds, injectAds, isAd, type Ad } from '../../../../lib/ads';
+import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
+import { getEmbedUrl as _getEmbedUrl } from '../../../../lib/utils';
+import { filterForUnder10 } from '../../../../lib/inappropriate-words';
 
 const InternalPlayer = ({ url }: { url: string }) => {
     const embedUrl = getEmbedUrl(url);
@@ -56,8 +60,11 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
   const storyImages = React.useMemo(() => getRecommendedContent(profile, 'story'), [profile]);
   const staticFeedPosts = React.useMemo(() => getRecommendedContent(profile, 'video'), [profile]);
 
-  // Realtime Firestore feed
-  const [realtimePosts, setRealtimePosts] = React.useState<Post[]>([]);
+  // Supabase realtime feed
+  const { posts: supabasePosts } = useRealtimeFeed(ageGroup);
+
+  // Firestore realtime feed (fallback)
+  const [firestorePosts, setFirestorePosts] = React.useState<Post[]>([]);
   React.useEffect(() => {
     if (!firestore) return;
     const q = query(
@@ -69,19 +76,32 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
       limit(20)
     );
     const unsub = onSnapshot(q, snap => {
-      setRealtimePosts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Post)));
+      setFirestorePosts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Post)));
     }, () => {});
     return () => unsub();
   }, [firestore, ageGroup]);
 
-  const feedPosts = React.useMemo(() => {
-    if (realtimePosts.length > 0) return realtimePosts.map(p => ({
-      id: p.id, title: p.title || p.caption, caption: p.caption,
-      mediaUrl: p.mediaUrl, url: p.url, userName: p.userName,
-      userAvatar: p.userAvatar, category: p.category,
-    }));
-    return staticFeedPosts;
-  }, [realtimePosts, staticFeedPosts]);
+  // Ads
+  const [ads, setAds] = React.useState<Ad[]>([]);
+  React.useEffect(() => {
+    fetchAds(ageGroup).then(setAds);
+  }, [ageGroup]);
+
+  // Always show content — user posts first, then static trending, never blank
+  const rawPosts = React.useMemo(() => {
+    const userPosts = supabasePosts.length > 0
+      ? supabasePosts.map(p => ({ id: p.id, title: p.title || p.caption, caption: p.caption, mediaUrl: p.mediaUrl, url: p.url, userName: p.userName, userAvatar: p.userAvatar, category: p.category }))
+      : firestorePosts.length > 0
+      ? firestorePosts.map(p => ({ id: p.id, title: p.title || p.caption, caption: p.caption, mediaUrl: p.mediaUrl, url: p.url, userName: p.userName, userAvatar: p.userAvatar as string | undefined, category: p.category }))
+      : [];
+    // Always pad with static trending so feed is never empty
+    const trending = staticFeedPosts.map(p => ({ ...p, _static: true }));
+    const combined = userPosts.length >= 3 ? userPosts : [...userPosts, ...trending];
+    return combined;
+  }, [supabasePosts, firestorePosts, staticFeedPosts]);
+
+  // Inject ads every 5 posts
+  const feedPosts = React.useMemo(() => injectAds(rawPosts, ads, 5), [rawPosts, ads]);
 
   const handleTriggerCycle = () => {
     window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
@@ -99,7 +119,22 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
         { id: 'numbers', name: 'NUMBER SAFARI', category: 'MATH', color: 'from-blue-500 to-cyan-600', icon: '1', image: 'https://images.unsplash.com/photo-1509228468518-180dd4864904', url: 'https://www.youtube.com/watch?v=DR-cfDsHCGA' },
         { id: 'animals', name: 'ANIMAL EXPLORER', category: 'SCIENCE', color: 'from-green-500 to-emerald-600', icon: '🐾', image: 'https://images.unsplash.com/photo-1474511320721-9a5ee39958a9', url: 'https://www.youtube.com/watch?v=1ZYbU82GVz4' },
         { id: 'kindness', name: 'KINDNESS CLUB', category: 'SOCIAL', color: 'from-pink-500 to-rose-600', icon: '🫂', image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a', url: 'https://www.youtube.com/watch?v=akTRWJZMks0' },
+        { id: 'space', name: 'SPACE ADVENTURE', category: 'SCIENCE', color: 'from-indigo-500 to-blue-700', icon: '🚀', image: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa', url: 'https://www.youtube.com/watch?v=D0Ajq682yrA' },
+        { id: 'art', name: 'ART STUDIO', category: 'ARTS', color: 'from-orange-400 to-pink-500', icon: '🎨', image: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f', url: 'https://www.youtube.com/watch?v=URUJD5NEXC8' },
     ];
+
+    // Famous kids videos from live feed — filtered strictly
+    const kidsVideos = React.useMemo(() => {
+      const fromFeed = supabasePosts
+        .filter(p => !filterForUnder10(`${p.caption} ${p.title || ''}`))
+        .slice(0, 6);
+      const staticKids = (aiDatabase.superdatabasePosts['under-10'] || []).map(p => ({
+        id: p.id, title: p.title, caption: p.caption,
+        mediaUrl: p.mediaUrl, url: p.url, userName: p.userName, category: p.category,
+        userAvatar: `https://picsum.photos/seed/${p.id}/100/100`,
+      }));
+      return fromFeed.length >= 3 ? fromFeed : [...fromFeed, ...staticKids];
+    }, [supabasePosts]);
 
     return (
       <div className="min-h-screen bg-[#0a052a] text-white relative overflow-x-hidden animate-in fade-in duration-1000">
@@ -110,14 +145,11 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
         </div>
 
         <div className="relative z-10 max-w-4xl mx-auto px-4 pb-40 space-y-10 pt-6">
+            {/* Header */}
             <header className="hidden md:flex items-center justify-between gap-4 bg-black/40 backdrop-blur-2xl p-3 rounded-full border-2 border-white/10 shadow-2xl">
                 <div className="flex items-center gap-4 ml-2">
                     <div className="h-10 w-10 bg-gradient-to-tr from-cyan-400 to-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-cyan-500/20">
                         <Rocket className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="flex items-center gap-4 border-l border-white/10 pl-4">
-                        <SocialStatsPopover type="disciples" count={profile?.disciplesCount || 0} label="Disciples" colorClass="text-cyan-400" />
-                        <SocialStatsPopover type="followers" count={profile?.followersCount || 0} label="Followers" colorClass="text-pink-400" />
                     </div>
                 </div>
                 <nav className="flex items-center gap-3">
@@ -143,10 +175,22 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                 </Link>
             </header>
 
+            {/* Welcome banner */}
+            <div className="bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-[2rem] p-5 border border-white/10 flex items-center gap-4">
+                <div className="text-4xl">👋</div>
+                <div>
+                    <p className="font-black text-lg uppercase tracking-tight text-white">
+                        Hey {profile?.displayName?.split(' ')[0] || 'Explorer'}!
+                    </p>
+                    <p className="text-[11px] text-white/50 font-bold uppercase tracking-widest">Ready to learn something amazing today?</p>
+                </div>
+            </div>
+
+            {/* Stories row */}
             <section className="flex gap-8 py-4 overflow-x-auto no-scrollbar scroll-smooth">
                 <div className="flex flex-col items-center gap-3 shrink-0 group cursor-pointer" onClick={() => router.push('/create-post/?type=story')}>
                     <div className="relative p-1.5 rounded-full bg-gradient-to-tr from-orange-400 to-yellow-500 shadow-xl group-hover:scale-110 transition-transform">
-                        <div className="h-20 w-20 md:h-24 md:w-24 rounded-full border-4 border-[#0a052a] overflow-hidden bg-muted">
+                        <div className="h-20 w-20 rounded-full border-4 border-[#0a052a] overflow-hidden bg-muted">
                             <Avatar className="h-full w-full">
                                 <AvatarImage src={profile?.profilePicture || user?.photoURL || ''} className="object-cover" />
                                 <AvatarFallback className="text-3xl">U</AvatarFallback>
@@ -156,32 +200,22 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                             <Camera className="h-8 w-8 text-white" />
                         </div>
                     </div>
-                    <span className="bg-orange-500 px-4 py-1 rounded-full text-[9px] font-black uppercase text-white shadow-lg">MY NODE</span>
+                    <span className="bg-orange-500 px-4 py-1 rounded-full text-[9px] font-black uppercase text-white shadow-lg">MY STORY</span>
                 </div>
-
                 {storyImages.map((story, i) => (
                     <Dialog key={story.id}>
                         <DialogTrigger asChild>
                             <div className="flex flex-col items-center gap-3 shrink-0 group cursor-pointer" onClick={handleTriggerCycle}>
-                                <div className={cn(
-                                    "relative p-1.5 rounded-full shadow-xl group-hover:scale-110 transition-transform",
-                                    i % 2 === 0 ? "bg-gradient-to-tr from-blue-400 to-cyan-500" : "bg-gradient-to-tr from-purple-400 to-pink-500"
-                                )}>
-                                    <div className="h-20 w-20 md:h-24 md:w-24 rounded-full border-4 border-[#0a052a] overflow-hidden">
-                                        <Avatar className="h-full w-full">
-                                            <AvatarImage src={story.imageUrl} className="object-cover" />
-                                            <AvatarFallback className="text-3xl">S</AvatarFallback>
-                                        </Avatar>
+                                <div className={cn("relative p-1.5 rounded-full shadow-xl group-hover:scale-110 transition-transform", i % 2 === 0 ? "bg-gradient-to-tr from-blue-400 to-cyan-500" : "bg-gradient-to-tr from-purple-400 to-pink-500")}>
+                                    <div className="h-20 w-20 rounded-full border-4 border-[#0a052a] overflow-hidden">
+                                        <Avatar className="h-full w-full"><AvatarImage src={story.imageUrl} className="object-cover" /></Avatar>
                                     </div>
                                 </div>
-                                <span className={cn(
-                                    "px-4 py-1 rounded-full text-[9px] font-black uppercase text-white shadow-lg truncate max-w-[80px]",
-                                    i % 2 === 0 ? "bg-blue-500" : "bg-purple-500"
-                                )}>@{story.userName || `NODE_${i}`}</span>
+                                <span className={cn("px-4 py-1 rounded-full text-[9px] font-black uppercase text-white shadow-lg truncate max-w-[80px]", i % 2 === 0 ? "bg-blue-500" : "bg-purple-500")}>@{story.userName || `STAR_${i}`}</span>
                             </div>
                         </DialogTrigger>
-                        <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-4 border-cyan-400 bg-black rounded-[3rem] shadow-2xl flex flex-col items-center justify-center">
-                            <DialogTitle className="sr-only">Trending Video Player</DialogTitle>
+                        <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-4 border-cyan-400 bg-black rounded-[3rem] shadow-2xl flex items-center justify-center">
+                            <DialogTitle className="sr-only">Story</DialogTitle>
                             <div className="w-full h-full relative aspect-[9/16]">
                                 <InternalPlayer url={story.url || story.imageUrl} />
                             </div>
@@ -190,43 +224,71 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                 ))}
             </section>
 
-            <section className="space-y-8">
+            {/* Subject nodes */}
+            <section className="space-y-6">
                 <div className="flex items-center justify-center gap-4">
                     <BookOpen className="h-6 w-6 text-cyan-400 animate-pulse" />
-                    <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-white drop-shadow-lg text-center">SUBJECT NODES</h2>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter text-white text-center">LEARN & EXPLORE</h2>
                     <BookOpen className="h-6 w-6 text-cyan-400 animate-pulse" />
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {kidsSubjects.map((sub) => (
-                        <div key={sub.id} className="relative group">
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Card className={cn(
-                                        "relative h-40 md:h-48 rounded-[2rem] md:rounded-[2.5rem] overflow-hidden cursor-pointer group shadow-2xl transition-all duration-500 hover:scale-[1.02] border-none bg-slate-900/80 backdrop-blur-xl border-4 border-white/5"
-                                    )} onClick={handleMissionTrigger}>
-                                        <div className={cn("absolute top-0 left-0 right-0 h-8 flex items-center justify-between px-4 z-10 bg-gradient-to-r", sub.color)}>
-                                            <span className="text-[10px] font-black text-white uppercase tracking-widest">{sub.category}</span>
-                                            <span className="text-[10px] font-black text-white">{sub.icon}</span>
-                                        </div>
-                                        <div className="pt-8 h-full w-full relative">
-                                            <Image src={sub.image} alt={sub.name} fill className="object-cover opacity-40 group-hover:opacity-60 transition-opacity" />
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
-                                                <span className="text-xs md:text-sm font-black uppercase tracking-tighter text-white drop-shadow-lg leading-tight">{sub.name}</span>
-                                                <div className="mt-2 bg-white/20 p-1.5 rounded-full backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <PlayCircle className="h-6 w-6 text-white" />
-                                                </div>
+                        <Dialog key={sub.id}>
+                            <DialogTrigger asChild>
+                                <Card className="relative h-40 rounded-[2rem] overflow-hidden cursor-pointer shadow-2xl transition-all duration-300 hover:scale-[1.03] border-none bg-slate-900/80" onClick={handleMissionTrigger}>
+                                    <div className={cn("absolute top-0 left-0 right-0 h-8 flex items-center justify-between px-4 z-10 bg-gradient-to-r", sub.color)}>
+                                        <span className="text-[10px] font-black text-white uppercase tracking-widest">{sub.category}</span>
+                                        <span className="text-sm">{sub.icon}</span>
+                                    </div>
+                                    <div className="pt-8 h-full w-full relative">
+                                        <Image src={sub.image} alt={sub.name} fill className="object-cover opacity-40" />
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-3">
+                                            <span className="text-xs font-black uppercase tracking-tighter text-white drop-shadow-lg leading-tight">{sub.name}</span>
+                                            <div className="mt-2 bg-white/20 p-1.5 rounded-full backdrop-blur-md">
+                                                <PlayCircle className="h-5 w-5 text-white" />
                                             </div>
                                         </div>
-                                    </Card>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-4 border-white/20 bg-black rounded-[3rem] shadow-2xl flex flex-col items-center justify-center">
-                                    <DialogTitle className="sr-only">{sub.name} Lesson Node</DialogTitle>
-                                    <div className="w-full h-full">
-                                        <InternalPlayer url={sub.url} />
                                     </div>
-                                </DialogContent>
-                            </Dialog>
-                        </div>
+                                </Card>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-4 border-white/20 bg-black rounded-[3rem] shadow-2xl flex items-center justify-center">
+                                <DialogTitle className="sr-only">{sub.name}</DialogTitle>
+                                <div className="w-full h-full"><InternalPlayer url={sub.url} /></div>
+                            </DialogContent>
+                        </Dialog>
+                    ))}
+                </div>
+            </section>
+
+            {/* Famous kids videos from live feed */}
+            <section className="space-y-6">
+                <div className="flex items-center gap-3">
+                    <span className="text-2xl">🌟</span>
+                    <h2 className="text-xl font-black uppercase tracking-tighter text-white">TRENDING FOR KIDS</h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    {kidsVideos.slice(0, 6).map((v: any) => (
+                        <Dialog key={v.id}>
+                            <DialogTrigger asChild>
+                                <div className="relative rounded-[2rem] overflow-hidden cursor-pointer group shadow-xl border border-white/5 bg-black aspect-video" onClick={handleTriggerCycle}>
+                                    <Image src={v.mediaUrl || v.imageUrl || `https://picsum.photos/seed/${v.id}/400/225`} alt={v.title || v.caption} fill className="object-cover opacity-70 group-hover:opacity-90 transition-opacity" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="p-4 rounded-full bg-white/20 backdrop-blur-md border border-white/30">
+                                            <PlayCircle className="h-10 w-10 text-white" />
+                                        </div>
+                                    </div>
+                                    <div className="absolute bottom-3 left-4 right-4">
+                                        <p className="font-black text-sm text-white uppercase tracking-tight line-clamp-1">{v.title || v.caption}</p>
+                                        <p className="text-[10px] text-white/50 font-bold uppercase">{v.userName}</p>
+                                    </div>
+                                </div>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-4 border-cyan-400 bg-black rounded-[3rem] shadow-2xl flex items-center justify-center">
+                                <DialogTitle className="sr-only">{v.title}</DialogTitle>
+                                <div className="w-full h-full"><InternalPlayer url={v.url || v.mediaUrl} /></div>
+                            </DialogContent>
+                        </Dialog>
                     ))}
                 </div>
             </section>
@@ -234,6 +296,8 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
       </div>
     );
   }
+
+  // non-under-10 return below
 
   return (
     <div className="mx-auto max-w-2xl pb-32 space-y-8 px-4 relative animate-in fade-in duration-700">
@@ -295,22 +359,40 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
       </section>
 
       <main className="space-y-12 pb-12">
-        {feedPosts.length > 0 ? feedPosts.map((post) => (
-            <div key={post.id} className="space-y-4">
+        {feedPosts.map((post) => {
+          if (isAd(post)) {
+            // Ad looks identical to a regular post — no label shown to user
+            return (
+              <div key={post.id} className="space-y-4">
                 <div className="flex items-center justify-between px-2">
-                    <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8 border border-primary/20"><AvatarImage src={post.userAvatar} /></Avatar>
-                        <span className="text-xs font-black uppercase tracking-widest">{post.userName}</span>
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8 border border-primary/20">
+                      <AvatarImage src={`https://picsum.photos/seed/${post.id}/100/100`} />
+                    </Avatar>
+                    <span className="text-xs font-black uppercase tracking-widest">{post.partner_name}</span>
+                  </div>
                 </div>
-                <ContentCard id={post.id} title={post.title || 'Broadcast Node'} creator={post.userName} image={{ imageUrl: post.mediaUrl || 'https://picsum.photos/seed/post/800/800', description: post.caption, id: post.id, imageHint: 'media content', url: post.url || post.mediaUrl, category: post.category } as any} />
+                <ContentCard
+                  id={post.id}
+                  title={post.title}
+                  creator={post.partner_name}
+                  image={{ imageUrl: post.media_url, description: post.caption, id: post.id, imageHint: 'trending content', url: post.video_url || post.media_url, category: post.category } as any}
+                />
+              </div>
+            );
+          }
+          return (
+            <div key={post.id} className="space-y-4">
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-8 w-8 border border-primary/20"><AvatarImage src={(post as any).userAvatar} /></Avatar>
+                  <span className="text-xs font-black uppercase tracking-widest">{(post as any).userName}</span>
+                </div>
+              </div>
+              <ContentCard id={post.id} title={(post as any).title || 'Broadcast Node'} creator={(post as any).userName} image={{ imageUrl: (post as any).mediaUrl || 'https://picsum.photos/seed/post/800/800', description: (post as any).caption, id: post.id, imageHint: 'media content', url: (post as any).url || (post as any).mediaUrl, category: (post as any).category } as any} />
             </div>
-        )) : (
-            <div className="py-20 text-center border-2 border-dashed rounded-[3rem] opacity-30 flex flex-col items-center gap-4">
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <p className="italic font-medium">Synchronizing localized feeds...</p>
-            </div>
-        )}
+          );
+        })}
       </main>
     </div>
   );

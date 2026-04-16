@@ -305,14 +305,44 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="avatar-url" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Custom Avatar URL</Label>
-                  <div className="relative">
-                    <Camera className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 opacity-40" />
-                    <Input 
-                      id="avatar-url" 
-                      placeholder="https://images.unsplash.com/..." 
-                      className="pl-12 h-14 bg-black/20 rounded-2xl border-white/5 focus:border-primary/50 transition-all font-medium text-sm"
-                      value={profilePicture}
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Profile Picture</Label>
+                  {/* Gallery picker */}
+                  <div
+                    className="flex items-center gap-4 p-4 bg-black/20 rounded-2xl border-2 border-dashed border-white/10 hover:border-primary/40 transition-all cursor-pointer"
+                    onClick={() => document.getElementById('gallery-picker')?.click()}
+                  >
+                    <Avatar className="h-14 w-14 shrink-0">
+                      <AvatarImage src={profilePicture} className="object-cover" />
+                      <AvatarFallback className="bg-primary/10 text-primary font-black">{displayName.charAt(0) || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-black text-sm uppercase tracking-tight">Choose from Gallery</p>
+                      <p className="text-[10px] text-white/40 font-medium mt-0.5">Tap to pick a photo from your device</p>
+                    </div>
+                    <Camera className="h-5 w-5 text-primary ml-auto shrink-0" />
+                    <input
+                      id="gallery-picker"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const result = ev.target?.result as string;
+                          setProfilePicture(result);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </div>
+                  {/* URL fallback */}
+                  <div className="relative mt-1">
+                    <Input
+                      placeholder="Or paste an image URL..."
+                      className="h-12 bg-black/20 rounded-2xl border-white/5 font-medium text-sm pl-4"
+                      value={profilePicture.startsWith('data:') ? '' : profilePicture}
                       onChange={(e) => setProfilePicture(e.target.value)}
                     />
                   </div>

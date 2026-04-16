@@ -115,8 +115,21 @@
     animation: bg-color-sync 10s ease-in-out infinite;
   }
 
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  /* DYNAMIC TOP BAR COLOR — cycles through attractive colours */
+  @keyframes topbar-color-cycle {
+    0%   { background: #ff007f; }
+    14%  { background: #9d00ff; }
+    28%  { background: #0044ff; }
+    42%  { background: #00c3ff; }
+    57%  { background: #00e676; }
+    71%  { background: #ff6d00; }
+    85%  { background: #ff007f; }
+    100% { background: #9d00ff; }
+  }
+
+  .animate-topbar-cycle {
+    animation: topbar-color-cycle 8s ease-in-out infinite;
+  }
 
   .animate-float-logo {
     animation: floatLogo 6s ease-in-out infinite;

@@ -3,12 +3,8 @@
 import * as React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "../../../../components/ui/avatar";
 import { Button } from "../../../../components/ui/button";
-import { Card } from "../../../../components/ui/card";
-import { PlaceHolderImages } from "../../../../lib/placeholder-images";
-import { Heart, MessageCircle, Download, PlayCircle, Share2, Zap, Globe, Newspaper, Music, Trophy, Tv } from "lucide-react";
-import Image from "next/image";
+import { Heart, MessageCircle, Share2, Zap, Globe, Newspaper, Music, Trophy, Tv, Download } from "lucide-react";
 import { useToast } from "../../../../hooks/use-toast";
-import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "../../../../components/ui/dialog";
 import { aiDatabase } from '../../../../lib/ai-database';
 import { ShareDialog } from '../../../../components/share-dialog';
 import { cn, getEmbedUrl } from '../../../../lib/utils';
@@ -16,6 +12,8 @@ import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from "../../../../firebase";
 import { collection, serverTimestamp, doc, addDoc } from "firebase/firestore";
 import type { UserProfile } from '../../../../lib/types';
+import { containsInappropriateWords } from '../../../../lib/inappropriate-words';
+import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
 
 const CATEGORIES = [
   { id: 'all', label: 'All', icon: Globe },
@@ -25,16 +23,132 @@ const CATEGORIES = [
   { id: 'entertainment', label: 'Fun', icon: Tv },
 ];
 
-const InternalPlayer = ({ url }: { url: string }) => {
-    const embedUrl = getEmbedUrl(url);
-    return <iframe src={embedUrl} className="w-full h-full border-none" allowFullScreen />;
-};
+// Auto-play iframe when scrolled into view
+function AutoPlayReel({ url, isActive }: { url: string; isActive: boolean }) {
+  const embedUrl = React.useMemo(() => {
+    const base = getEmbedUrl(url);
+    // Force autoplay when active
+    if (isActive) {
+      if (base.includes('youtube.com/embed')) {
+        return base.includes('?')
+          ? `${base}&autoplay=1&mute=1&playsinline=1`
+          : `${base}?autoplay=1&mute=1&playsinline=1`;
+      }
+    }
+    return base;
+  }, [url, isActive]);
+
+  if (!url) return null;
+
+  // Direct video file
+  if (!url.includes('youtube') && !url.includes('youtu.be') && !url.includes('instagram') && !url.includes('tiktok')) {
+    return (
+      <video
+        src={url}
+        className="w-full h-full object-cover"
+        autoPlay={isActive}
+        muted
+        loop
+        playsInline
+      />
+    );
+  }
+
+  return (
+    <iframe
+      key={isActive ? 'active' : 'inactive'}
+      src={embedUrl}
+      className="w-full h-full border-none"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowFullScreen
+    />
+  );
+}
+
+function ReelItem({
+  reel, index, activeIndex, ageGroup, onLike, liked, onSave, onFollow, followed,
+}: {
+  reel: any; index: number; activeIndex: number; ageGroup: string;
+  onLike: (id: string) => void; liked: boolean;
+  onSave: (reel: any) => void; onFollow: (name: string) => void; followed: boolean;
+}) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const isActive = index === activeIndex;
+  const { toast } = useToast();
+
+  return (
+    <div
+      ref={ref}
+      className="h-full w-full flex items-center justify-center snap-center relative bg-black"
+    >
+      {/* Full-screen player */}
+      <div className="absolute inset-0">
+        <AutoPlayReel url={reel.url || reel.imageUrl} isActive={isActive} />
+      </div>
+
+      {/* Gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+
+      {/* Bottom info */}
+      <div className="absolute bottom-0 left-0 right-16 p-5 z-10 space-y-3">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-9 w-9 border-2 border-white/30">
+            <AvatarImage src={`https://picsum.photos/seed/${reel.id}/100/100`} />
+            <AvatarFallback>S</AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="font-black text-sm text-white uppercase tracking-tight">@STARKBOfficial</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "rounded-full h-7 px-3 text-[9px] font-black uppercase border-white/20 ml-2",
+              followed ? "bg-primary text-white border-primary" : "bg-white/10 text-white"
+            )}
+            onClick={() => onFollow('STARKBOfficial')}
+          >
+            {followed ? 'LINKED' : 'FOLLOW'}
+          </Button>
+        </div>
+        <p className="text-xs text-white/80 font-medium italic line-clamp-2">"{reel.description}"</p>
+      </div>
+
+      {/* Right actions */}
+      <div className="absolute right-3 bottom-24 flex flex-col gap-5 z-20 items-center">
+        <button onClick={() => onLike(reel.id)} className="flex flex-col items-center gap-1">
+          <Heart className={cn("h-7 w-7 transition-all", liked ? "fill-red-500 text-red-500" : "text-white")} />
+          <span className="text-[9px] font-black text-white">{liked ? '1.3K' : '1.2K'}</span>
+        </button>
+        <Link href={`/comments/${reel.id}`} className="flex flex-col items-center gap-1">
+          <MessageCircle className="h-7 w-7 text-white" />
+          <span className="text-[9px] font-black text-white">Chat</span>
+        </Link>
+        <button onClick={() => toast({ title: 'Mentor request sent' })} className="flex flex-col items-center gap-1">
+          <Zap className="h-7 w-7 text-white" />
+          <span className="text-[9px] font-black text-white">Mentor</span>
+        </button>
+        <ShareDialog title={reel.description} url={reel.url || reel.imageUrl}>
+          <div className="flex flex-col items-center gap-1 cursor-pointer">
+            <Share2 className="h-7 w-7 text-white" />
+            <span className="text-[9px] font-black text-white">Share</span>
+          </div>
+        </ShareDialog>
+        <button onClick={() => onSave(reel)} className="flex flex-col items-center gap-1">
+          <Download className="h-7 w-7 text-white" />
+          <span className="text-[9px] font-black text-white">Save</span>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
   const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
-  
+  const isUnder10 = ageGroup === 'under-10';
+
   const profileRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return doc(firestore, 'users', user.uid);
@@ -44,152 +158,114 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
   const [likedReels, setLikedReels] = React.useState<Record<string, boolean>>({});
   const [followedUsers, setFollowedUsers] = React.useState<Record<string, boolean>>({});
   const [activeCategory, setActiveCategory] = React.useState('all');
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
-  const allReels = React.useMemo(() => aiDatabase.reels[ageGroup as keyof typeof aiDatabase.reels] || aiDatabase.reels['10-16'], [ageGroup]);
+  // Supabase user-uploaded reels
+  const { posts: supabasePosts } = useRealtimeFeed(ageGroup);
+
+  const staticReels = React.useMemo(() =>
+    aiDatabase.reels[ageGroup as keyof typeof aiDatabase.reels] || aiDatabase.reels['10-16'],
+    [ageGroup]
+  );
+
+  // Merge user posts + static, filter for under-10
+  const allReels = React.useMemo(() => {
+    const userReels = supabasePosts.map(p => ({
+      id: p.id, description: p.caption, imageUrl: p.mediaUrl,
+      url: p.url || p.mediaUrl, category: p.category || 'general',
+    }));
+    const merged = [...userReels, ...staticReels];
+    if (!isUnder10) return merged;
+    // Strong filter for under-10
+    return merged.filter(r => {
+      const text = `${r.description || ''} ${r.url || ''}`;
+      return !containsInappropriateWords(text);
+    });
+  }, [supabasePosts, staticReels, isUnder10]);
 
   const reels = React.useMemo(() => {
     if (activeCategory === 'all') return allReels;
     return allReels.filter((r: any) => r.category === activeCategory);
   }, [allReels, activeCategory]);
 
-  const handleTriggerCycle = () => {
-    window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
-  };
+  // Track active reel via IntersectionObserver
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const items = container.querySelectorAll('[data-reel-item]');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const idx = Number((entry.target as HTMLElement).dataset.reelIndex);
+            setActiveIndex(idx);
+            window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
+          }
+        });
+      },
+      { root: container, threshold: 0.7 }
+    );
+    items.forEach(item => observer.observe(item));
+    return () => observer.disconnect();
+  }, [reels]);
 
   const toggleLike = (id: string) => {
-    const isLiked = !likedReels[id];
-    setLikedReels(prev => ({ ...prev, [id]: isLiked }));
-    toast({ title: isLiked ? "Node Synchronized" : "Node De-synchronized" });
+    setLikedReels(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   const handleFollow = (userName: string) => {
     setFollowedUsers(prev => ({ ...prev, [userName]: true }));
     if (user && firestore && profile) {
-        const userRef = doc(firestore, 'users', user.uid);
-        updateDocumentNonBlocking(userRef, { followersCount: (profile.followersCount || 0) + 1 });
+      updateDocumentNonBlocking(doc(firestore, 'users', user.uid), {
+        followersCount: (profile.followersCount || 0) + 1,
+      });
     }
-    toast({ title: "Lineage Linked", description: `Following @${userName}` });
+    toast({ title: 'Lineage Linked', description: `Following @${userName}` });
   };
 
-  const handleSaveToBank = (reel: any) => {
+  const handleSave = (reel: any) => {
     if (!user || !firestore) return;
-    const colRef = collection(firestore, 'users', user.uid, 'videos');
-    addDoc(colRef, {
-      userId: user.uid,
-      title: reel.description || "STARK-B Legacy Asset",
-      videoUrl: reel.url || reel.imageUrl,
-      duration: "0:30",
-      source: 'save',
-      createdAt: serverTimestamp(),
-    }).then(() => toast({ title: "Node Localized" }));
+    addDoc(collection(firestore, 'users', user.uid, 'videos'), {
+      userId: user.uid, title: reel.description || 'STARK-B Asset',
+      videoUrl: reel.url || reel.imageUrl, duration: '0:30',
+      source: 'save', createdAt: serverTimestamp(),
+    }).then(() => toast({ title: 'Saved to Video Bank' }));
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)]">
-      {/* Category filter bar */}
-      <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 py-3 bg-background/80 backdrop-blur-xl border-b border-white/5 shrink-0">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => setActiveCategory(cat.id)}
+    <div className="flex flex-col h-screen w-screen fixed inset-0 overflow-hidden">
+      {/* Category bar */}
+      <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 py-3 bg-black/60 backdrop-blur-xl border-b border-white/5 shrink-0 z-10 absolute top-0 left-0 right-0">
+        {CATEGORIES.map(cat => (
+          <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setActiveIndex(0); }}
             className={cn(
               "flex items-center gap-1.5 px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest whitespace-nowrap transition-all border shrink-0",
-              activeCategory === cat.id
-                ? "bg-primary text-white border-primary shadow-lg"
-                : "bg-white/5 text-white/40 border-white/10 hover:text-white"
-            )}
-          >
-            <cat.icon className="h-3 w-3" />
-            {cat.label}
+              activeCategory === cat.id ? "bg-primary text-white border-primary shadow-lg" : "bg-white/10 text-white/60 border-white/10"
+            )}>
+            <cat.icon className="h-3 w-3" />{cat.label}
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto snap-y snap-mandatory no-scrollbar animate-in fade-in duration-700">
-      {reels.length === 0 && (
-        <div className="h-full flex items-center justify-center opacity-30 flex-col gap-4">
-          <Globe className="h-12 w-12" />
-          <p className="font-black uppercase tracking-widest text-sm">No {activeCategory} reels</p>
-        </div>
-      )}
-      {reels.map((reel: any) => (
-        <div key={reel.id} className="h-full w-full flex items-center justify-center snap-center p-4">
-          <Card className="w-full max-w-sm h-full flex flex-col overflow-hidden relative shadow-2xl border-none bg-black rounded-[2.5rem]">
-              <Dialog>
-                <DialogTrigger asChild>
-                    <div className="cursor-pointer block w-full h-full group relative" onClick={handleTriggerCycle}>
-                        <Image src={reel.imageUrl} alt={reel.description} fill className="object-cover transition-transform duration-1000 group-hover:scale-105" />
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                            <div className="p-5 rounded-full bg-white/10 backdrop-blur-md border border-white/20"><PlayCircle className="h-12 w-12 text-white" /></div>
-                        </div>
-                    </div>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl p-0 overflow-hidden border-primary/20 bg-black aspect-video rounded-[2rem]">
-                    <DialogTitle className="sr-only">Reel Player</DialogTitle>
-                    <InternalPlayer url={reel.url || reel.imageUrl} />
-                </DialogContent>
-              </Dialog>
-              
-              <div className="absolute bottom-0 left-0 right-0 p-6 text-white z-10 space-y-4 bg-gradient-to-t from-black/80 to-transparent">
-                  <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10 border-2 border-white/20 shadow-xl">
-                              <AvatarImage src={PlaceHolderImages.find(i => i.id === 'user-avatar-1')?.imageUrl} />
-                              <AvatarFallback>M</AvatarFallback>
-                          </Avatar>
-                          <div>
-                              <p className="font-black text-sm uppercase tracking-tighter">@STARKBOfficial</p>
-                              <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest text-white/60">Node Verified</p>
-                          </div>
-                      </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className={cn(
-                            "rounded-full h-8 px-4 text-[9px] font-black uppercase tracking-widest border-white/20 transition-all",
-                            followedUsers['STARKBOfficial'] ? "bg-primary text-white border-primary" : "bg-white/10 text-white hover:bg-white/20"
-                        )}
-                        onClick={() => handleFollow('STARKBOfficial')}
-                      >
-                          {followedUsers['STARKBOfficial'] ? "LINKED" : "FOLLOW"}
-                      </Button>
-                  </div>
-                  <p className="text-xs leading-relaxed line-clamp-2 font-medium italic opacity-80">"{reel.description}"</p>
-              </div>
 
-              <div className="absolute right-4 bottom-20 flex flex-col gap-6 z-20">
-                  <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={() => toggleLike(reel.id)}>
-                      <Heart className={cn(
-                          "h-8 w-8 transition-all duration-300 active:scale-150", 
-                          likedReels[reel.id] ? "fill-red-500 text-red-500" : "text-white hover:text-red-500"
-                      )} />
-                      <span className="text-[10px] font-black text-white uppercase shadow-md">{likedReels[reel.id] ? "1.3K" : "1.2K"}</span>
-                  </div>
-
-                  <Link href={`/comments/${reel.id}/`} className="flex flex-col items-center gap-1 group">
-                      <MessageCircle className="h-8 w-8 text-white group-hover:text-primary transition-colors drop-shadow-md" />
-                      <span className="text-[10px] font-black text-white uppercase">Chat</span>
-                  </Link>
-
-                  <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={() => toast({ title: "Mentorship Request Localized" })}>
-                      <Zap className="h-8 w-8 text-white group-hover:text-accent transition-colors drop-shadow-md" />
-                      <span className="text-[10px] font-black text-white uppercase">Mentor</span>
-                  </div>
-
-                  <ShareDialog title={reel.description} url={reel.url || reel.imageUrl}>
-                    <div className="flex flex-col items-center gap-1 cursor-pointer group">
-                        <Share2 className="h-8 w-8 text-white group-hover:text-primary transition-colors drop-shadow-md" />
-                        <span className="text-[10px] font-black text-white uppercase">Share</span>
-                    </div>
-                  </ShareDialog>
-
-                  <div className="flex flex-col items-center gap-1 cursor-pointer group" onClick={() => handleSaveToBank(reel)}>
-                    <Download className="h-8 w-8 text-white group-hover:text-green-400 transition-colors drop-shadow-md" />
-                    <span className="text-[10px] font-black text-white uppercase">Save</span>
-                  </div>
-              </div>
-          </Card>
-        </div>
-      ))}
+      {/* Full-screen snap scroll */}
+      <div ref={containerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory no-scrollbar">
+        {reels.length === 0 && (
+          <div className="h-screen flex items-center justify-center opacity-30 flex-col gap-4">
+            <Globe className="h-12 w-12" />
+            <p className="font-black uppercase tracking-widest text-sm">No reels yet</p>
+          </div>
+        )}
+        {reels.map((reel: any, i: number) => (
+          <div key={reel.id} data-reel-item data-reel-index={i}
+            className="h-screen w-full snap-center relative overflow-hidden bg-black flex-shrink-0">
+            <ReelItem
+              reel={reel} index={i} activeIndex={activeIndex} ageGroup={ageGroup}
+              onLike={toggleLike} liked={!!likedReels[reel.id]}
+              onSave={handleSave} onFollow={handleFollow} followed={!!followedUsers['STARKBOfficial']}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
