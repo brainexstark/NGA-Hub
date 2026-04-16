@@ -17,7 +17,6 @@ import { Avatar, AvatarImage } from '../../components/ui/avatar';
 import { useToast } from '../../hooks/use-toast';
 import { Dialog, DialogContent, DialogTitle } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
-import { useRouter } from 'next/navigation';
 
 // Instagram-style create modal
 function CreateModal({ ageGroup }: { ageGroup: string }) {
