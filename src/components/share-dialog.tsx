@@ -106,7 +106,6 @@ export function ShareDialog({ title, url, children }: ShareDialogProps) {
             </a>
           ))}
         </div>
-        )}
 
         <div className="space-y-4">
             <p className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-1">Legacy Node Link</p>

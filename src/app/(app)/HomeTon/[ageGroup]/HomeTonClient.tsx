@@ -279,13 +279,6 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                                     </div>
                                 </div>
                             </DialogTrigger>
-                                    </div>
-                                    <div className="absolute bottom-3 left-4 right-4">
-                                        <p className="font-black text-sm text-white uppercase tracking-tight line-clamp-1">{v.title || v.caption}</p>
-                                        <p className="text-[10px] text-white/50 font-bold uppercase">{v.userName}</p>
-                                    </div>
-                                </div>
-                            </DialogTrigger>
                             <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-4 border-cyan-400 bg-black rounded-[3rem] shadow-2xl flex items-center justify-center">
                                 <DialogTitle className="sr-only">{v.title}</DialogTitle>
                                 <div className="w-full h-full"><InternalPlayer url={v.url || v.mediaUrl} /></div>
