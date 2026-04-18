@@ -384,7 +384,7 @@ export default function AppLayout({
         return;
       }
       if (userProfile === null) {
-        // New user — no profile doc yet, send to select-age
+        // New user — no profile doc yet, send to select-age only if not already there
         if (pathname !== '/select-age') router.replace('/select-age');
         return;
       }
@@ -412,7 +412,7 @@ export default function AppLayout({
 
   if (isAuthFlow || pathname === '/') return <div className={`theme-${userProfile?.ageGroup || '10-16'}-v${themeVariant}`}>{children}</div>;
 
-  const ageGroup = userProfile?.ageGroup || urlAgeGroup || 'under-10';
+  const ageGroup = userProfile?.ageGroup || '10-16';
   const isEducationalNode = educationalPaths.some(path => pathname.startsWith(path));
   const shouldShowLockdown = (protocolStatus === 'MISSION_REQUIRED' && !isEducationalNode) || (protocolStatus === 'EDU_LIMIT' && isEducationalNode);
   // Active timer to show in header

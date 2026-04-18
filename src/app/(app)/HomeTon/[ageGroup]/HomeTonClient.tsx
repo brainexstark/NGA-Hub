@@ -114,29 +114,26 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
 
   if (!mounted) return null;
 
+  // Must be defined before any conditional return — rules of hooks
+  const kidsSubjects = [
+    { id: 'phonics', name: 'PHONICS FUN!', category: 'LANGUAGE', color: 'from-purple-500 to-indigo-600', icon: 'A', image: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b', url: 'https://www.youtube.com/watch?v=3JZ_D3ELwOQ' },
+    { id: 'numbers', name: 'NUMBER SAFARI', category: 'MATH', color: 'from-blue-500 to-cyan-600', icon: '1', image: 'https://images.unsplash.com/photo-1509228468518-180dd4864904', url: 'https://www.youtube.com/watch?v=DR-cfDsHCGA' },
+    { id: 'animals', name: 'ANIMAL EXPLORER', category: 'SCIENCE', color: 'from-green-500 to-emerald-600', icon: '🐾', image: 'https://images.unsplash.com/photo-1474511320721-9a5ee39958a9', url: 'https://www.youtube.com/watch?v=1ZYbU82GVz4' },
+    { id: 'kindness', name: 'KINDNESS CLUB', category: 'SOCIAL', color: 'from-pink-500 to-rose-600', icon: '🫂', image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a', url: 'https://www.youtube.com/watch?v=akTRWJZMks0' },
+    { id: 'space', name: 'SPACE ADVENTURE', category: 'SCIENCE', color: 'from-indigo-500 to-blue-700', icon: '🚀', image: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa', url: 'https://www.youtube.com/watch?v=D0Ajq682yrA' },
+    { id: 'art', name: 'ART STUDIO', category: 'ARTS', color: 'from-orange-400 to-pink-500', icon: '🎨', image: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f', url: 'https://www.youtube.com/watch?v=URUJD5NEXC8' },
+  ];
+
+  const kidsVideos = [
+    ...supabasePosts.filter(p => !filterForUnder10(`${p.caption} ${p.title || ''}`)).slice(0, 6),
+    ...(aiDatabase.superdatabasePosts['under-10'] || []).map(p => ({
+      id: p.id, title: p.title, caption: p.caption,
+      mediaUrl: p.mediaUrl, url: p.url, userName: p.userName, category: p.category,
+      userAvatar: `https://picsum.photos/seed/${p.id}/100/100`,
+    })),
+  ].slice(0, 6);
+
   if (isUnder10) {
-    const kidsSubjects = [
-        { id: 'phonics', name: 'PHONICS FUN!', category: 'LANGUAGE', color: 'from-purple-500 to-indigo-600', icon: 'A', image: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b', url: 'https://www.youtube.com/watch?v=3JZ_D3ELwOQ' },
-        { id: 'numbers', name: 'NUMBER SAFARI', category: 'MATH', color: 'from-blue-500 to-cyan-600', icon: '1', image: 'https://images.unsplash.com/photo-1509228468518-180dd4864904', url: 'https://www.youtube.com/watch?v=DR-cfDsHCGA' },
-        { id: 'animals', name: 'ANIMAL EXPLORER', category: 'SCIENCE', color: 'from-green-500 to-emerald-600', icon: '🐾', image: 'https://images.unsplash.com/photo-1474511320721-9a5ee39958a9', url: 'https://www.youtube.com/watch?v=1ZYbU82GVz4' },
-        { id: 'kindness', name: 'KINDNESS CLUB', category: 'SOCIAL', color: 'from-pink-500 to-rose-600', icon: '🫂', image: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a', url: 'https://www.youtube.com/watch?v=akTRWJZMks0' },
-        { id: 'space', name: 'SPACE ADVENTURE', category: 'SCIENCE', color: 'from-indigo-500 to-blue-700', icon: '🚀', image: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa', url: 'https://www.youtube.com/watch?v=D0Ajq682yrA' },
-        { id: 'art', name: 'ART STUDIO', category: 'ARTS', color: 'from-orange-400 to-pink-500', icon: '🎨', image: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f', url: 'https://www.youtube.com/watch?v=URUJD5NEXC8' },
-    ];
-
-    // Famous kids videos from live feed — filtered strictly
-    const kidsVideos = React.useMemo(() => {
-      const fromFeed = supabasePosts
-        .filter(p => !filterForUnder10(`${p.caption} ${p.title || ''}`))
-        .slice(0, 6);
-      const staticKids = (aiDatabase.superdatabasePosts['under-10'] || []).map(p => ({
-        id: p.id, title: p.title, caption: p.caption,
-        mediaUrl: p.mediaUrl, url: p.url, userName: p.userName, category: p.category,
-        userAvatar: `https://picsum.photos/seed/${p.id}/100/100`,
-      }));
-      return fromFeed.length >= 3 ? fromFeed : [...fromFeed, ...staticKids];
-    }, [supabasePosts]);
-
     return (
       <div className="min-h-screen bg-[#0a052a] text-white relative overflow-x-hidden animate-in fade-in duration-1000">
         <div className="fixed inset-0 pointer-events-none z-0">

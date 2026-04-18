@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Button } from "./ui/button";
-import { Share2, Copy, MessageCircle, Twitter, Facebook, Check, Linkedin, Send as Telegram, Info, Globe } from "lucide-react";
+import { Share2, Copy, MessageCircle, Twitter, Facebook, Check, Linkedin, Send, Info, Globe } from "lucide-react";
 import { useToast } from '../hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '../firebase';
 import { doc } from 'firebase/firestore';
