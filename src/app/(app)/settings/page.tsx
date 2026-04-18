@@ -73,17 +73,21 @@ export default function SettingsPage() {
   const [liveNotifications, setLiveNotifications] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  // Track if profile has loaded once to avoid re-applying on every render
+  const profileLoadedRef = React.useRef(false);
 
   useEffect(() => {
-    if (profile) {
+    if (profile && !profileLoadedRef.current) {
+      profileLoadedRef.current = true;
       if (!displayName) setDisplayName(profile.displayName || '');
       if (!profilePicture) setProfilePicture(profile.profilePicture || '');
       if (profile.ageGroup) setAgeGroup(profile.ageGroup);
       if (profile.timerNotifications !== undefined) setTimerNotifications(profile.timerNotifications);
-      if (profile.darkTheme !== undefined) {
-        setDarkTheme(profile.darkTheme);
-        applyDarkMode(profile.darkTheme);
-      }
+      // Only read dark mode from localStorage — never force it from profile on page load
+      const saved = localStorage.getItem('nga-dark-mode');
+      const isDark = saved !== null ? saved === '1' : (profile.darkTheme ?? true);
+      setDarkTheme(isDark);
+      // Do NOT call applyDarkMode here — the app already has its theme applied
       if (profile.language) setLanguage(profile.language);
       if (profile.country) setCountry(profile.country);
       if (profile.privacyLevel) setPrivacyLevel(profile.privacyLevel);

@@ -271,7 +271,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                         <Dialog key={v.id}>
                             <DialogTrigger asChild>
                                 <div className="relative overflow-hidden cursor-pointer group aspect-video" onClick={handleTriggerCycle}>
-                                    <Image src={v.mediaUrl || v.imageUrl || `https://picsum.photos/seed/${v.id}/400/225`} alt={v.title || v.caption} fill className="object-cover opacity-70 group-hover:opacity-90 transition-opacity rounded-[1.5rem]" />
+                                    <Image src={v.mediaUrl || v.imageUrl || `https://picsum.photos/seed/${v.id}/400/225`} alt={v.title || v.caption || 'video'} fill className="object-cover opacity-70 group-hover:opacity-90 transition-opacity rounded-[1.5rem]" />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent rounded-[1.5rem]" />
                                     <div className="absolute bottom-3 left-4 right-4">
                                         <p className="font-black text-sm text-white uppercase tracking-tight line-clamp-1">{v.title || v.caption}</p>
@@ -280,7 +280,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                                 </div>
                             </DialogTrigger>
                             <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-4 border-cyan-400 bg-black rounded-[3rem] shadow-2xl flex items-center justify-center">
-                                <DialogTitle className="sr-only">{v.title}</DialogTitle>
+                                <DialogTitle className="sr-only">{v.title || 'Video'}</DialogTitle>
                                 <div className="w-full h-full"><InternalPlayer url={v.url || v.mediaUrl} /></div>
                             </DialogContent>
                         </Dialog>

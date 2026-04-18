@@ -63,11 +63,6 @@ function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
       ) : (
         <div className="w-full h-full relative">
           <Image src={thumbnail} alt="thumbnail" fill className="object-cover" unoptimized />
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-            <div className="p-4 rounded-full bg-red-600/90 shadow-2xl">
-              <PlayCircle className="h-10 w-10 text-white fill-white" />
-            </div>
-          </div>
         </div>
       )}
     </div>
