@@ -45,10 +45,7 @@ export function UserNav() {
   };
 
   const handleNotifications = () => {
-    toast({
-        title: "STARK-B Intelligence Protocol",
-        description: "System Check: All assets and personal superdatabase records are synchronized.",
-    });
+    router.push('/activity');
   };
 
   if (isUserLoading) {

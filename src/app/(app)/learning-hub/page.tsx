@@ -45,6 +45,8 @@ import {
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
 import { updateDocumentNonBlocking } from '../../../firebase/non-blocking-updates';
+import { useRealtimeFeed } from '../../../hooks/use-realtime-feed';
+import { containsInappropriateWords } from '../../../lib/inappropriate-words';
 
 // LOCAL HIGH-PERFORMANCE BADGE REPLACEMENT
 const LocalBadge = ({ children, variant = 'default', className = '' }: { children: React.ReactNode, variant?: string, className?: string }) => {
@@ -63,80 +65,121 @@ const LocalBadge = ({ children, variant = 'default', className = '' }: { childre
 
 const SUBJECTS = [
   { 
-    id: 'math', 
-    name: 'Mathematics', 
-    icon: Triangle, 
-    color: 'bg-blue-600', 
-    progress: 72,
+    id: 'math', name: 'Mathematics', icon: Triangle, color: 'bg-blue-600', progress: 72, category: 'STEM',
     lessons: [
         { title: 'Algebra Mastery', url: 'https://www.youtube.com/watch?v=f8beu7En29E' },
         { title: 'Quadratic Equations', url: 'https://www.youtube.com/watch?v=Xpk67Yz2Deo' },
-        { title: 'Calculus Intro', url: 'https://www.youtube.com/watch?v=HfACrKJ_Y2w' }
+        { title: 'Calculus Intro', url: 'https://www.youtube.com/watch?v=HfACrKJ_Y2w' },
+        { title: 'Statistics & Probability', url: 'https://www.youtube.com/watch?v=sxQaBpKfDRk' },
+        { title: 'Geometry Fundamentals', url: 'https://www.youtube.com/watch?v=302eJ3TzJQU' },
     ]
   },
   { 
-    id: 'science', 
-    name: 'Science', 
-    icon: Microscope, 
-    color: 'bg-emerald-600', 
-    progress: 45,
+    id: 'science', name: 'Science', icon: Microscope, color: 'bg-emerald-600', progress: 45, category: 'STEM',
     lessons: [
         { title: 'Cell Biology', url: 'https://www.youtube.com/watch?v=8IlzKri08kk' },
         { title: 'Chemical Bonds', url: 'https://www.youtube.com/watch?v=QnC6R6Yx0yE' },
-        { title: 'Newtonian Physics', url: 'https://www.youtube.com/watch?v=aircAruvnKk' }
+        { title: 'Newtonian Physics', url: 'https://www.youtube.com/watch?v=aircAruvnKk' },
+        { title: 'Genetics & DNA', url: 'https://www.youtube.com/watch?v=zwibgNGe4aY' },
+        { title: 'Climate & Environment', url: 'https://www.youtube.com/watch?v=G4H1N_yXBiA' },
     ]
   },
   { 
-    id: 'english', 
-    name: 'English', 
-    icon: Book, 
-    color: 'bg-orange-600', 
-    progress: 88,
+    id: 'english', name: 'English', icon: Book, color: 'bg-orange-600', progress: 88, category: 'LANGUAGE',
     lessons: [
         { title: 'Essay Structure', url: 'https://www.youtube.com/watch?v=HfACrKJ_Y2w' },
-        { title: 'Creative Writing', url: 'https://www.youtube.com/watch?v=URUJD5NEXC8' }
+        { title: 'Creative Writing', url: 'https://www.youtube.com/watch?v=URUJD5NEXC8' },
+        { title: 'Grammar Mastery', url: 'https://www.youtube.com/watch?v=3JZ_D3ELwOQ' },
+        { title: 'Public Speaking', url: 'https://www.youtube.com/watch?v=tShavGuo0_E' },
+        { title: 'Literature Analysis', url: 'https://www.youtube.com/watch?v=MSYw502dJNY' },
     ]
   },
   { 
-    id: 'ict', 
-    name: 'ICT', 
-    icon: Laptop, 
-    color: 'bg-purple-600', 
-    progress: 60,
+    id: 'ict', name: 'ICT & Coding', icon: Laptop, color: 'bg-purple-600', progress: 60, category: 'TECH',
     lessons: [
         { title: 'Python Syntax', url: 'https://www.youtube.com/watch?v=W6NZfCO5SIk' },
-        { title: 'Web Architecture', url: 'https://www.youtube.com/watch?v=FsGdznlfE2U' }
+        { title: 'Web Architecture', url: 'https://www.youtube.com/watch?v=FsGdznlfE2U' },
+        { title: 'JavaScript Basics', url: 'https://www.youtube.com/watch?v=W6NZfCO5SIk' },
+        { title: 'AI & Machine Learning', url: 'https://www.youtube.com/watch?v=aircAruvnKk' },
+        { title: 'Cybersecurity Basics', url: 'https://www.youtube.com/watch?v=inWWhr5tnEA' },
     ]
   },
   { 
-    id: 'life-skills', 
-    name: 'Life Skills', 
-    icon: Star, 
-    color: 'bg-pink-600', 
-    progress: 35,
+    id: 'life-skills', name: 'Life Skills', icon: Star, color: 'bg-pink-600', progress: 35, category: 'SOCIAL',
     lessons: [
         { title: 'Emotional Intelligence', url: 'https://www.youtube.com/watch?v=URUJD5NEXC8' },
-        { title: 'Critical Thinking', url: 'https://www.youtube.com/watch?v=HfACrKJ_Y2w' }
+        { title: 'Critical Thinking', url: 'https://www.youtube.com/watch?v=HfACrKJ_Y2w' },
+        { title: 'Financial Literacy', url: 'https://www.youtube.com/watch?v=xdFeEstPeAo' },
+        { title: 'Leadership Skills', url: 'https://www.youtube.com/watch?v=XKUPDUDOBVo' },
+        { title: 'Time Management', url: 'https://www.youtube.com/watch?v=oTugjssqOT0' },
     ]
   },
   { 
-    id: 'languages', 
-    name: 'Languages', 
-    icon: Globe, 
-    color: 'bg-cyan-600', 
-    progress: 50,
+    id: 'languages', name: 'Languages', icon: Globe, color: 'bg-cyan-600', progress: 50, category: 'LANGUAGE',
     lessons: [
-        { title: 'Linguistic Resonance', url: 'https://www.youtube.com/watch?v=81u77GD_DZk' },
-        { title: 'Advanced Grammar', url: 'https://www.youtube.com/watch?v=3JZ_D3ELwOQ' }
+        { title: 'Swahili Basics', url: 'https://www.youtube.com/watch?v=81u77GD_DZk' },
+        { title: 'French Intro', url: 'https://www.youtube.com/watch?v=_tD60lkjzXU' },
+        { title: 'Spanish Basics', url: 'https://www.youtube.com/watch?v=SkHZAWCd_4A' },
+        { title: 'Advanced Grammar', url: 'https://www.youtube.com/watch?v=3JZ_D3ELwOQ' },
+    ]
+  },
+  {
+    id: 'history', name: 'History', icon: BookOpen, color: 'bg-amber-600', progress: 40, category: 'HUMANITIES',
+    lessons: [
+        { title: 'African History', url: 'https://www.youtube.com/watch?v=1ZYbU82GVz4' },
+        { title: 'World War II', url: 'https://www.youtube.com/watch?v=fo2Rb9h788s' },
+        { title: 'Ancient Civilizations', url: 'https://www.youtube.com/watch?v=Yocja_N5s1I' },
+        { title: 'Colonial History', url: 'https://www.youtube.com/watch?v=ALHqABpFBzg' },
+    ]
+  },
+  {
+    id: 'business', name: 'Business', icon: Target, color: 'bg-green-700', progress: 55, category: 'COMMERCE',
+    lessons: [
+        { title: 'Entrepreneurship', url: 'https://www.youtube.com/watch?v=xdFeEstPeAo' },
+        { title: 'Marketing Basics', url: 'https://www.youtube.com/watch?v=bixR-KIJKYM' },
+        { title: 'Economics 101', url: 'https://www.youtube.com/watch?v=3ez10ADR_gM' },
+        { title: 'Accounting Basics', url: 'https://www.youtube.com/watch?v=yYX4bvQSqbo' },
     ]
   },
 ];
 
 const KIDS_SUBJECTS = [
-  { id: 'phonics', name: 'Phonics Fun', icon: 'A', color: 'bg-purple-600', category: 'LANGUAGE', progress: 40, lessons: [{ title: 'Phonics Song', url: 'https://www.youtube.com/watch?v=3JZ_D3ELwOQ' }, { title: 'Alphabet ABC', url: 'https://www.youtube.com/watch?v=v2S_7WGV29M' }] },
-  { id: 'numbers', name: 'Number Safari', icon: '1', color: 'bg-blue-600', category: 'MATH', progress: 65, lessons: [{ title: 'Counting 1-10', url: 'https://www.youtube.com/watch?v=DR-cfDsHCGA' }, { title: 'Number Rocks', url: 'https://www.youtube.com/watch?v=D0Ajq682yrA' }] },
-  { id: 'animals', name: 'Animal Explorer', icon: '🐾', color: 'bg-green-600', category: 'SCIENCE', progress: 30, lessons: [{ title: 'Animal Discovery', url: 'https://www.youtube.com/watch?v=1ZYbU82GVz4' }, { title: 'Safari Tour', url: 'https://www.youtube.com/watch?v=wCfWmlnJl-A' }] },
-  { id: 'kindness', name: 'Kindness Club', icon: '🫂', color: 'bg-pink-600', category: 'SOCIAL', progress: 80, lessons: [{ title: 'Kindness Song', url: 'https://www.youtube.com/watch?v=akTRWJZMks0' }, { title: 'Sharing Node', url: 'https://www.youtube.com/watch?v=75p-N9YKqNo' }] },
+  { id: 'phonics', name: 'Phonics Fun', icon: 'A', color: 'bg-purple-600', category: 'LANGUAGE', progress: 40, lessons: [
+    { title: 'Phonics Song', url: 'https://www.youtube.com/watch?v=3JZ_D3ELwOQ' },
+    { title: 'Alphabet ABC', url: 'https://www.youtube.com/watch?v=v2S_7WGV29M' },
+    { title: 'Letter Sounds', url: 'https://www.youtube.com/watch?v=yht8QHMkMSk' },
+  ]},
+  { id: 'numbers', name: 'Number Safari', icon: '1', color: 'bg-blue-600', category: 'MATH', progress: 65, lessons: [
+    { title: 'Counting 1-10', url: 'https://www.youtube.com/watch?v=DR-cfDsHCGA' },
+    { title: 'Number Rocks', url: 'https://www.youtube.com/watch?v=D0Ajq682yrA' },
+    { title: 'Addition Fun', url: 'https://www.youtube.com/watch?v=ziWumzV_hk4' },
+  ]},
+  { id: 'animals', name: 'Animal Explorer', icon: '🐾', color: 'bg-green-600', category: 'SCIENCE', progress: 30, lessons: [
+    { title: 'Animal Discovery', url: 'https://www.youtube.com/watch?v=1ZYbU82GVz4' },
+    { title: 'Safari Tour', url: 'https://www.youtube.com/watch?v=wCfWmlnJl-A' },
+    { title: 'Ocean Animals', url: 'https://www.youtube.com/watch?v=XqZsoesa55w' },
+  ]},
+  { id: 'kindness', name: 'Kindness Club', icon: '🫂', color: 'bg-pink-600', category: 'SOCIAL', progress: 80, lessons: [
+    { title: 'Kindness Song', url: 'https://www.youtube.com/watch?v=akTRWJZMks0' },
+    { title: 'Sharing Node', url: 'https://www.youtube.com/watch?v=75p-N9YKqNo' },
+    { title: 'Friendship Stories', url: 'https://www.youtube.com/watch?v=ziWumzV_hk4' },
+  ]},
+  { id: 'space', name: 'Space Explorer', icon: '🚀', color: 'bg-indigo-600', category: 'SCIENCE', progress: 50, lessons: [
+    { title: 'Solar System', url: 'https://www.youtube.com/watch?v=D0Ajq682yrA' },
+    { title: 'Stars & Planets', url: 'https://www.youtube.com/watch?v=aircAruvnKk' },
+  ]},
+  { id: 'art', name: 'Art Studio', icon: '🎨', color: 'bg-orange-500', category: 'ARTS', progress: 60, lessons: [
+    { title: 'Draw a Rainbow', url: 'https://www.youtube.com/watch?v=URUJD5NEXC8' },
+    { title: 'Colour Mixing', url: 'https://www.youtube.com/watch?v=yht8QHMkMSk' },
+  ]},
+  { id: 'music', name: 'Music Time', icon: '🎵', color: 'bg-yellow-600', category: 'ARTS', progress: 70, lessons: [
+    { title: 'Nursery Rhymes', url: 'https://www.youtube.com/watch?v=ziWumzV_hk4' },
+    { title: 'Kids Songs', url: 'https://www.youtube.com/watch?v=XqZsoesa55w' },
+  ]},
+  { id: 'coding', name: 'Coding for Kids', icon: '💻', color: 'bg-cyan-600', category: 'TECH', progress: 20, lessons: [
+    { title: 'Scratch Basics', url: 'https://www.youtube.com/watch?v=4xrKuTnnc8I' },
+    { title: 'Robot Coding', url: 'https://www.youtube.com/watch?v=W6NZfCO5SIk' },
+  ]},
 ];
 
 const RECENT_LESSONS = [
@@ -254,6 +297,15 @@ export default function LearningHubPage() {
   };
 
   const activeSubjects = isUnder10 ? KIDS_SUBJECTS : SUBJECTS;
+
+  // Live feed posts that match educational content
+  const { posts: livePosts } = useRealtimeFeed(profile?.ageGroup || '10-16');
+  const educationalLivePosts = React.useMemo(() => {
+    return livePosts
+      .filter(p => !containsInappropriateWords(`${p.caption} ${p.title || ''}`, isUnder10))
+      .slice(0, 6)
+      .map(p => ({ title: p.title || p.caption, url: p.url || p.mediaUrl }));
+  }, [livePosts, isUnder10]);
 
   return (
     <div className="container mx-auto space-y-12 pb-32 max-w-7xl animate-in fade-in duration-700 pt-6">
@@ -379,6 +431,32 @@ export default function LearningHubPage() {
               {activeSearch && <GoogleViewer query={activeSearch} onClose={() => setActiveSearch(null)} />}
           </DialogContent>
       </Dialog>
+
+      {/* Live feed educational content */}
+      {educationalLivePosts.length > 0 && (
+        <section className="space-y-6">
+          <h2 className="font-headline text-2xl font-black uppercase tracking-tight text-white flex items-center gap-3">
+            <Flame className="h-6 w-6 text-orange-400" /> Live Community Lessons
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {educationalLivePosts.map((post, i) => (
+              <Card key={i} className="border border-white/5 bg-black/20 rounded-2xl p-4 flex items-center justify-between group hover:border-primary/40 transition-all cursor-pointer"
+                onClick={() => handleInitializeLesson(post)}>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 bg-orange-500/10 rounded-lg flex items-center justify-center text-orange-400 shrink-0">
+                    <PlayCircle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm text-white line-clamp-1">{post.title}</p>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest mt-0.5">Community · Live</p>
+                  </div>
+                </div>
+                <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

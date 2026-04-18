@@ -151,7 +151,7 @@ export default function FeedClient({ ageGroup }: { ageGroup: string }) {
       {/* Category bar — floating on top */}
       <div className="absolute top-0 left-0 right-0 z-20 flex gap-2 overflow-x-auto no-scrollbar px-4 pt-3 pb-2 bg-gradient-to-b from-black/60 to-transparent">
         <div className="mr-2">
-          <p className="font-headline text-sm font-black tracking-tight text-white">Live Feed</p>
+          <p className="font-headline text-sm font-black tracking-tight text-white">Feeds</p>
           <p className="text-[8px] font-black uppercase tracking-widest text-white/40">
             {realtimePosts.length > 0 ? `${realtimePosts.length} posts` : 'Trending'} · <span className="text-green-400">● Live</span>
           </p>

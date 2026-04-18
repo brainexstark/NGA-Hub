@@ -12,11 +12,97 @@ import { cn } from '../../lib/utils';
 import { LockdownOverlay } from '../../components/lockdown-overlay';
 import { TimesUp } from '../../components/times-up';
 import { Logo } from '../../components/logo';
+import { OnboardingTour } from '../../components/onboarding-tour';
 import Link from 'next/link';
 import { Avatar, AvatarImage } from '../../components/ui/avatar';
 import { useToast } from '../../hooks/use-toast';
 import { Dialog, DialogContent, DialogTitle } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+
+// New user join notification banner
+function NewUserBanner() {
+  const [banner, setBanner] = React.useState<{ name: string; uid: string } | null>(null);
+  const firestore = useFirestore();
+  const router = useRouter();
+  const seenRef = React.useRef<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    if (!firestore) return;
+    // Listen for recently created users
+    const q = query(collection(firestore, 'users'), orderBy('createdAt', 'desc'), limit(5));
+    const unsub = onSnapshot(q, (snap) => {
+      snap.docChanges().forEach(change => {
+        if (change.type === 'added') {
+          const data = change.doc.data();
+          const uid = change.doc.id;
+          if (seenRef.current.has(uid)) return;
+          seenRef.current.add(uid);
+          const name = data.displayName || 'Someone';
+          // Only show if joined in last 60 seconds
+          const createdAt = data.createdAt?.toDate?.();
+          if (createdAt && Date.now() - createdAt.getTime() < 60000) {
+            setBanner({ name, uid });
+            setTimeout(() => setBanner(null), 6000);
+          }
+        }
+      });
+    });
+    return () => unsub();
+  }, [firestore]);
+
+  if (!banner) return null;
+
+  return (
+    <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[99998] animate-in slide-in-from-top-4 duration-500">
+      <div className="flex items-center gap-3 bg-slate-900/95 backdrop-blur-xl border border-primary/30 rounded-full px-5 py-3 shadow-2xl shadow-primary/20">
+        <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+        <p className="text-xs font-black text-white">
+          <span className="text-primary">@{banner.name.replace(/\s/g, '_').toLowerCase()}</span> just joined — wanna check?
+        </p>
+        <button onClick={() => { setBanner(null); router.push('/network'); }}
+          className="text-[10px] font-black uppercase tracking-widest text-primary hover:text-white transition-colors ml-1">
+          View →
+        </button>
+        <button onClick={() => setBanner(null)} className="text-white/30 hover:text-white ml-1">
+          <span className="text-xs">✕</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Top ad banner — shows most broadcast ad for a few seconds
+function TopAdBanner() {
+  const [ad, setAd] = React.useState<{ title: string; partner: string } | null>(null);
+  const { supabase } = React.useMemo(() => {
+    try { return { supabase: require('../../lib/supabase').supabase }; } catch { return { supabase: null }; }
+  }, []);
+
+  React.useEffect(() => {
+    if (!supabase) return;
+    // Fetch most broadcast (most impressions) active ad
+    supabase.from('ads').select('title,partner_name,impressions').eq('is_active', true)
+      .order('impressions', { ascending: false }).limit(1)
+      .then(({ data }: any) => {
+        if (data?.[0]) {
+          setAd({ title: data[0].title, partner: data[0].partner_name });
+          setTimeout(() => setAd(null), 5000);
+        }
+      });
+  }, [supabase]);
+
+  if (!ad) return null;
+
+  return (
+    <div className="fixed top-2 right-4 z-[99997] animate-in slide-in-from-right-4 duration-500">
+      <div className="flex items-center gap-2 bg-black/90 backdrop-blur-xl border border-white/10 rounded-full px-4 py-2 shadow-xl max-w-[200px]">
+        <div className="h-1.5 w-1.5 rounded-full bg-yellow-400 animate-pulse shrink-0" />
+        <p className="text-[9px] font-black text-white/80 truncate">{ad.title}</p>
+      </div>
+    </div>
+  );
+}
 
 // Instagram-style create modal
 function CreateModal({ ageGroup }: { ageGroup: string }) {
@@ -401,6 +487,12 @@ export default function AppLayout({
                        <TimesUp mode={protocolStatus === 'EDU_LIMIT' ? 'educational' : 'entertainment'} />
                      </div>
                  )}
+                 {/* First-time onboarding tour */}
+                 {user && <OnboardingTour />}
+                 {/* New user join notification */}
+                 <NewUserBanner />
+                 {/* Top ad banner */}
+                 <TopAdBanner />
               </main>
           </MobileSwipeHandler>
         </SidebarInset>
@@ -418,24 +510,21 @@ export default function AppLayout({
                 <p className="text-sm font-medium italic text-muted-foreground">Synchronizing high-performance legacy nodes.</p>
             </div>
             <div className="space-y-4 pt-6 border-t border-white/5 text-left">
-              <p className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Follow the Mission</p>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <Instagram className="h-4 w-4 text-pink-500" />
-                  <span className="text-[10px] font-bold">brainexstark</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MessageSquareText className="h-4 w-4 text-purple-400" />
-                  <span className="text-[10px] font-bold">brainexstark</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Facebook className="h-4 w-4 text-blue-600" />
-                  <span className="text-[10px] font-bold">brainexstark</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <XIcon className="h-4 w-4 text-white" />
-                  <span className="text-[10px] font-bold">brainexstark</span>
-                </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Follow BRAINEXSTARK</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Instagram', color: 'text-pink-500', icon: Instagram, href: 'https://instagram.com/brainexstark' },
+                  { label: 'TikTok', color: 'text-white', icon: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z"/></svg>, href: 'https://tiktok.com/@brainexstark' },
+                  { label: 'Facebook', color: 'text-blue-500', icon: Facebook, href: 'https://facebook.com/brainexstark' },
+                  { label: 'Threads', color: 'text-white', icon: MessageSquareText, href: 'https://threads.net/@brainexstark' },
+                  { label: 'WhatsApp', color: 'text-green-400', icon: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.353-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.72 1.03 3.703 1.574 5.711 1.574h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>, href: 'https://wa.me/brainexstark' },
+                  { label: 'YouTube', color: 'text-red-500', icon: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>, href: 'https://youtube.com/@brainexstark' },
+                ].map(s => (
+                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                    <s.icon className={cn('h-4 w-4', s.color)} />
+                    <span className="text-[10px] font-bold">@brainexstark</span>
+                  </a>
+                ))}
               </div>
             </div>
             <Button onClick={() => setShowBranding(false)} className="w-full h-14 rounded-2xl font-black uppercase mt-4 shadow-xl animate-bg-color-sync border-none text-white">

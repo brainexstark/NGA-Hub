@@ -182,27 +182,35 @@ export default function ChatPage() {
     const handleSendMessage = async () => {
         if (!inputValue.trim() || !user) return;
 
+        const chatId = activeChat?.id || 'general';
+        const msgText = inputValue;
+        setInputValue('');
+
         const newMessage = {
             id: Date.now().toString(),
             senderId: user.uid,
             senderName: profile?.displayName || user.displayName || 'Me',
-            text: inputValue,
+            text: msgText,
             createdAt: new Date(),
             status: 'sent'
         };
 
         setMessages(prev => [...prev, newMessage]);
-        setInputValue('');
+        setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, lastMessage: msgText, time: 'Just Now' } : c));
 
-        setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, lastMessage: inputValue, time: 'Just Now' } : c));
+        // Persist to Firestore
+        if (firestore) {
+            const { addDoc: add, collection: col, serverTimestamp: sts } = await import('firebase/firestore');
+            add(col(firestore, 'chats', chatId, 'messages'), {
+                senderId: user.uid,
+                senderName: profile?.displayName || user.displayName || 'Me',
+                senderAvatar: profile?.profilePicture || user.photoURL || '',
+                text: msgText, type: 'text', read: false, createdAt: sts(),
+            }).catch(() => {});
+        }
 
-        setTimeout(() => {
-            setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, status: 'delivered' } : m));
-        }, 1000);
-
-        setTimeout(() => {
-            setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, status: 'read' } : m));
-        }, 2000);
+        setTimeout(() => setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, status: 'delivered' } : m)), 1000);
+        setTimeout(() => setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, status: 'read' } : m)), 2000);
 
         if (activeChat?.name.includes('Intelligence') || activeChat?.name === 'Sarah Wade' || activeChat?.id.startsWith('user-') || isUnder10) {
             setIsTyping(true);
@@ -213,23 +221,19 @@ export default function ChatPage() {
                 } else if (activeChat?.id.startsWith('user-')) {
                     responseText = `STARK-B Protocol Alert: Transmission synchronized with ${activeChat.name}. They are currently processing legacy nodes but have received your data burst.`;
                 } else {
-                    const result = await chatWithIntelligence({ message: inputValue });
+                    const result = await chatWithIntelligence({ message: msgText });
                     responseText = result.text;
                 }
-
                 setTimeout(() => {
                     setMessages(prev => [...prev, {
-                        id: `reply-${Date.now()}`,
-                        senderId: activeChat.id,
-                        senderName: activeChat.name,
-                        text: responseText,
-                        createdAt: new Date(),
-                        status: 'read'
+                        id: `reply-${Date.now()}`, senderId: activeChat.id,
+                        senderName: activeChat.name, text: responseText,
+                        createdAt: new Date(), status: 'read'
                     }]);
                     setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, lastMessage: responseText, time: 'Just Now' } : c));
                     setIsTyping(false);
                 }, 1500);
-            } catch (e) {
+            } catch {
                 toast({ variant: 'destructive', title: "Sync Error" });
                 setIsTyping(false);
             }

@@ -270,13 +270,15 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                     {kidsVideos.slice(0, 6).map((v: any) => (
                         <Dialog key={v.id}>
                             <DialogTrigger asChild>
-                                <div className="relative rounded-[2rem] overflow-hidden cursor-pointer group shadow-xl border border-white/5 bg-black aspect-video" onClick={handleTriggerCycle}>
-                                    <Image src={v.mediaUrl || v.imageUrl || `https://picsum.photos/seed/${v.id}/400/225`} alt={v.title || v.caption} fill className="object-cover opacity-70 group-hover:opacity-90 transition-opacity" />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <div className="p-4 rounded-full bg-white/20 backdrop-blur-md border border-white/30">
-                                            <PlayCircle className="h-10 w-10 text-white" />
-                                        </div>
+                                <div className="relative overflow-hidden cursor-pointer group aspect-video" onClick={handleTriggerCycle}>
+                                    <Image src={v.mediaUrl || v.imageUrl || `https://picsum.photos/seed/${v.id}/400/225`} alt={v.title || v.caption} fill className="object-cover opacity-70 group-hover:opacity-90 transition-opacity rounded-[1.5rem]" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent rounded-[1.5rem]" />
+                                    <div className="absolute bottom-3 left-4 right-4">
+                                        <p className="font-black text-sm text-white uppercase tracking-tight line-clamp-1">{v.title || v.caption}</p>
+                                        <p className="text-[10px] text-white/50 font-bold uppercase">{v.userName}</p>
+                                    </div>
+                                </div>
+                            </DialogTrigger>
                                     </div>
                                     <div className="absolute bottom-3 left-4 right-4">
                                         <p className="font-black text-sm text-white uppercase tracking-tight line-clamp-1">{v.title || v.caption}</p>
