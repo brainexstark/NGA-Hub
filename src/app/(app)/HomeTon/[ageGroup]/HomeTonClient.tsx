@@ -32,6 +32,7 @@ import { fetchAds, injectAds, isAd, type Ad } from '../../../../lib/ads';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
 import { getEmbedUrl as _getEmbedUrl } from '../../../../lib/utils';
 import { filterForUnder10 } from '../../../../lib/inappropriate-words';
+import { aiDatabase } from '../../../../lib/ai-database';
 
 const InternalPlayer = ({ url }: { url: string }) => {
     const embedUrl = getEmbedUrl(url);
