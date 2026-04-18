@@ -1,3 +1,7 @@
+-- NGA Hub Supabase Schema
+-- Project: https://qoarbpjevfzmxgfyhxoa.supabase.co
+-- Run this at: https://supabase.com/dashboard/project/qoarbpjevfzmxgfyhxoa/sql/new
+
 -- Enable UUID + crypto
 create extension if not exists pgcrypto;
 
