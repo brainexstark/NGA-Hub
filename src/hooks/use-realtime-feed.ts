@@ -1,18 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, type SupabasePost } from '../lib/supabase';
-import { useFirestore } from '../firebase';
-import { collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import type { Post } from '../lib/types';
 
 export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
-  const firestore = useFirestore();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [newCount, setNewCount] = useState(0);
   const [pendingPosts, setPendingPosts] = useState<Post[]>([]);
-  const isFirstLoad = { current: true };
+  const isFirstLoad = useRef(true);
 
   const mapSupabasePost = (p: SupabasePost): Post => ({
     id: p.id,
@@ -32,25 +29,34 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
     isFlagged: p.is_flagged,
   });
 
-  // Supabase realtime
   useEffect(() => {
-    if (!supabase) return;
+    isFirstLoad.current = true;
+    setLoading(true);
+    setPosts([]);
+    setNewCount(0);
+    setPendingPosts([]);
 
     // Initial fetch
     const fetchPosts = async () => {
-      let q = supabase
-        .from('posts')
-        .select('*')
-        .eq('age_group', ageGroup)
-        .eq('is_flagged', false)
-        .order('created_at', { ascending: false })
-        .limit(50);
+      try {
+        let q = supabase
+          .from('posts')
+          .select('*')
+          .eq('age_group', ageGroup)
+          .eq('is_flagged', false)
+          .order('created_at', { ascending: false })
+          .limit(50);
 
-      if (category !== 'all') q = q.eq('category', category);
+        if (category !== 'all') q = q.eq('category', category);
 
-      const { data } = await q;
-      if (data) {
-        setPosts(data.map(mapSupabasePost));
+        const { data, error } = await q;
+        if (error) console.warn('Supabase fetch error:', error.message);
+        if (data && data.length > 0) {
+          setPosts(data.map(mapSupabasePost));
+        }
+      } catch (e) {
+        console.warn('Supabase fetch failed:', e);
+      } finally {
         setLoading(false);
         isFirstLoad.current = false;
       }
@@ -58,58 +64,55 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
 
     fetchPosts();
 
-    // Realtime subscription
+    // Realtime subscription for new inserts
+    const channelName = `posts-${ageGroup}-${category}-${Date.now()}`;
     const channel = supabase
-      .channel(`posts:${ageGroup}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'posts',
-        filter: `age_group=eq.${ageGroup}`,
-      }, (payload) => {
-        const newPost = mapSupabasePost(payload.new as SupabasePost);
-        if (category !== 'all' && newPost.category !== category) return;
-        setPendingPosts(prev => [newPost, ...prev]);
-        setNewCount(prev => prev + 1);
-      })
-      .subscribe();
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'posts',
+          filter: `age_group=eq.${ageGroup}`,
+        },
+        (payload) => {
+          const newPost = mapSupabasePost(payload.new as SupabasePost);
+          if (category !== 'all' && newPost.category !== category) return;
+          if (isFirstLoad.current) return;
+          setPendingPosts(prev => [newPost, ...prev]);
+          setNewCount(prev => prev + 1);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'posts',
+          filter: `age_group=eq.${ageGroup}`,
+        },
+        (payload) => {
+          const updated = mapSupabasePost(payload.new as SupabasePost);
+          setPosts(prev => prev.map(p => p.id === updated.id ? updated : p));
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Realtime subscribed:', channelName);
+        }
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('Realtime channel error:', channelName);
+        }
+      });
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [ageGroup, category]);
 
-  // Firestore fallback when Supabase not configured
-  useEffect(() => {
-    if (supabase || !firestore) return;
-
-    const postsRef = collection(firestore, 'posts');
-    const constraints: any[] = [
-      where('ageGroup', '==', ageGroup),
-      orderBy('createdAt', 'desc'),
-      limit(50),
-    ];
-    if (category !== 'all') constraints.splice(1, 0, where('category', '==', category));
-
-    const q = query(postsRef, ...constraints);
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Post));
-      if (isFirstLoad.current) {
-        setPosts(data);
-        setLoading(false);
-        isFirstLoad.current = false;
-      } else {
-        const newOnes = data.filter(p => !posts.find(r => r.id === p.id));
-        if (newOnes.length > 0) {
-          setPendingPosts(data);
-          setNewCount(newOnes.length);
-        }
-      }
-    }, () => setLoading(false));
-
-    return () => unsub();
-  }, [firestore, ageGroup, category]);
-
   const loadNewPosts = useCallback(() => {
-    setPosts(pendingPosts);
+    setPosts(prev => [...pendingPosts, ...prev]);
     setPendingPosts([]);
     setNewCount(0);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -118,12 +121,11 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
   return { posts, loading, newCount, loadNewPosts };
 }
 
-// Publish a post to Supabase + Firestore
+// Publish a post to Supabase
 export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestore: any) {
   const results: string[] = [];
 
-  // Supabase
-  if (supabase) {
+  try {
     const { data, error } = await supabase.from('posts').insert({
       user_id: post.userId,
       user_name: post.userName,
@@ -140,17 +142,23 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
     }).select().single();
     if (data) results.push(data.id);
     if (error) console.warn('Supabase insert error:', error.message);
+  } catch (e) {
+    console.warn('Supabase publish failed:', e);
   }
 
-  // Firestore (always as backup)
+  // Firestore backup
   if (firestore) {
-    const { collection: col, addDoc, serverTimestamp } = await import('firebase/firestore');
-    const ref = await addDoc(col(firestore, 'posts'), {
-      ...post,
-      isFlagged: false,
-      createdAt: serverTimestamp(),
-    });
-    results.push(ref.id);
+    try {
+      const { collection: col, addDoc, serverTimestamp } = await import('firebase/firestore');
+      const ref = await addDoc(col(firestore, 'posts'), {
+        ...post,
+        isFlagged: false,
+        createdAt: serverTimestamp(),
+      });
+      results.push(ref.id);
+    } catch (e) {
+      console.warn('Firestore publish failed:', e);
+    }
   }
 
   return results[0] || null;
