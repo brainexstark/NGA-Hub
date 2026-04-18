@@ -36,7 +36,7 @@ import {
     Rocket
 } from "lucide-react";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '../../../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
 import { aiDatabase } from '../../../lib/ai-database';
 import { cn } from "../../../lib/utils";
 import { useToast } from '../../../hooks/use-toast';
@@ -83,16 +83,45 @@ export default function ChatPage() {
 
     const [chats, setChats] = useState(isUnder10 ? kidsChats : aiDatabase.chatHistory);
     const [contacts, setContacts] = useState(isUnder10 ? kidsContacts : aiDatabase.contacts);
+    const [loadingUsers, setLoadingUsers] = useState(true);
+
+    // Fetch real app users from Firestore
+    useEffect(() => {
+        if (!firestore || isUnder10) { setLoadingUsers(false); return; }
+        const q = query(collection(firestore, 'users'), orderBy('displayName'), limit(50));
+        const unsub = onSnapshot(q, (snap) => {
+            const appUsers = snap.docs
+                .map(d => ({ id: d.id, ...d.data() } as any))
+                .filter((u: any) => u.uid !== user?.uid && u.displayName);
+            if (appUsers.length > 0) {
+                const realContacts = appUsers.map((u: any) => ({
+                    id: u.uid || u.id,
+                    name: u.displayName,
+                    email: u.email || '',
+                    avatar: u.profilePicture || `https://picsum.photos/seed/${u.uid || u.id}/200/200`,
+                    online: true,
+                }));
+                setContacts(realContacts);
+                setChats(realContacts.map((c: any) => ({
+                    id: c.id,
+                    name: c.name,
+                    lastMessage: 'Tap to start chatting',
+                    time: '',
+                    unread: 0,
+                    avatar: c.avatar,
+                    status: 'none',
+                })));
+            }
+            setLoadingUsers(false);
+        }, () => setLoadingUsers(false));
+        return () => unsub();
+    }, [firestore, user?.uid, isUnder10]);
 
     useEffect(() => {
-        if (isUnder10) {
-            setChats(kidsChats);
-            setContacts(kidsContacts);
-        } else {
-            setChats(aiDatabase.chatHistory);
-            setContacts(aiDatabase.contacts);
-        }
+        if (isUnder10) { setChats(kidsChats); setContacts(kidsContacts); }
     }, [isUnder10]);
+
+    const activeChatUnsubRef = React.useRef<(() => void) | null>(null);
 
     const [isNewChatOpen, setIsNewChatOpen] = useState(false);
     const [isAddUserOpen, setIsAddUserOpen] = useState(false);
@@ -116,29 +145,56 @@ export default function ChatPage() {
     );
 
     const handleSelectChat = (chat: any) => {
+        // Unsubscribe from previous chat listener
+        if (activeChatUnsubRef.current) {
+            activeChatUnsubRef.current();
+            activeChatUnsubRef.current = null;
+        }
+
         setChats(prev => prev.map(c => c.id === chat.id ? { ...c, unread: 0 } : c));
         setActiveChat(chat);
         setView('thread');
-        
-        setMessages([
-            { 
-                id: '1', 
-                senderId: chat.id, 
-                senderName: chat.name, 
-                text: isUnder10 ? `Connecting to your friend ${chat.name}... ✨` : `Establishing secure transmission node with ${chat.name}... 📡`, 
-                createdAt: new Date(Date.now() - 3600000),
-                status: 'read'
-            },
-            { 
-                id: '2', 
-                senderId: chat.id, 
-                senderName: chat.name, 
-                text: chat.lastMessage, 
-                createdAt: new Date(Date.now() - 100000),
-                status: 'read'
+        setMessages([]);
+
+        if (!firestore) return;
+
+        // Build a deterministic chatId from both user UIDs so both sides share the same doc
+        const chatId = user?.uid && chat.id
+            ? [user.uid, chat.id].sort().join('_')
+            : chat.id;
+
+        const msgsRef = collection(firestore, 'chats', chatId, 'messages');
+        const msgsQuery = query(msgsRef, orderBy('createdAt', 'asc'), limit(100));
+
+        const unsub = onSnapshot(msgsQuery, (snap) => {
+            const live = snap.docs.map(d => {
+                const data = d.data();
+                return {
+                    id: d.id,
+                    senderId: data.senderId,
+                    senderName: data.senderName,
+                    text: data.text,
+                    createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+                    status: data.senderId === user?.uid ? 'read' : 'read',
+                };
+            });
+            setMessages(live);
+            // Update last message in chat list
+            if (live.length > 0) {
+                const last = live[live.length - 1];
+                setChats(prev => prev.map(c =>
+                    c.id === chat.id ? { ...c, lastMessage: last.text, time: 'Just Now' } : c
+                ));
             }
-        ]);
+        });
+
+        activeChatUnsubRef.current = unsub;
     };
+
+    // Cleanup listener on unmount
+    useEffect(() => {
+        return () => { if (activeChatUnsubRef.current) activeChatUnsubRef.current(); };
+    }, []);
 
     const handleStartNewChat = (contact: any) => {
         const existingChat = chats.find(c => c.name === contact.name);
@@ -182,11 +238,14 @@ export default function ChatPage() {
     const handleSendMessage = async () => {
         if (!inputValue.trim() || !user) return;
 
-        const chatId = activeChat?.id || 'general';
+        const chatId = user.uid && activeChat?.id
+            ? [user.uid, activeChat.id].sort().join('_')
+            : activeChat?.id || 'general';
         const msgText = inputValue;
         setInputValue('');
 
-        const newMessage = {
+        // Optimistic UI
+        const tempMsg = {
             id: Date.now().toString(),
             senderId: user.uid,
             senderName: profile?.displayName || user.displayName || 'Me',
@@ -194,49 +253,19 @@ export default function ChatPage() {
             createdAt: new Date(),
             status: 'sent'
         };
-
-        setMessages(prev => [...prev, newMessage]);
+        setMessages(prev => [...prev, tempMsg]);
         setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, lastMessage: msgText, time: 'Just Now' } : c));
 
-        // Persist to Firestore
+        // Persist to Firestore — onSnapshot will pick it up in real-time
         if (firestore) {
             const { addDoc: add, collection: col, serverTimestamp: sts } = await import('firebase/firestore');
             add(col(firestore, 'chats', chatId, 'messages'), {
                 senderId: user.uid,
                 senderName: profile?.displayName || user.displayName || 'Me',
                 senderAvatar: profile?.profilePicture || user.photoURL || '',
-                text: msgText, type: 'text', read: false, createdAt: sts(),
+                text: msgText,
+                createdAt: sts(),
             }).catch(() => {});
-        }
-
-        setTimeout(() => setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, status: 'delivered' } : m)), 1000);
-        setTimeout(() => setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, status: 'read' } : m)), 2000);
-
-        if (activeChat?.name.includes('Intelligence') || activeChat?.name === 'Sarah Wade' || activeChat?.id.startsWith('user-') || isUnder10) {
-            setIsTyping(true);
-            try {
-                let responseText = "";
-                if (isUnder10) {
-                    responseText = `Hi! I'm ${activeChat.name}. I got your message! ✨ We're going to have so much fun learning together.`;
-                } else if (activeChat?.id.startsWith('user-')) {
-                    responseText = `STARK-B Protocol Alert: Transmission synchronized with ${activeChat.name}. They are currently processing legacy nodes but have received your data burst.`;
-                } else {
-                    const result = await chatWithIntelligence({ message: msgText });
-                    responseText = result.text;
-                }
-                setTimeout(() => {
-                    setMessages(prev => [...prev, {
-                        id: `reply-${Date.now()}`, senderId: activeChat.id,
-                        senderName: activeChat.name, text: responseText,
-                        createdAt: new Date(), status: 'read'
-                    }]);
-                    setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, lastMessage: responseText, time: 'Just Now' } : c));
-                    setIsTyping(false);
-                }, 1500);
-            } catch {
-                toast({ variant: 'destructive', title: "Sync Error" });
-                setIsTyping(false);
-            }
         }
     };
 
@@ -325,6 +354,18 @@ export default function ChatPage() {
                                     ))}
                                 </div>
 
+                                {loadingUsers && !isUnder10 && (
+                                    <div className="flex items-center justify-center gap-2 py-4 opacity-40">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Loading app users...</span>
+                                    </div>
+                                )}
+                                {!loadingUsers && !isUnder10 && filteredChats.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center gap-3 py-10 opacity-30">
+                                        <Ghost className="h-10 w-10" />
+                                        <p className="text-[10px] font-black uppercase tracking-widest">No users found yet</p>
+                                    </div>
+                                )}
                                 <div className="space-y-1 divide-y divide-white/5">
                                     {filteredChats.map((chat) => (
                                         <div 
