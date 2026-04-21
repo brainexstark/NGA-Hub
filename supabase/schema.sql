@@ -15,10 +15,10 @@ end;
 $$ language plpgsql;
 
 -- ============================================================
--- APP USERS (mirrors Firebase auth — synced on signup)
+-- APP USERS
 -- ============================================================
 create table if not exists app_users (
-  id text primary key,  -- Firebase UID
+  id text primary key,
   display_name text not null default '',
   email text default '',
   avatar text default '',
@@ -58,9 +58,9 @@ create table if not exists posts (
 select safe_add_to_realtime('posts');
 alter table posts enable row level security;
 create policy "Public read posts" on posts for select using (is_flagged = false);
-create policy "Auth insert posts" on posts for insert with check (true);
-create policy "Owner update posts" on posts for update using (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
-create policy "Owner delete posts" on posts for delete using (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
+create policy "Anyone insert posts" on posts for insert with check (true);
+create policy "Anyone update posts" on posts for update using (true);
+create policy "Anyone delete posts" on posts for delete using (true);
 create index if not exists posts_age_group_created on posts(age_group, created_at desc);
 create index if not exists posts_category on posts(category);
 create index if not exists posts_user on posts(user_id);
@@ -80,8 +80,8 @@ create table if not exists comments (
 select safe_add_to_realtime('comments');
 alter table comments enable row level security;
 create policy "Public read comments" on comments for select using (true);
-create policy "Auth insert comments" on comments for insert with check (true);
-create policy "Owner delete comment" on comments for delete using (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
+create policy "Anyone insert comments" on comments for insert with check (true);
+create policy "Anyone delete comment" on comments for delete using (true);
 create index if not exists comments_post_created on comments(post_id, created_at asc);
 
 create or replace function update_comments_count() returns trigger as $$
@@ -111,8 +111,8 @@ create table if not exists likes (
 select safe_add_to_realtime('likes');
 alter table likes enable row level security;
 create policy "Public read likes" on likes for select using (true);
-create policy "Auth insert likes" on likes for insert with check (true);
-create policy "Owner delete like" on likes for delete using (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
+create policy "Anyone insert likes" on likes for insert with check (true);
+create policy "Anyone delete like" on likes for delete using (true);
 create index if not exists likes_post on likes(post_id);
 create index if not exists likes_user on likes(user_id);
 
@@ -143,17 +143,17 @@ create table if not exists follows (
 select safe_add_to_realtime('follows');
 alter table follows enable row level security;
 create policy "Public read follows" on follows for select using (true);
-create policy "Auth insert follows" on follows for insert with check (true);
-create policy "Owner delete follow" on follows for delete using (follower_id = current_setting('request.jwt.claims', true)::json->>'sub');
+create policy "Anyone insert follows" on follows for insert with check (true);
+create policy "Anyone delete follow" on follows for delete using (true);
 create index if not exists follows_follower on follows(follower_id);
 create index if not exists follows_following on follows(following_id);
 
 -- ============================================================
--- DIRECT MESSAGES (1-on-1 chat)
+-- DIRECT MESSAGES
 -- ============================================================
 create table if not exists direct_messages (
   id uuid default gen_random_uuid() primary key,
-  chat_id text not null,  -- sorted(uid1_uid2)
+  chat_id text not null,
   sender_id text references app_users(id) on delete cascade,
   sender_name text not null,
   sender_avatar text default '',
@@ -164,13 +164,9 @@ create table if not exists direct_messages (
 );
 select safe_add_to_realtime('direct_messages');
 alter table direct_messages enable row level security;
-create policy "Chat members read DMs" on direct_messages for select using (
-  chat_id like '%' || current_setting('request.jwt.claims', true)::json->>'sub' || '%'
-);
-create policy "Auth insert DMs" on direct_messages for insert with check (true);
-create policy "Owner delete DM" on direct_messages for delete using (
-  sender_id = current_setting('request.jwt.claims', true)::json->>'sub'
-);
+create policy "Public read DMs" on direct_messages for select using (true);
+create policy "Anyone insert DMs" on direct_messages for insert with check (true);
+create policy "Anyone delete DM" on direct_messages for delete using (true);
 create index if not exists dm_chat_created on direct_messages(chat_id, created_at asc);
 create index if not exists dm_sender on direct_messages(sender_id);
 
@@ -189,10 +185,8 @@ create table if not exists group_chats (
 select safe_add_to_realtime('group_chats');
 alter table group_chats enable row level security;
 create policy "Public read groups" on group_chats for select using (true);
-create policy "Auth create group" on group_chats for insert with check (true);
-create policy "Creator update group" on group_chats for update using (
-  created_by = current_setting('request.jwt.claims', true)::json->>'sub'
-);
+create policy "Anyone create group" on group_chats for insert with check (true);
+create policy "Anyone update group" on group_chats for update using (true);
 create index if not exists group_chats_created on group_chats(created_at desc);
 
 -- ============================================================
@@ -211,10 +205,8 @@ create table if not exists group_members (
 select safe_add_to_realtime('group_members');
 alter table group_members enable row level security;
 create policy "Public read members" on group_members for select using (true);
-create policy "Auth join group" on group_members for insert with check (true);
-create policy "Member leave group" on group_members for delete using (
-  user_id = current_setting('request.jwt.claims', true)::json->>'sub'
-);
+create policy "Anyone join group" on group_members for insert with check (true);
+create policy "Anyone leave group" on group_members for delete using (true);
 create index if not exists group_members_group on group_members(group_id);
 create index if not exists group_members_user on group_members(user_id);
 
@@ -233,10 +225,8 @@ create table if not exists group_messages (
 select safe_add_to_realtime('group_messages');
 alter table group_messages enable row level security;
 create policy "Public read group messages" on group_messages for select using (true);
-create policy "Auth send group message" on group_messages for insert with check (true);
-create policy "Owner delete group message" on group_messages for delete using (
-  sender_id = current_setting('request.jwt.claims', true)::json->>'sub'
-);
+create policy "Anyone send group message" on group_messages for insert with check (true);
+create policy "Anyone delete group message" on group_messages for delete using (true);
 create index if not exists group_messages_group_created on group_messages(group_id, created_at asc);
 
 -- ============================================================
@@ -256,13 +246,9 @@ create table if not exists notifications (
 );
 select safe_add_to_realtime('notifications');
 alter table notifications enable row level security;
-create policy "Owner read notifications" on notifications for select using (
-  user_id = current_setting('request.jwt.claims', true)::json->>'sub'
-);
-create policy "Auth insert notifications" on notifications for insert with check (true);
-create policy "Owner update notifications" on notifications for update using (
-  user_id = current_setting('request.jwt.claims', true)::json->>'sub'
-);
+create policy "Public read notifications" on notifications for select using (true);
+create policy "Anyone insert notifications" on notifications for insert with check (true);
+create policy "Anyone update notifications" on notifications for update using (true);
 create index if not exists notifications_user_read on notifications(user_id, is_read, created_at desc);
 
 -- ============================================================
@@ -283,10 +269,8 @@ create table if not exists live_streams (
 select safe_add_to_realtime('live_streams');
 alter table live_streams enable row level security;
 create policy "Public read streams" on live_streams for select using (true);
-create policy "Auth insert stream" on live_streams for insert with check (true);
-create policy "Host update stream" on live_streams for update using (
-  host_id = current_setting('request.jwt.claims', true)::json->>'sub'
-);
+create policy "Anyone insert stream" on live_streams for insert with check (true);
+create policy "Anyone update stream" on live_streams for update using (true);
 create index if not exists live_streams_active on live_streams(is_active, age_group);
 
 -- ============================================================
@@ -304,7 +288,7 @@ create table if not exists live_chat (
 select safe_add_to_realtime('live_chat');
 alter table live_chat enable row level security;
 create policy "Public read chat" on live_chat for select using (true);
-create policy "Auth insert chat" on live_chat for insert with check (true);
+create policy "Anyone insert chat" on live_chat for insert with check (true);
 create index if not exists live_chat_stream on live_chat(stream_id, created_at asc);
 
 -- ============================================================
@@ -325,14 +309,12 @@ create table if not exists stories (
 select safe_add_to_realtime('stories');
 alter table stories enable row level security;
 create policy "Public read stories" on stories for select using (expires_at > now());
-create policy "Auth insert stories" on stories for insert with check (true);
-create policy "Owner delete story" on stories for delete using (
-  user_id = current_setting('request.jwt.claims', true)::json->>'sub'
-);
+create policy "Anyone insert stories" on stories for insert with check (true);
+create policy "Anyone delete story" on stories for delete using (true);
 create index if not exists stories_age_expires on stories(age_group, expires_at desc);
 
 -- ============================================================
--- LESSONS (AI History)
+-- LESSONS
 -- ============================================================
 create table if not exists lessons (
   id uuid default gen_random_uuid() primary key,
@@ -343,10 +325,8 @@ create table if not exists lessons (
   created_at timestamptz default now()
 );
 alter table lessons enable row level security;
-create policy "Owner read lessons" on lessons for select using (
-  user_id = current_setting('request.jwt.claims', true)::json->>'sub'
-);
-create policy "Owner insert lessons" on lessons for insert with check (true);
+create policy "Public read lessons" on lessons for select using (true);
+create policy "Anyone insert lessons" on lessons for insert with check (true);
 create index if not exists lessons_user on lessons(user_id, created_at desc);
 
 -- ============================================================
@@ -372,11 +352,7 @@ create policy "Public read ads" on ads for select using (is_active = true);
 create index if not exists ads_active on ads(is_active, target_age_group);
 
 -- ============================================================
--- DONE — Run this entire file in Supabase SQL Editor
--- ============================================================
-
--- ============================================================
--- INCREMENT VIEWERS RPC (called when user joins a stream)
+-- INCREMENT VIEWERS RPC
 -- ============================================================
 create or replace function increment_viewers(stream_id uuid)
 returns void as $$
@@ -384,3 +360,7 @@ begin
   update live_streams set viewer_count = viewer_count + 1 where id = stream_id;
 end;
 $$ language plpgsql;
+
+-- ============================================================
+-- DONE
+-- ============================================================
