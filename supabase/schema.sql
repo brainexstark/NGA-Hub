@@ -1,16 +1,46 @@
--- NGA Hub Supabase Schema
--- Project: https://qoarbpjevfzmxgfyhxoa.supabase.co
--- Run this at: https://supabase.com/dashboard/project/qoarbpjevfzmxgfyhxoa/sql/new
+-- ============================================================
+-- NGA HUB — COMPLETE SUPABASE SCHEMA v3.0
+-- Project: https://rhdfnxrbbzaqcedwgsfm.supabase.co
+-- Run at: https://supabase.com/dashboard/project/rhdfnxrbbzaqcedwgsfm/sql/new
+-- ============================================================
 
--- Enable UUID + crypto
 create extension if not exists pgcrypto;
 
---------------------------------------------------
--- POSTS TABLE (Realtime Feed)
---------------------------------------------------
+-- ─── HELPER: safe realtime publish ───────────────────────────────────────────
+create or replace function safe_add_to_realtime(tbl text) returns void as $$
+begin
+  execute format('alter publication supabase_realtime add table %I', tbl);
+exception when duplicate_object then null;
+end;
+$$ language plpgsql;
+
+-- ============================================================
+-- APP USERS (mirrors Firebase auth — synced on signup)
+-- ============================================================
+create table if not exists app_users (
+  id text primary key,  -- Firebase UID
+  display_name text not null default '',
+  email text default '',
+  avatar text default '',
+  age_group text default '10-16',
+  is_online boolean default false,
+  last_seen timestamptz default now(),
+  created_at timestamptz default now()
+);
+select safe_add_to_realtime('app_users');
+alter table app_users enable row level security;
+create policy "Public read users" on app_users for select using (true);
+create policy "Anyone insert users" on app_users for insert with check (true);
+create policy "Anyone update users" on app_users for update using (true);
+create index if not exists app_users_online on app_users(is_online);
+create index if not exists app_users_created on app_users(created_at desc);
+
+-- ============================================================
+-- POSTS
+-- ============================================================
 create table if not exists posts (
   id uuid default gen_random_uuid() primary key,
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id text references app_users(id) on delete cascade,
   user_name text not null,
   user_avatar text default '',
   title text not null,
@@ -21,125 +51,226 @@ create table if not exists posts (
   age_group text not null,
   likes_count integer default 0,
   comments_count integer default 0,
+  views_count integer default 0,
   is_flagged boolean default false,
   created_at timestamptz default now()
 );
-
--- Realtime safe add
-do $$ begin
-  alter publication supabase_realtime add table posts;
-exception when duplicate_object then null;
-end $$;
-
+select safe_add_to_realtime('posts');
 alter table posts enable row level security;
+create policy "Public read posts" on posts for select using (is_flagged = false);
+create policy "Auth insert posts" on posts for insert with check (true);
+create policy "Owner update posts" on posts for update using (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
+create policy "Owner delete posts" on posts for delete using (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
+create index if not exists posts_age_group_created on posts(age_group, created_at desc);
+create index if not exists posts_category on posts(category);
+create index if not exists posts_user on posts(user_id);
 
-create policy "Public read posts"
-on posts for select using (is_flagged = false);
-
-create policy "Auth insert posts"
-on posts for insert with check (auth.uid() is not null);
-
-create policy "Owner update posts"
-on posts for update using (user_id = auth.uid());
-
-create policy "Owner delete posts"
-on posts for delete using (user_id = auth.uid());
-
-create index if not exists posts_age_group_created 
-on posts(age_group, created_at desc);
-
-create index if not exists posts_category 
-on posts(category);
-
---------------------------------------------------
--- COMMENTS TABLE
---------------------------------------------------
+-- ============================================================
+-- COMMENTS
+-- ============================================================
 create table if not exists comments (
   id uuid default gen_random_uuid() primary key,
   post_id uuid references posts(id) on delete cascade,
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id text references app_users(id) on delete cascade,
   user_name text not null,
   user_avatar text default '',
   text text not null,
   created_at timestamptz default now()
 );
-
-do $$ begin
-  alter publication supabase_realtime add table comments;
-exception when duplicate_object then null;
-end $$;
-
+select safe_add_to_realtime('comments');
 alter table comments enable row level security;
+create policy "Public read comments" on comments for select using (true);
+create policy "Auth insert comments" on comments for insert with check (true);
+create policy "Owner delete comment" on comments for delete using (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
+create index if not exists comments_post_created on comments(post_id, created_at asc);
 
-create policy "Public read comments"
-on comments for select using (true);
-
-create policy "Auth insert comments"
-on comments for insert with check (auth.uid() is not null);
-
-create policy "Owner delete comment"
-on comments for delete using (user_id = auth.uid());
-
-create index if not exists comments_post_created 
-on comments(post_id, created_at desc);
-
---------------------------------------------------
--- LIKES TABLE (FIXED)
---------------------------------------------------
-create table if not exists likes (
-  id uuid default gen_random_uuid() primary key,
-  post_id uuid references posts(id) on delete cascade,
-  user_id uuid references auth.users(id) on delete cascade,
-  created_at timestamptz default now(),
-  unique(post_id, user_id)
-);
-
-do $$ begin
-  alter publication supabase_realtime add table likes;
-exception when duplicate_object then null;
-end $$;
-
-alter table likes enable row level security;
-
-create policy "Public read likes"
-on likes for select using (true);
-
-create policy "Auth insert likes"
-on likes for insert with check (auth.uid() is not null);
-
-create policy "Owner delete like"
-on likes for delete using (user_id = auth.uid());
-
-create index if not exists likes_post 
-on likes(post_id);
-
---------------------------------------------------
--- AUTO UPDATE LIKE COUNT (PRO FEATURE)
---------------------------------------------------
-create or replace function update_likes_count()
-returns trigger as $$
+create or replace function update_comments_count() returns trigger as $$
 begin
   if (tg_op = 'INSERT') then
-    update posts set likes_count = likes_count + 1 where id = new.post_id;
+    update posts set comments_count = comments_count + 1 where id = new.post_id;
   elsif (tg_op = 'DELETE') then
-    update posts set likes_count = likes_count - 1 where id = old.post_id;
+    update posts set comments_count = greatest(comments_count - 1, 0) where id = old.post_id;
   end if;
   return null;
 end;
 $$ language plpgsql;
+drop trigger if exists comments_count_trigger on comments;
+create trigger comments_count_trigger after insert or delete on comments
+  for each row execute function update_comments_count();
 
+-- ============================================================
+-- LIKES
+-- ============================================================
+create table if not exists likes (
+  id uuid default gen_random_uuid() primary key,
+  post_id uuid references posts(id) on delete cascade,
+  user_id text references app_users(id) on delete cascade,
+  created_at timestamptz default now(),
+  unique(post_id, user_id)
+);
+select safe_add_to_realtime('likes');
+alter table likes enable row level security;
+create policy "Public read likes" on likes for select using (true);
+create policy "Auth insert likes" on likes for insert with check (true);
+create policy "Owner delete like" on likes for delete using (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
+create index if not exists likes_post on likes(post_id);
+create index if not exists likes_user on likes(user_id);
+
+create or replace function update_likes_count() returns trigger as $$
+begin
+  if (tg_op = 'INSERT') then
+    update posts set likes_count = likes_count + 1 where id = new.post_id;
+  elsif (tg_op = 'DELETE') then
+    update posts set likes_count = greatest(likes_count - 1, 0) where id = old.post_id;
+  end if;
+  return null;
+end;
+$$ language plpgsql;
 drop trigger if exists likes_count_trigger on likes;
+create trigger likes_count_trigger after insert or delete on likes
+  for each row execute function update_likes_count();
 
-create trigger likes_count_trigger
-after insert or delete on likes
-for each row execute function update_likes_count();
+-- ============================================================
+-- FOLLOWS
+-- ============================================================
+create table if not exists follows (
+  id uuid default gen_random_uuid() primary key,
+  follower_id text references app_users(id) on delete cascade,
+  following_id text references app_users(id) on delete cascade,
+  created_at timestamptz default now(),
+  unique(follower_id, following_id)
+);
+select safe_add_to_realtime('follows');
+alter table follows enable row level security;
+create policy "Public read follows" on follows for select using (true);
+create policy "Auth insert follows" on follows for insert with check (true);
+create policy "Owner delete follow" on follows for delete using (follower_id = current_setting('request.jwt.claims', true)::json->>'sub');
+create index if not exists follows_follower on follows(follower_id);
+create index if not exists follows_following on follows(following_id);
 
---------------------------------------------------
--- LIVE STREAMS TABLE
---------------------------------------------------
+-- ============================================================
+-- DIRECT MESSAGES (1-on-1 chat)
+-- ============================================================
+create table if not exists direct_messages (
+  id uuid default gen_random_uuid() primary key,
+  chat_id text not null,  -- sorted(uid1_uid2)
+  sender_id text references app_users(id) on delete cascade,
+  sender_name text not null,
+  sender_avatar text default '',
+  text text not null,
+  is_read boolean default false,
+  delivered boolean default true,
+  created_at timestamptz default now()
+);
+select safe_add_to_realtime('direct_messages');
+alter table direct_messages enable row level security;
+create policy "Chat members read DMs" on direct_messages for select using (
+  chat_id like '%' || current_setting('request.jwt.claims', true)::json->>'sub' || '%'
+);
+create policy "Auth insert DMs" on direct_messages for insert with check (true);
+create policy "Owner delete DM" on direct_messages for delete using (
+  sender_id = current_setting('request.jwt.claims', true)::json->>'sub'
+);
+create index if not exists dm_chat_created on direct_messages(chat_id, created_at asc);
+create index if not exists dm_sender on direct_messages(sender_id);
+
+-- ============================================================
+-- GROUP CHATS
+-- ============================================================
+create table if not exists group_chats (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  description text default '',
+  avatar text default '',
+  created_by text references app_users(id) on delete cascade,
+  age_group text default '10-16',
+  created_at timestamptz default now()
+);
+select safe_add_to_realtime('group_chats');
+alter table group_chats enable row level security;
+create policy "Public read groups" on group_chats for select using (true);
+create policy "Auth create group" on group_chats for insert with check (true);
+create policy "Creator update group" on group_chats for update using (
+  created_by = current_setting('request.jwt.claims', true)::json->>'sub'
+);
+create index if not exists group_chats_created on group_chats(created_at desc);
+
+-- ============================================================
+-- GROUP MEMBERS
+-- ============================================================
+create table if not exists group_members (
+  id uuid default gen_random_uuid() primary key,
+  group_id uuid references group_chats(id) on delete cascade,
+  user_id text references app_users(id) on delete cascade,
+  user_name text not null,
+  user_avatar text default '',
+  role text default 'member' check (role in ('admin','member')),
+  joined_at timestamptz default now(),
+  unique(group_id, user_id)
+);
+select safe_add_to_realtime('group_members');
+alter table group_members enable row level security;
+create policy "Public read members" on group_members for select using (true);
+create policy "Auth join group" on group_members for insert with check (true);
+create policy "Member leave group" on group_members for delete using (
+  user_id = current_setting('request.jwt.claims', true)::json->>'sub'
+);
+create index if not exists group_members_group on group_members(group_id);
+create index if not exists group_members_user on group_members(user_id);
+
+-- ============================================================
+-- GROUP MESSAGES
+-- ============================================================
+create table if not exists group_messages (
+  id uuid default gen_random_uuid() primary key,
+  group_id uuid references group_chats(id) on delete cascade,
+  sender_id text references app_users(id) on delete cascade,
+  sender_name text not null,
+  sender_avatar text default '',
+  text text not null,
+  created_at timestamptz default now()
+);
+select safe_add_to_realtime('group_messages');
+alter table group_messages enable row level security;
+create policy "Public read group messages" on group_messages for select using (true);
+create policy "Auth send group message" on group_messages for insert with check (true);
+create policy "Owner delete group message" on group_messages for delete using (
+  sender_id = current_setting('request.jwt.claims', true)::json->>'sub'
+);
+create index if not exists group_messages_group_created on group_messages(group_id, created_at asc);
+
+-- ============================================================
+-- NOTIFICATIONS
+-- ============================================================
+create table if not exists notifications (
+  id uuid default gen_random_uuid() primary key,
+  user_id text references app_users(id) on delete cascade,
+  type text not null check (type in ('like','comment','follow','mention','live','message','group','system')),
+  actor_id text references app_users(id) on delete cascade,
+  actor_name text not null default '',
+  actor_avatar text default '',
+  post_id uuid references posts(id) on delete cascade,
+  message text not null,
+  is_read boolean default false,
+  created_at timestamptz default now()
+);
+select safe_add_to_realtime('notifications');
+alter table notifications enable row level security;
+create policy "Owner read notifications" on notifications for select using (
+  user_id = current_setting('request.jwt.claims', true)::json->>'sub'
+);
+create policy "Auth insert notifications" on notifications for insert with check (true);
+create policy "Owner update notifications" on notifications for update using (
+  user_id = current_setting('request.jwt.claims', true)::json->>'sub'
+);
+create index if not exists notifications_user_read on notifications(user_id, is_read, created_at desc);
+
+-- ============================================================
+-- LIVE STREAMS
+-- ============================================================
 create table if not exists live_streams (
   id uuid default gen_random_uuid() primary key,
-  host_id uuid references auth.users(id) on delete cascade,
+  host_id text references app_users(id) on delete cascade,
   host_name text not null,
   host_avatar text default '',
   title text not null,
@@ -149,81 +280,78 @@ create table if not exists live_streams (
   started_at timestamptz default now(),
   ended_at timestamptz
 );
-
-do $$ begin
-  alter publication supabase_realtime add table live_streams;
-exception when duplicate_object then null;
-end $$;
-
+select safe_add_to_realtime('live_streams');
 alter table live_streams enable row level security;
+create policy "Public read streams" on live_streams for select using (true);
+create policy "Auth insert stream" on live_streams for insert with check (true);
+create policy "Host update stream" on live_streams for update using (
+  host_id = current_setting('request.jwt.claims', true)::json->>'sub'
+);
+create index if not exists live_streams_active on live_streams(is_active, age_group);
 
-create policy "Public read streams"
-on live_streams for select using (true);
-
-create policy "Auth insert stream"
-on live_streams for insert with check (auth.uid() is not null);
-
-create policy "Host update stream"
-on live_streams for update using (host_id = auth.uid());
-
-create index if not exists live_streams_active 
-on live_streams(is_active, age_group);
-
---------------------------------------------------
--- LIVE CHAT TABLE
---------------------------------------------------
+-- ============================================================
+-- LIVE CHAT
+-- ============================================================
 create table if not exists live_chat (
   id uuid default gen_random_uuid() primary key,
   stream_id uuid references live_streams(id) on delete cascade,
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id text references app_users(id) on delete cascade,
   user_name text not null,
   user_avatar text default '',
   message text not null,
   created_at timestamptz default now()
 );
-
-do $$ begin
-  alter publication supabase_realtime add table live_chat;
-exception when duplicate_object then null;
-end $$;
-
+select safe_add_to_realtime('live_chat');
 alter table live_chat enable row level security;
+create policy "Public read chat" on live_chat for select using (true);
+create policy "Auth insert chat" on live_chat for insert with check (true);
+create index if not exists live_chat_stream on live_chat(stream_id, created_at asc);
 
-create policy "Public read chat"
-on live_chat for select using (true);
+-- ============================================================
+-- STORIES
+-- ============================================================
+create table if not exists stories (
+  id uuid default gen_random_uuid() primary key,
+  user_id text references app_users(id) on delete cascade,
+  user_name text not null,
+  user_avatar text default '',
+  media_url text not null,
+  caption text default '',
+  age_group text not null,
+  views_count integer default 0,
+  expires_at timestamptz default (now() + interval '24 hours'),
+  created_at timestamptz default now()
+);
+select safe_add_to_realtime('stories');
+alter table stories enable row level security;
+create policy "Public read stories" on stories for select using (expires_at > now());
+create policy "Auth insert stories" on stories for insert with check (true);
+create policy "Owner delete story" on stories for delete using (
+  user_id = current_setting('request.jwt.claims', true)::json->>'sub'
+);
+create index if not exists stories_age_expires on stories(age_group, expires_at desc);
 
-create policy "Auth insert chat"
-on live_chat for insert with check (auth.uid() is not null);
-
-create index if not exists live_chat_stream 
-on live_chat(stream_id, created_at desc);
-
---------------------------------------------------
--- LESSONS TABLE (AI HISTORY)
---------------------------------------------------
+-- ============================================================
+-- LESSONS (AI History)
+-- ============================================================
 create table if not exists lessons (
   id uuid default gen_random_uuid() primary key,
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id text references app_users(id) on delete cascade,
   topic text not null,
   age_group text not null,
   lesson_plan text not null,
   created_at timestamptz default now()
 );
-
 alter table lessons enable row level security;
+create policy "Owner read lessons" on lessons for select using (
+  user_id = current_setting('request.jwt.claims', true)::json->>'sub'
+);
+create policy "Owner insert lessons" on lessons for insert with check (true);
+create index if not exists lessons_user on lessons(user_id, created_at desc);
 
-create policy "Owner read lessons"
-on lessons for select using (user_id = auth.uid());
-
-create policy "Owner insert lessons"
-on lessons for insert with check (user_id = auth.uid());
-
-create index if not exists lessons_user 
-on lessons(user_id, created_at desc);
-
---------------------------------------------------
--- ADS TABLE
---------------------------------------------------
+-- ============================================================
+-- ADS
+-- ============================================================
 create table if not exists ads (
   id uuid default gen_random_uuid() primary key,
   partner_name text not null,
@@ -239,11 +367,20 @@ create table if not exists ads (
   is_active boolean default true,
   created_at timestamptz default now()
 );
-
 alter table ads enable row level security;
+create policy "Public read ads" on ads for select using (is_active = true);
+create index if not exists ads_active on ads(is_active, target_age_group);
 
-create policy "Public read ads"
-on ads for select using (is_active = true);
+-- ============================================================
+-- DONE — Run this entire file in Supabase SQL Editor
+-- ============================================================
 
-create index if not exists ads_active 
-on ads(is_active, target_age_group);
+-- ============================================================
+-- INCREMENT VIEWERS RPC (called when user joins a stream)
+-- ============================================================
+create or replace function increment_viewers(stream_id uuid)
+returns void as $$
+begin
+  update live_streams set viewer_count = viewer_count + 1 where id = stream_id;
+end;
+$$ language plpgsql;

@@ -19,6 +19,75 @@ import { useToast } from '../../hooks/use-toast';
 import { Dialog, DialogContent, DialogTitle } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { useRealtimeNotifications, usePresence, upsertAppUser } from '../../hooks/use-realtime';
+
+// ─── Notification Bell ────────────────────────────────────────────────────────
+function NotificationBell({ userId, userName, userAvatar }: { userId: string; userName: string; userAvatar: string }) {
+  const { unreadCount, notifications, markAllRead } = useRealtimeNotifications(userId);
+  const [open, setOpen] = React.useState(false);
+  const router = useRouter();
+
+  return (
+    <div className="relative">
+      <button onClick={() => { setOpen(p => !p); if (unreadCount > 0) markAllRead(); }}
+        className="relative text-foreground/60 hover:text-primary transition-colors">
+        <Bell className="h-6 w-6" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full text-[9px] font-black text-white flex items-center justify-center border border-background">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-10 w-72 bg-slate-900 border border-white/10 rounded-3xl shadow-2xl z-[99999] overflow-hidden animate-in slide-in-from-top-2">
+          <div className="p-4 border-b border-white/5">
+            <p className="font-black text-xs uppercase tracking-widest">Notifications</p>
+          </div>
+          <div className="max-h-80 overflow-y-auto no-scrollbar">
+            {notifications.length === 0 ? (
+              <div className="p-6 text-center opacity-30">
+                <p className="text-xs font-black uppercase">No notifications yet</p>
+              </div>
+            ) : notifications.slice(0, 10).map(n => (
+              <div key={n.id} className={`flex items-start gap-3 p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all ${!n.is_read ? 'bg-primary/5' : ''}`}
+                onClick={() => { setOpen(false); if (n.post_id) router.push(`/comments/${n.post_id}`); }}>
+                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 text-sm">
+                  {n.type === 'like' ? '❤️' : n.type === 'comment' ? '💬' : n.type === 'follow' ? '👤' : n.type === 'message' ? '✉️' : '🔔'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white/80 line-clamp-2">{n.message}</p>
+                  <p className="text-[9px] font-black uppercase text-white/30 mt-1">
+                    {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+                {!n.is_read && <div className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Presence Tracker (registers user as online) ──────────────────────────────
+function PresenceTracker({ userId, userName, userAvatar }: { userId: string; userName: string; userAvatar: string }) {
+  usePresence(userId, userName, userAvatar);
+
+  // Upsert user into app_users table so they appear in chat/network
+  React.useEffect(() => {
+    if (!userId || !userName) return;
+    upsertAppUser({ id: userId, display_name: userName, avatar: userAvatar, is_online: true, last_seen: new Date().toISOString() });
+    // Mark offline on unload
+    const handleUnload = () => {
+      upsertAppUser({ id: userId, is_online: false, last_seen: new Date().toISOString() });
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [userId, userName, userAvatar]);
+
+  return null;
+}
 
 // New user join notification banner
 function NewUserBanner() {
@@ -121,11 +190,12 @@ function CreateModal({ ageGroup }: { ageGroup: string }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="relative -top-6 h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-accent p-0.5 shadow-2xl flex items-center justify-center active:scale-95 transition-all"
+        className="flex flex-col items-center gap-1 text-foreground/40 hover:text-primary transition-all active:scale-95"
       >
-        <div className="h-full w-full bg-background rounded-[14px] flex items-center justify-center">
-          <Plus className="h-8 w-8 text-primary" />
+        <div className="h-10 w-10 rounded-2xl bg-primary/10 border-2 border-primary/30 flex items-center justify-center">
+          <Plus className="h-6 w-6 text-primary" />
         </div>
+        <span className="text-[8px] font-black uppercase tracking-widest text-primary">Create</span>
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -438,9 +508,13 @@ export default function AppLayout({
                   <Link href="/favorites" className="text-foreground/60 hover:text-primary transition-colors">
                       <Heart className="h-6 w-6" />
                   </Link>
-                  <button onClick={() => toast({ title: "System Synchronized" })} className="text-foreground/60 hover:text-primary transition-colors">
-                      <Bell className="h-6 w-6" />
-                  </button>
+                  {user && (
+                    <NotificationBell
+                      userId={user.uid}
+                      userName={userProfile?.displayName || user.displayName || ''}
+                      userAvatar={userProfile?.profilePicture || user.photoURL || ''}
+                    />
+                  )}
               </div>
           </header>
 
@@ -454,25 +528,24 @@ export default function AppLayout({
                  </div>
 
                  <footer className="fixed bottom-0 left-0 right-0 h-20 bg-background/90 backdrop-blur-2xl border-t border-white/5 md:hidden z-[60] flex items-center justify-around px-6">
-                      <Link href={`/HomeTon/${ageGroup}`} className={cn("transition-all", pathname.startsWith('/HomeTon') ? "text-primary" : "text-foreground/40")}>
-                          <Home className="h-7 w-7" />
+                      <Link href={`/HomeTon/${ageGroup}`} className={cn("flex flex-col items-center gap-1 transition-all", pathname.startsWith('/HomeTon') ? "text-primary" : "text-foreground/40")}>
+                          <Home className="h-6 w-6" />
+                          <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
                       </Link>
-                      <Link href="/search" className={cn("transition-all", pathname === '/search' ? "text-primary" : "text-foreground/40")}>
-                          <Search className="h-7 w-7" />
+                      <Link href="/search" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/search' ? "text-primary" : "text-foreground/40")}>
+                          <Search className="h-6 w-6" />
+                          <span className="text-[8px] font-black uppercase tracking-widest">Search</span>
                       </Link>
-                      {/* Instagram-style + button */}
                       <CreateModal ageGroup={ageGroup} />
-                      <Link href="/learning-hub" className={cn("transition-all", pathname === '/learning-hub' ? "text-primary" : "text-foreground/40")}>
-                          <GraduationCap className="h-7 w-7" />
+                      <Link href="/learning-hub" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/learning-hub' ? "text-primary" : "text-foreground/40")}>
+                          <GraduationCap className="h-6 w-6" />
+                          <span className="text-[8px] font-black uppercase tracking-widest">Learn</span>
                       </Link>
-                      {/* Profile avatar with camera icon */}
-                      <Link href="/settings" className="relative group">
+                      <Link href="/settings" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/settings' ? "text-primary" : "text-foreground/40")}>
                           <Avatar className={cn("h-7 w-7 border-2 transition-all", pathname === '/settings' ? "border-primary" : "border-transparent")}>
                               <AvatarImage src={userProfile?.profilePicture || user?.photoURL || ''} />
                           </Avatar>
-                          <Link href="/record-video" className="absolute -bottom-1 -right-1 h-4 w-4 bg-primary rounded-full flex items-center justify-center shadow-lg" onClick={e => e.stopPropagation()}>
-                              <Camera className="h-2.5 w-2.5 text-white" />
-                          </Link>
+                          <span className="text-[8px] font-black uppercase tracking-widest">Profile</span>
                       </Link>
                  </footer>
 
@@ -489,6 +562,14 @@ export default function AppLayout({
                  )}
                  {/* First-time onboarding tour */}
                  {user && <OnboardingTour />}
+                 {/* Presence tracker — registers user online in Supabase */}
+                 {user && (
+                   <PresenceTracker
+                     userId={user.uid}
+                     userName={userProfile?.displayName || user.displayName || ''}
+                     userAvatar={userProfile?.profilePicture || user.photoURL || ''}
+                   />
+                 )}
                  {/* New user join notification */}
                  <NewUserBanner />
                  {/* Top ad banner */}

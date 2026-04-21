@@ -5,6 +5,7 @@ import { Skeleton } from '../../../../components/ui/skeleton';
 import { Newspaper, Music, Trophy, Tv, Globe, Flame, Heart, MessageCircle, Send, PlayCircle } from 'lucide-react';
 import { cn, getEmbedUrl } from '../../../../lib/utils';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
+import { useRealtimeLikes, useLiveReactions } from '../../../../hooks/use-realtime';
 import { aiDatabase } from '../../../../lib/ai-database';
 import type { Post } from '../../../../lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../../components/ui/avatar';
@@ -62,10 +63,8 @@ function FeedVideo({ url, thumbnail }: { url: string; thumbnail: string }) {
         <div className="w-full h-full relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={thumbnail} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-            <div className="p-4 rounded-full bg-red-600/90 shadow-2xl">
-              <PlayCircle className="h-10 w-10 text-white fill-white" />
-            </div>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+            <PlayCircle className="h-14 w-14 text-white/80 drop-shadow-2xl" />
           </div>
         </div>
       )}
@@ -76,7 +75,8 @@ function FeedVideo({ url, thumbnail }: { url: string; thumbnail: string }) {
 function FeedPostCard({ post }: { post: Post }) {
   const { user } = useUser();
   const firestore = useFirestore();
-  const [liked, setLiked] = React.useState(false);
+  const { likesCount, liked, toggleLike } = useRealtimeLikes(post.id, user?.uid || '');
+  const { reactions, sendReaction } = useLiveReactions(post.id);
 
   const handleEngagement = () => {
     window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
@@ -97,6 +97,16 @@ function FeedPostCard({ post }: { post: Post }) {
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
 
+      {/* Floating live reactions */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+        {reactions.map(r => (
+          <div key={r.id} className="absolute bottom-32 animate-in slide-in-from-bottom-4 fade-in duration-300"
+            style={{ left: `${r.x}%`, animationFillMode: 'forwards' }}>
+            <span className="text-3xl drop-shadow-2xl">{r.emoji}</span>
+          </div>
+        ))}
+      </div>
+
       {/* Bottom info */}
       <div className="absolute bottom-24 left-4 right-16 z-10 space-y-2">
         <div className="flex items-center gap-2">
@@ -107,13 +117,22 @@ function FeedPostCard({ post }: { post: Post }) {
           <span className="font-black text-sm text-white uppercase tracking-tight">@{post.userName?.replace(/\s/g, '_').toLowerCase()}</span>
         </div>
         <p className="text-xs text-white/80 font-medium italic line-clamp-2">"{post.caption || post.title}"</p>
+        {/* Quick reaction bar */}
+        <div className="flex gap-2 mt-1">
+          {['❤️','🔥','😂','👏','😮'].map(emoji => (
+            <button key={emoji} onClick={(e) => { e.stopPropagation(); sendReaction(emoji, user?.displayName || 'User'); }}
+              className="text-lg active:scale-125 transition-transform">
+              {emoji}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Right actions */}
       <div className="absolute right-3 bottom-28 flex flex-col gap-5 z-10 items-center">
-        <button onClick={() => setLiked(p => !p)} className="flex flex-col items-center gap-1">
+        <button onClick={(e) => { e.stopPropagation(); toggleLike(); }} className="flex flex-col items-center gap-1">
           <Heart className={cn("h-7 w-7 transition-all", liked ? "fill-red-500 text-red-500" : "text-white")} />
-          <span className="text-[9px] font-black text-white">{liked ? (post.likesCount + 1) : post.likesCount}</span>
+          <span className="text-[9px] font-black text-white">{likesCount}</span>
         </button>
         <Link href={`/comments/${post.id}`} className="flex flex-col items-center gap-1">
           <MessageCircle className="h-7 w-7 text-white" />

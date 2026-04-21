@@ -30,6 +30,7 @@ import { Logo } from '../../../../components/logo';
 import { SocialStatsPopover } from '../../../../components/social-stats-popover';
 import { fetchAds, injectAds, isAd, type Ad } from '../../../../lib/ads';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
+import { useRealtimeFollowers } from '../../../../hooks/use-realtime';
 import { getEmbedUrl as _getEmbedUrl } from '../../../../lib/utils';
 import { filterForUnder10 } from '../../../../lib/inappropriate-words';
 import { aiDatabase } from '../../../../lib/ai-database';
@@ -53,6 +54,9 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     return doc(firestore, 'users', user.uid);
   }, [user, firestore]);
   const { data: profile } = useDoc<UserProfile>(profileRef);
+
+  // Realtime follower/following counts from Supabase
+  const { followersCount, followingCount } = useRealtimeFollowers(user?.uid || '');
 
   React.useEffect(() => {
     setMounted(true);
@@ -88,17 +92,18 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     fetchAds(ageGroup).then(setAds);
   }, [ageGroup]);
 
-  // Always show content — user posts first, then static trending, never blank
+  // Always show content — newest user posts first, then static trending
   const rawPosts = React.useMemo(() => {
     const userPosts = supabasePosts.length > 0
-      ? supabasePosts.map(p => ({ id: p.id, title: p.title || p.caption, caption: p.caption, mediaUrl: p.mediaUrl, url: p.url, userName: p.userName, userAvatar: p.userAvatar, category: p.category }))
+      ? supabasePosts
+          .slice()
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .map(p => ({ id: p.id, title: p.title || p.caption, caption: p.caption, mediaUrl: p.mediaUrl, url: p.url, userName: p.userName, userAvatar: p.userAvatar, category: p.category }))
       : firestorePosts.length > 0
       ? firestorePosts.map(p => ({ id: p.id, title: p.title || p.caption, caption: p.caption, mediaUrl: p.mediaUrl, url: p.url, userName: p.userName, userAvatar: p.userAvatar as string | undefined, category: p.category }))
       : [];
-    // Always pad with static trending so feed is never empty
     const trending = staticFeedPosts.map(p => ({ ...p, _static: true }));
-    const combined = userPosts.length >= 3 ? userPosts : [...userPosts, ...trending];
-    return combined;
+    return userPosts.length >= 3 ? userPosts : [...userPosts, ...trending];
   }, [supabasePosts, firestorePosts, staticFeedPosts]);
 
   // Inject ads every 5 posts
@@ -299,8 +304,8 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
             <Logo className="scale-90" />
             <div className="flex items-center gap-6 border-l border-primary/10 pl-8">
                 <SocialStatsPopover type="disciples" count={profile?.disciplesCount || 0} label="Disciples" colorClass="text-sm font-black text-primary" />
-                <SocialStatsPopover type="followers" count={profile?.followersCount || 0} label="Followers" colorClass="text-sm font-black text-accent" />
-                <SocialStatsPopover type="following" count={profile?.followingCount || 0} label="Following" colorClass="text-sm font-black text-foreground" />
+                <SocialStatsPopover type="followers" count={followersCount} label="Followers" colorClass="text-sm font-black text-accent" />
+                <SocialStatsPopover type="following" count={followingCount} label="Following" colorClass="text-sm font-black text-foreground" />
             </div>
         </div>
         <div className="flex items-center gap-5">

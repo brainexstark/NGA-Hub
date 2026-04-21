@@ -5,7 +5,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "../../../../components/ui/a
 import { Button } from "../../../../components/ui/button";
 import { Heart, MessageCircle, Share2, Zap, Globe, Newspaper, Music, Trophy, Tv, Download } from "lucide-react";
 import { useToast } from "../../../../hooks/use-toast";
-import { aiDatabase } from '../../../../lib/ai-database';
 import { ShareDialog } from '../../../../components/share-dialog';
 import { cn, getEmbedUrl } from '../../../../lib/utils';
 import Link from 'next/link';
@@ -14,6 +13,7 @@ import { collection, serverTimestamp, doc, addDoc } from "firebase/firestore";
 import type { UserProfile } from '../../../../lib/types';
 import { containsInappropriateWords } from '../../../../lib/inappropriate-words';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
+import { useRealtimeLikes } from '../../../../hooks/use-realtime';
 
 const CATEGORIES = [
   { id: 'all', label: 'All', icon: Globe },
@@ -66,15 +66,16 @@ function AutoPlayReel({ url, isActive }: { url: string; isActive: boolean }) {
 }
 
 function ReelItem({
-  reel, index, activeIndex, ageGroup, onLike, liked, onSave, onFollow, followed,
+  reel, index, activeIndex, ageGroup, onSave,
 }: {
   reel: any; index: number; activeIndex: number; ageGroup: string;
-  onLike: (id: string) => void; liked: boolean;
-  onSave: (reel: any) => void; onFollow: (name: string) => void; followed: boolean;
+  onSave: (reel: any) => void;
 }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const isActive = index === activeIndex;
   const { toast } = useToast();
+  const { user } = useUser();
+  const { likesCount, liked, toggleLike } = useRealtimeLikes(reel.id, user?.uid || '');
 
   return (
     <div
@@ -93,32 +94,21 @@ function ReelItem({
       <div className="absolute bottom-0 left-0 right-16 p-5 z-10 space-y-3">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9 border-2 border-white/30">
-            <AvatarImage src={`https://picsum.photos/seed/${reel.id}/100/100`} />
-            <AvatarFallback>S</AvatarFallback>
+            <AvatarImage src={reel.userAvatar || `https://picsum.photos/seed/${reel.id}/100/100`} />
+            <AvatarFallback>U</AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-black text-sm text-white uppercase tracking-tight">@STARKBOfficial</p>
+            <p className="font-black text-sm text-white uppercase tracking-tight">@{(reel.userName || reel.user_name || 'user').replace(/\s/g, '_').toLowerCase()}</p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-              "rounded-full h-7 px-3 text-[9px] font-black uppercase border-white/20 ml-2",
-              followed ? "bg-primary text-white border-primary" : "bg-white/10 text-white"
-            )}
-            onClick={() => onFollow('STARKBOfficial')}
-          >
-            {followed ? 'LINKED' : 'FOLLOW'}
-          </Button>
         </div>
-        <p className="text-xs text-white/80 font-medium italic line-clamp-2">"{reel.description}"</p>
+        <p className="text-xs text-white/80 font-medium italic line-clamp-2">"{reel.description || reel.caption}"</p>
       </div>
 
       {/* Right actions */}
       <div className="absolute right-3 bottom-24 flex flex-col gap-5 z-20 items-center">
-        <button onClick={() => onLike(reel.id)} className="flex flex-col items-center gap-1">
+        <button onClick={() => toggleLike()} className="flex flex-col items-center gap-1">
           <Heart className={cn("h-7 w-7 transition-all", liked ? "fill-red-500 text-red-500" : "text-white")} />
-          <span className="text-[9px] font-black text-white">{liked ? '1.3K' : '1.2K'}</span>
+          <span className="text-[9px] font-black text-white">{likesCount > 0 ? likesCount.toLocaleString() : '0'}</span>
         </button>
         <Link href={`/comments/${reel.id}`} className="flex flex-col items-center gap-1">
           <MessageCircle className="h-7 w-7 text-white" />
@@ -155,34 +145,33 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
   }, [user, firestore]);
   const { data: profile } = useDoc<UserProfile>(profileRef);
 
-  const [likedReels, setLikedReels] = React.useState<Record<string, boolean>>({});
   const [followedUsers, setFollowedUsers] = React.useState<Record<string, boolean>>({});
   const [activeCategory, setActiveCategory] = React.useState('all');
   const [activeIndex, setActiveIndex] = React.useState(0);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
-  // Supabase user-uploaded reels
+  // Supabase user-uploaded reels — newest first
   const { posts: supabasePosts } = useRealtimeFeed(ageGroup);
 
-  const staticReels = React.useMemo(() =>
-    aiDatabase.reels[ageGroup as keyof typeof aiDatabase.reels] || aiDatabase.reels['10-16'],
-    [ageGroup]
-  );
-
-  // Merge user posts + static, filter for under-10
+  // Only show real user content — no static mock reels
   const allReels = React.useMemo(() => {
-    const userReels = supabasePosts.map(p => ({
-      id: p.id, description: p.caption, imageUrl: p.mediaUrl,
-      url: p.url || p.mediaUrl, category: p.category || 'general',
-    }));
-    const merged = [...userReels, ...staticReels];
-    if (!isUnder10) return merged;
-    // Strong filter for under-10
-    return merged.filter(r => {
-      const text = `${r.description || ''} ${r.url || ''}`;
-      return !containsInappropriateWords(text);
-    });
-  }, [supabasePosts, staticReels, isUnder10]);
+    const userReels = supabasePosts
+      .slice() // copy to avoid mutating
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .map(p => ({
+        id: p.id,
+        description: p.caption,
+        caption: p.caption,
+        imageUrl: p.mediaUrl,
+        url: p.url || p.mediaUrl,
+        category: p.category || 'general',
+        userName: p.userName,
+        userAvatar: p.userAvatar,
+      }));
+
+    if (!isUnder10) return userReels;
+    return userReels.filter(r => !containsInappropriateWords(`${r.description || ''}`));
+  }, [supabasePosts, isUnder10]);
 
   const reels = React.useMemo(() => {
     if (activeCategory === 'all') return allReels;
@@ -261,8 +250,7 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
             className="h-screen w-full snap-center relative overflow-hidden bg-black flex-shrink-0">
             <ReelItem
               reel={reel} index={i} activeIndex={activeIndex} ageGroup={ageGroup}
-              onLike={toggleLike} liked={!!likedReels[reel.id]}
-              onSave={handleSave} onFollow={handleFollow} followed={!!followedUsers['STARKBOfficial']}
+              onSave={handleSave}
             />
           </div>
         ))}

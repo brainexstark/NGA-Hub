@@ -46,6 +46,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
 import { Label } from '../../../components/ui/label';
 import { useHardwareAccess } from '../../../components/hardware-permissions';
+import { useAppUsers, useDirectMessages, useTypingIndicator } from '../../../hooks/use-realtime';
 
 export default function ChatPage() {
     const { user } = useUser();
@@ -67,6 +68,15 @@ export default function ChatPage() {
     const [inputValue, setInputValue] = useState('');
     const [messages, setMessages] = useState<any[]>([]);
     const [isTyping, setIsTyping] = useState(false);
+
+    // Typing indicator — wired to active chat
+    const activeChatId = activeChat?.id && user?.uid
+        ? [user.uid, activeChat.id].sort().join('_') : '';
+    const { typingUsers, sendTyping } = useTypingIndicator(
+        activeChatId,
+        user?.uid || '',
+        profile?.displayName || user?.displayName || 'User'
+    );
     
     // Adapt data based on sector
     const kidsChats = [
@@ -85,37 +95,32 @@ export default function ChatPage() {
     const [contacts, setContacts] = useState(isUnder10 ? kidsContacts : aiDatabase.contacts);
     const [loadingUsers, setLoadingUsers] = useState(true);
 
-    // Fetch real app users from Firestore
+    // Fetch real app users from Supabase in realtime
+    const { users: appUsers, loading: usersLoading } = useAppUsers();
+
     useEffect(() => {
-        if (!firestore || isUnder10) { setLoadingUsers(false); return; }
-        const q = query(collection(firestore, 'users'), orderBy('displayName'), limit(50));
-        const unsub = onSnapshot(q, (snap) => {
-            const appUsers = snap.docs
-                .map(d => ({ id: d.id, ...d.data() } as any))
-                .filter((u: any) => u.uid !== user?.uid && u.displayName);
-            if (appUsers.length > 0) {
-                const realContacts = appUsers.map((u: any) => ({
-                    id: u.uid || u.id,
-                    name: u.displayName,
+        if (isUnder10) { setLoadingUsers(false); return; }
+        if (!usersLoading) {
+            const others = appUsers.filter((u: any) => u.id !== user?.uid && u.display_name);
+            if (others.length > 0) {
+                const realContacts = others.map((u: any) => ({
+                    id: u.id,
+                    name: u.display_name || 'User',
                     email: u.email || '',
-                    avatar: u.profilePicture || `https://picsum.photos/seed/${u.uid || u.id}/200/200`,
-                    online: true,
+                    avatar: u.avatar || `https://picsum.photos/seed/${u.id}/200/200`,
+                    online: u.is_online,
                 }));
                 setContacts(realContacts);
                 setChats(realContacts.map((c: any) => ({
-                    id: c.id,
-                    name: c.name,
+                    id: c.id, name: c.name,
                     lastMessage: 'Tap to start chatting',
-                    time: '',
-                    unread: 0,
-                    avatar: c.avatar,
-                    status: 'none',
+                    time: '', unread: 0, avatar: c.avatar,
+                    status: 'none', online: c.online,
                 })));
             }
             setLoadingUsers(false);
-        }, () => setLoadingUsers(false));
-        return () => unsub();
-    }, [firestore, user?.uid, isUnder10]);
+        }
+    }, [appUsers, usersLoading, user?.uid, isUnder10]);
 
     useEffect(() => {
         if (isUnder10) { setChats(kidsChats); setContacts(kidsContacts); }
@@ -163,32 +168,33 @@ export default function ChatPage() {
             ? [user.uid, chat.id].sort().join('_')
             : chat.id;
 
-        const msgsRef = collection(firestore, 'chats', chatId, 'messages');
-        const msgsQuery = query(msgsRef, orderBy('createdAt', 'asc'), limit(100));
-
-        const unsub = onSnapshot(msgsQuery, (snap) => {
-            const live = snap.docs.map(d => {
-                const data = d.data();
-                return {
-                    id: d.id,
-                    senderId: data.senderId,
-                    senderName: data.senderName,
-                    text: data.text,
-                    createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-                    status: data.senderId === user?.uid ? 'read' : 'read',
-                };
+        // Use Supabase direct_messages for realtime
+        const { supabase } = require('../../../lib/supabase');
+        supabase.from('direct_messages').select('*')
+            .eq('chat_id', chatId).order('created_at', { ascending: true }).limit(100)
+            .then(({ data }: any) => {
+                if (data) setMessages(data.map((m: any) => ({
+                    id: m.id, senderId: m.sender_id, senderName: m.sender_name,
+                    text: m.text, createdAt: new Date(m.created_at),
+                    status: m.is_read ? 'read' : m.delivered ? 'delivered' : 'sent',
+                })));
             });
-            setMessages(live);
-            // Update last message in chat list
-            if (live.length > 0) {
-                const last = live[live.length - 1];
-                setChats(prev => prev.map(c =>
-                    c.id === chat.id ? { ...c, lastMessage: last.text, time: 'Just Now' } : c
-                ));
-            }
-        });
 
-        activeChatUnsubRef.current = unsub;
+        const channel = supabase.channel(`dm-${chatId}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `chat_id=eq.${chatId}` },
+                (payload: any) => {
+                    const m = payload.new;
+                    setMessages((prev: any[]) => [...prev, {
+                        id: m.id, senderId: m.sender_id, senderName: m.sender_name,
+                        text: m.text, createdAt: new Date(m.created_at), status: 'delivered',
+                    }]);
+                    setChats((prev: any[]) => prev.map(c =>
+                        c.id === chat.id ? { ...c, lastMessage: m.text, time: 'Just Now' } : c
+                    ));
+                })
+            .subscribe();
+
+        activeChatUnsubRef.current = () => supabase.removeChannel(channel);
     };
 
     // Cleanup listener on unmount
@@ -251,22 +257,20 @@ export default function ChatPage() {
             senderName: profile?.displayName || user.displayName || 'Me',
             text: msgText,
             createdAt: new Date(),
-            status: 'sent'
+            status: 'sent',
         };
-        setMessages(prev => [...prev, tempMsg]);
-        setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, lastMessage: msgText, time: 'Just Now' } : c));
+        setMessages((prev: any[]) => [...prev, tempMsg]);
+        setChats((prev: any[]) => prev.map(c => c.id === activeChat.id ? { ...c, lastMessage: msgText, time: 'Just Now' } : c));
 
-        // Persist to Firestore — onSnapshot will pick it up in real-time
-        if (firestore) {
-            const { addDoc: add, collection: col, serverTimestamp: sts } = await import('firebase/firestore');
-            add(col(firestore, 'chats', chatId, 'messages'), {
-                senderId: user.uid,
-                senderName: profile?.displayName || user.displayName || 'Me',
-                senderAvatar: profile?.profilePicture || user.photoURL || '',
-                text: msgText,
-                createdAt: sts(),
-            }).catch(() => {});
-        }
+        // Persist to Supabase — realtime subscription picks it up on both sides
+        const { supabase } = require('../../../lib/supabase');
+        await supabase.from('direct_messages').insert({
+            chat_id: chatId,
+            sender_id: user.uid,
+            sender_name: profile?.displayName || user.displayName || 'Me',
+            sender_avatar: profile?.profilePicture || user.photoURL || '',
+            text: msgText,
+        });
     };
 
     const MessageTicks = ({ status }: { status: string }) => {
@@ -700,10 +704,16 @@ export default function ChatPage() {
                         </div>
                     );
                 })}
-                {isTyping && (
-                    <div className="flex gap-2 items-center opacity-40 animate-pulse bg-white/5 p-3 rounded-full w-fit">
-                        <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">{isUnder10 ? "Friend is writing..." : "Node Processing..."}</span>
+                {typingUsers.length > 0 && (
+                    <div className="flex gap-2 items-center animate-pulse bg-white/5 p-3 rounded-full w-fit">
+                        <div className="flex gap-1">
+                            <div className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{animationDelay:'0ms'}} />
+                            <div className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{animationDelay:'150ms'}} />
+                            <div className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{animationDelay:'300ms'}} />
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                            {typingUsers[0]} is typing...
+                        </span>
                     </div>
                 )}
             </div>
@@ -712,10 +722,13 @@ export default function ChatPage() {
                 <div className="flex-1 flex items-center gap-3 bg-white/5 rounded-[2rem] px-5 py-2 border border-white/5 focus-within:border-primary/40 transition-all shadow-inner">
                     <button className="text-muted-foreground/40 hover:text-primary transition-colors" onClick={() => toast({ title: "Attach File", description: "File attachment coming soon." })}><Plus className="h-5 w-5" /></button>
                     <Input 
-                        placeholder={isUnder10 ? "Type something fun..." : "Type a transmission..."}
+                        placeholder={isUnder10 ? "Type something fun..." : "Message..."}
                         className="border-none bg-transparent focus-visible:ring-0 shadow-none h-10 placeholder:opacity-30 text-base font-medium p-0"
                         value={inputValue}
-                        onChange={e => setInputValue(e.target.value)}
+                        onChange={e => {
+                            setInputValue(e.target.value);
+                            sendTyping();
+                        }}
                         onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
                     />
                     <button className="text-muted-foreground/40 hover:text-primary transition-colors" onClick={() => toast({ title: "Attach File", description: "File attachment coming soon." })}><Paperclip className="h-5 w-5" /></button>

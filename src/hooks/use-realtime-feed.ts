@@ -80,7 +80,8 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
           const newPost = mapSupabasePost(payload.new as SupabasePost);
           if (category !== 'all' && newPost.category !== category) return;
           if (isFirstLoad.current) return;
-          setPendingPosts(prev => [newPost, ...prev]);
+          // New posts go to the TOP immediately
+          setPosts(prev => [newPost, ...prev]);
           setNewCount(prev => prev + 1);
         }
       )

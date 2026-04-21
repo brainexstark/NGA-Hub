@@ -31,7 +31,7 @@ export function useLiveStream(streamId: string | null) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!supabase || !streamId) return;
+    if (!streamId) return;
 
     // Fetch stream info
     supabase.from('live_streams').select('*').eq('id', streamId).single()
@@ -67,7 +67,7 @@ export function useLiveStream(streamId: string | null) {
   }, [streamId]);
 
   const sendMessage = useCallback(async (userId: string, userName: string, userAvatar: string, message: string) => {
-    if (!supabase || !streamId || !message.trim()) return;
+    if (!streamId || !message.trim()) return;
     await supabase.from('live_chat').insert({
       stream_id: streamId, user_id: userId,
       user_name: userName, user_avatar: userAvatar, message: message.trim(),
@@ -78,7 +78,6 @@ export function useLiveStream(streamId: string | null) {
 }
 
 export async function startLiveStream(hostId: string, hostName: string, hostAvatar: string, title: string, ageGroup: string): Promise<string | null> {
-  if (!supabase) return null;
   const { data, error } = await supabase.from('live_streams').insert({
     host_id: hostId, host_name: hostName, host_avatar: hostAvatar,
     title, age_group: ageGroup, viewer_count: 0, is_active: true,
@@ -88,12 +87,10 @@ export async function startLiveStream(hostId: string, hostName: string, hostAvat
 }
 
 export async function endLiveStream(streamId: string): Promise<void> {
-  if (!supabase) return;
   await supabase.from('live_streams').update({ is_active: false, ended_at: new Date().toISOString() }).eq('id', streamId);
 }
 
 export async function incrementViewerCount(streamId: string): Promise<void> {
-  if (!supabase) return;
   await supabase.rpc('increment_viewers', { stream_id: streamId }).catch(() => {
     // Fallback: manual increment
     supabase.from('live_streams').select('viewer_count').eq('id', streamId).single()
@@ -107,8 +104,6 @@ export function useActiveStreams(ageGroup: string) {
   const [streams, setStreams] = useState<LiveStream[]>([]);
 
   useEffect(() => {
-    if (!supabase) return;
-
     supabase.from('live_streams').select('*').eq('is_active', true).eq('age_group', ageGroup)
       .order('viewer_count', { ascending: false })
       .then(({ data }) => { if (data) setStreams(data); });

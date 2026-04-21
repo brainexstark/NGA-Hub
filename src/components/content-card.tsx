@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { cn, getEmbedUrl } from '../lib/utils';
 import { useUser, useFirestore, updateDocumentNonBlocking } from '../firebase';
 import { doc, arrayUnion } from 'firebase/firestore';
+import { useRealtimeLikes } from '../hooks/use-realtime';
 
 interface ContentCardProps {
   id?: string;
@@ -72,7 +73,7 @@ function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
 export function ContentCard({ id, title, creator, image, likesCount: initialLikes = 0, commentsCount: initialComments = 0 }: ContentCardProps) {
   const { user } = useUser();
   const firestore = useFirestore();
-  const [liked, setLiked] = useState(false);
+  const { likesCount, liked, toggleLike } = useRealtimeLikes(id || '', user?.uid || '');
 
   const handleEngagement = () => {
     window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
@@ -110,10 +111,14 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
 
       <CardFooter className="p-0 flex flex-col items-start gap-4">
         <div className="flex items-center gap-5">
-          <button className="transition-all active:scale-125" onClick={() => setLiked(!liked)}>
+          <button className="transition-all active:scale-125 flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); toggleLike(); }}>
             <Heart className={cn("h-7 w-7", liked ? "fill-red-500 text-red-500" : "text-foreground")} />
+            {likesCount > 0 && <span className="text-xs font-black opacity-60">{likesCount}</span>}
           </button>
-          <Link href={`/comments/${id}`}><MessageCircle className="h-7 w-7" /></Link>
+          <Link href={`/comments/${id}`} className="flex items-center gap-1.5">
+            <MessageCircle className="h-7 w-7" />
+            {initialComments > 0 && <span className="text-xs font-black opacity-60">{initialComments}</span>}
+          </Link>
           <ShareDialog title={title} url={image?.url || image?.imageUrl}>
             <button><Send className="h-7 w-7" /></button>
           </ShareDialog>
