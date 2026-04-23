@@ -1,30 +1,25 @@
-
-/**
- * @fileOverview Defines a function for generating lesson plans.
- * Recalibrated for client-side static synchronization.
- */
-
 import { z } from 'zod';
-import { aiDatabase, simulateDelay } from '../../lib/ai-database';
+import { containsInappropriateWords } from '../../lib/inappropriate-words';
 
-const LessonPlanInputSchema = z.object({
-  topic: z.string().describe('The topic for the lesson plan.'),
-  ageGroup: z
-    .enum(['under 10', '10-16', '16+'])
-    .describe('The age group for whom the lesson plan is intended.'),
-});
-export type LessonPlanInput = z.infer<typeof LessonPlanInputSchema>;
+export type LessonPlanInput = { topic: string; ageGroup: 'under 10' | '10-16' | '16+' };
+export type LessonPlanOutput = { lessonPlan: string };
 
-const LessonPlanOutputSchema = z.object({
-  lessonPlan: z.string().describe('The generated lesson plan.'),
-});
-export type LessonPlanOutput = z.infer<typeof LessonPlanOutputSchema>;
-
-/**
- * High-Performance Instructor Mock
- */
 export async function generateLessonPlan(input: LessonPlanInput): Promise<LessonPlanOutput> {
-  console.log("STARK-B: Instructor Accessing Lesson Archives.");
-  await simulateDelay(1200);
-  return { lessonPlan: aiDatabase.lessonPlan.plan };
+  // Try Gemini AI if on server
+  if (typeof window === 'undefined') {
+    try {
+      const { getAI } = await import('../genkit');
+      const ai = getAI();
+      if (ai) {
+        const { text } = await ai.generate({
+          prompt: `Create a detailed lesson plan for "${input.topic}" for age group ${input.ageGroup}. Include objectives, activities, and assessment.`
+        });
+        return { lessonPlan: text };
+      }
+    } catch {}
+  }
+  // Client-side fallback
+  return {
+    lessonPlan: `# Lesson Plan: ${input.topic}\n\n**Age Group:** ${input.ageGroup}\n\n## Objectives\n- Understand the key concepts of ${input.topic}\n- Apply knowledge through practical exercises\n- Demonstrate understanding through assessment\n\n## Activities\n1. **Introduction** (10 min) — Overview of ${input.topic}\n2. **Core Content** (20 min) — Deep dive into main concepts\n3. **Practice** (15 min) — Hands-on exercises\n4. **Q&A** (5 min) — Questions and review\n\n## Assessment\n- Quiz on key concepts\n- Practical demonstration\n- Peer discussion`
+  };
 }

@@ -37,7 +37,6 @@ import {
 } from "lucide-react";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '../../../firebase';
 import { doc, getDoc, collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
-import { aiDatabase } from '../../../lib/ai-database';
 import { cn } from "../../../lib/utils";
 import { useToast } from '../../../hooks/use-toast';
 import { chatWithIntelligence } from '../../../ai/flows/chat-with-intelligence';
@@ -91,8 +90,8 @@ export default function ChatPage() {
         { id: 'kc3', name: 'Story Teller 📖', avatar: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b', email: 'stories@stark-b.kids' },
     ];
 
-    const [chats, setChats] = useState(isUnder10 ? kidsChats : aiDatabase.chatHistory);
-    const [contacts, setContacts] = useState(isUnder10 ? kidsContacts : aiDatabase.contacts);
+    const [chats, setChats] = useState(isUnder10 ? kidsChats : []);
+    const [contacts, setContacts] = useState(isUnder10 ? kidsContacts : []);
     const [loadingUsers, setLoadingUsers] = useState(true);
 
     // Fetch real app users from Supabase in realtime

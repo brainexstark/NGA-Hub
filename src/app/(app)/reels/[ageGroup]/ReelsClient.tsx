@@ -14,6 +14,7 @@ import type { UserProfile } from '../../../../lib/types';
 import { containsInappropriateWords } from '../../../../lib/inappropriate-words';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
 import { useRealtimeLikes } from '../../../../hooks/use-realtime';
+import { supabase } from '../../../../lib/supabase';
 
 const CATEGORIES = [
   { id: 'all', label: 'All', icon: Globe },
@@ -76,6 +77,29 @@ function ReelItem({
   const { toast } = useToast();
   const { user } = useUser();
   const { likesCount, liked, toggleLike } = useRealtimeLikes(reel.id, user?.uid || '');
+  const [followed, setFollowed] = React.useState(false);
+  const [isDisciple, setIsDisciple] = React.useState(false);
+
+  const handleFollow = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user || !reel.userId) return;
+    if (followed) {
+      await supabase.from('follows').delete().eq('follower_id', user.uid).eq('following_id', reel.userId);
+      setFollowed(false);
+      toast({ title: 'Unfollowed' });
+    } else {
+      await supabase.from('follows').insert({ follower_id: user.uid, following_id: reel.userId });
+      setFollowed(true);
+      toast({ title: `Following @${reel.userName}` });
+    }
+  };
+
+  const handleDisciple = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) return;
+    setIsDisciple(p => !p);
+    toast({ title: isDisciple ? 'Removed from disciples' : `You are now a disciple of @${reel.userName}` });
+  };
 
   return (
     <div
@@ -92,14 +116,28 @@ function ReelItem({
 
       {/* Bottom info */}
       <div className="absolute bottom-0 left-0 right-16 p-5 z-10 space-y-3">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9 border-2 border-white/30">
-            <AvatarImage src={reel.userAvatar || `https://picsum.photos/seed/${reel.id}/100/100`} />
-            <AvatarFallback>U</AvatarFallback>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Avatar className="h-9 w-9 border-2 border-white/30 shrink-0">
+            <AvatarImage src={reel.userAvatar || ''} />
+            <AvatarFallback className="bg-primary/20 text-primary font-black text-xs">
+              {reel.userName?.[0]?.toUpperCase() || 'U'}
+            </AvatarFallback>
           </Avatar>
-          <div>
-            <p className="font-black text-sm text-white uppercase tracking-tight">@{(reel.userName || reel.user_name || 'user').replace(/\s/g, '_').toLowerCase()}</p>
-          </div>
+          <p className="font-black text-sm text-white uppercase tracking-tight">
+            @{(reel.userName || 'user').replace(/\s/g, '_').toLowerCase()}
+          </p>
+          {/* Follow button */}
+          <button onClick={handleFollow}
+            className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95",
+              followed ? "bg-white/20 text-white border-white/20" : "bg-primary text-white border-primary")}>
+            {followed ? 'Following' : '+ Follow'}
+          </button>
+          {/* Disciple button */}
+          <button onClick={handleDisciple}
+            className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95",
+              isDisciple ? "bg-accent/20 text-accent border-accent/30" : "bg-white/10 text-white/70 border-white/20")}>
+            {isDisciple ? '✓ Disciple' : 'Be Disciple?'}
+          </button>
         </div>
         <p className="text-xs text-white/80 font-medium italic line-clamp-2">"{reel.description || reel.caption}"</p>
       </div>

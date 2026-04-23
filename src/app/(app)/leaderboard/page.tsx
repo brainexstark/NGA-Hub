@@ -1,77 +1,71 @@
 'use client';
-
 import * as React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "../../../components/ui/avatar";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
-import { PlaceHolderImages } from "../../../lib/placeholder-images";
-import { Crown, Medal, Award } from "lucide-react";
-
-const leaderboardData = [
-  { rank: 1, name: 'QuantumLeaper', score: 12500, avatar: PlaceHolderImages.find(img => img.id === 'user-avatar-2') },
-  { rank: 2, name: 'PixelPioneer', score: 11800, avatar: PlaceHolderImages.find(img => img.id === 'story-2') },
-  { rank: 3, name: 'CodeCrafter', score: 11250, avatar: PlaceHolderImages.find(img => img.id === 'story-3') },
-  { rank: 4, name: 'ArtfulAndroid', score: 10500, avatar: PlaceHolderImages.find(img => img.id === 'story-1') },
-  { rank: 5, name: 'DataDynamo', score: 9800, avatar: PlaceHolderImages.find(img => img.id === 'content-2') },
-  { rank: 6, name: 'StreamSurfer', score: 9150, avatar: PlaceHolderImages.find(img => img.id === 'content-3') },
-  { rank: 7, name: 'GameGuru', score: 8800, avatar: PlaceHolderImages.find(img => img.id === 'content-5') },
-];
-
-const RankIcon = ({ rank }: { rank: number }) => {
-  if (rank === 1) return <Crown className="h-6 w-6 text-yellow-500" />;
-  if (rank === 2) return <Medal className="h-6 w-6 text-slate-400" />;
-  if (rank === 3) return <Award className="h-6 w-6 text-yellow-700" />;
-  return <span className="font-bold text-lg text-muted-foreground">{rank}</span>;
-};
+import { Crown, Medal, Award, Trophy, Loader2 } from "lucide-react";
+import { supabase } from '../../../lib/supabase';
 
 export default function LeaderboardPage() {
+  const [mounted, setMounted] = React.useState(false);
+  const [leaders, setLeaders] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => { setMounted(true); }, []);
+
+  React.useEffect(() => {
+    // Get top users by followers count from app_users
+    supabase.from('app_users').select('id, display_name, avatar')
+      .order('created_at', { ascending: true }).limit(20)
+      .then(({ data }) => { if (data) setLeaders(data); setLoading(false); });
+  }, []);
+
+  if (!mounted) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>;
+
+  const rankIcon = (rank: number) => {
+    if (rank === 1) return <Crown className="h-5 w-5 text-yellow-400" />;
+    if (rank === 2) return <Medal className="h-5 w-5 text-slate-300" />;
+    if (rank === 3) return <Award className="h-5 w-5 text-amber-600" />;
+    return <span className="text-sm font-black text-white/30">#{rank}</span>;
+  };
+
   return (
-    <div className="container mx-auto space-y-8 pb-32">
+    <div className="container mx-auto space-y-8 pb-20 animate-in fade-in duration-700">
       <header className="space-y-2">
-        <h1 className="font-headline text-4xl font-bold uppercase tracking-tight">Leaderboard</h1>
-        <p className="text-muted-foreground text-lg italic">
-          High-performance ranking synchronized with community engagement nodes.
-        </p>
+        <h1 className="font-headline text-4xl font-black uppercase tracking-tighter dynamic-text-mesh">Leaderboard</h1>
+        <p className="text-muted-foreground italic">Top community members</p>
       </header>
 
-      <Card className="border-2 border-primary/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
-        <CardHeader className="bg-muted/20 border-b border-white/5 p-8">
-          <CardTitle className="font-headline text-2xl font-bold uppercase tracking-tight">Top Performers</CardTitle>
-          <CardDescription className="font-medium italic">Based on nodes synchronized and contributions logged.</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-white/5">
-              <TableRow className="border-b border-white/5">
-                <TableHead className="w-[100px] text-center font-black uppercase text-[10px] tracking-widest opacity-40">Rank Node</TableHead>
-                <TableHead className="font-black uppercase text-[10px] tracking-widest opacity-40">User Identity</TableHead>
-                <TableHead className="text-right font-black uppercase text-[10px] tracking-widest opacity-40 pr-8">Performance Score</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {leaderboardData.map(user => (
-                <TableRow key={user.rank} className="border-b border-white/5 hover:bg-primary/5 transition-all group">
-                  <TableCell className="font-medium">
-                    <div className="flex items-center justify-center h-12 w-12 mx-auto">
-                        <RankIcon rank={user.rank} />
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-4 py-2">
-                      <Avatar className="h-12 w-12 border-2 border-primary/20 ring-2 ring-primary/5 group-hover:scale-110 transition-transform">
-                        <AvatarImage src={user.avatar?.imageUrl} alt={user.name} />
-                        <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <span className="font-black text-sm uppercase tracking-tight">{user.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-black text-xl text-primary pr-8">{user.score.toLocaleString()}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {loading ? (
+        <div className="flex justify-center py-10"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
+      ) : leaders.length === 0 ? (
+        <div className="py-20 text-center opacity-30 space-y-3">
+          <Trophy className="h-12 w-12 mx-auto" />
+          <p className="font-black uppercase text-sm">No users yet</p>
+        </div>
+      ) : (
+        <Card className="border-2 border-primary/10 bg-card/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden">
+          <CardHeader className="p-6 border-b border-white/5">
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-primary">Community Members</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {leaders.map((user, i) => (
+              <div key={user.id} className="flex items-center gap-4 p-4 border-b border-white/5 hover:bg-white/5 transition-all">
+                <div className="w-8 flex justify-center shrink-0">{rankIcon(i + 1)}</div>
+                <Avatar className="h-10 w-10 border border-white/10">
+                  <AvatarImage src={user.avatar} />
+                  <AvatarFallback className="bg-primary/20 text-primary font-black">
+                    {user.display_name?.[0]?.toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <p className="font-black text-sm uppercase tracking-tight">{user.display_name}</p>
+                  <p className="text-[9px] text-white/30 font-bold uppercase">Member</p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

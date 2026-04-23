@@ -30,10 +30,9 @@ import { Logo } from '../../../../components/logo';
 import { SocialStatsPopover } from '../../../../components/social-stats-popover';
 import { fetchAds, injectAds, isAd, type Ad } from '../../../../lib/ads';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
-import { useRealtimeFollowers } from '../../../../hooks/use-realtime';
+import { useRealtimeFollowers, useAppUsers } from '../../../../hooks/use-realtime';
 import { getEmbedUrl as _getEmbedUrl } from '../../../../lib/utils';
 import { filterForUnder10 } from '../../../../lib/inappropriate-words';
-import { aiDatabase } from '../../../../lib/ai-database';
 
 const InternalPlayer = ({ url }: { url: string }) => {
     const embedUrl = getEmbedUrl(url);
@@ -58,6 +57,10 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
   // Realtime follower/following counts from Supabase
   const { followersCount, followingCount } = useRealtimeFollowers(user?.uid || '');
 
+  // All registered users — newest first for the "New Members" row
+  const { users: allAppUsers } = useAppUsers();
+  const newMembers = allAppUsers.filter(u => u.id !== user?.uid).slice(0, 20);
+
   React.useEffect(() => {
     setMounted(true);
   }, []);
@@ -81,7 +84,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     return () => { supabase.removeChannel(channel); };
   }, [ageGroup]);
 
-  const staticFeedPosts = React.useMemo(() => getRecommendedContent(profile, 'video'), [profile]);
+  const staticFeedPosts: any[] = []; // No mock fallback — only real user content
 
   // Supabase realtime feed
   const { posts: supabasePosts } = useRealtimeFeed(ageGroup);
@@ -147,14 +150,9 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     { id: 'art', name: 'ART STUDIO', category: 'ARTS', color: 'from-orange-400 to-pink-500', icon: '🎨', image: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f', url: 'https://www.youtube.com/watch?v=URUJD5NEXC8' },
   ];
 
-  const kidsVideos = [
-    ...supabasePosts.filter(p => !filterForUnder10(`${p.caption} ${p.title || ''}`)).slice(0, 6),
-    ...(aiDatabase.superdatabasePosts['under-10'] || []).map(p => ({
-      id: p.id, title: p.title, caption: p.caption,
-      mediaUrl: p.mediaUrl, url: p.url, userName: p.userName, category: p.category,
-      userAvatar: `https://picsum.photos/seed/${p.id}/100/100`,
-    })),
-  ].slice(0, 6);
+  const kidsVideos = supabasePosts
+    .filter(p => !filterForUnder10(`${p.caption} ${p.title || ''}`))
+    .slice(0, 6);
 
   if (isUnder10) {
     return (
@@ -337,6 +335,33 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
       </header>
 
       <section className="flex gap-5 overflow-x-auto no-scrollbar py-2 pb-6">
+        {/* New Members row — all registered users */}
+        {newMembers.length > 0 && (
+          <div className="flex gap-4 overflow-x-auto no-scrollbar w-full pb-2 mb-2 border-b border-white/5">
+            <div className="flex flex-col items-center gap-1 shrink-0 opacity-40">
+              <span className="text-[8px] font-black uppercase tracking-widest writing-mode-vertical">Members</span>
+            </div>
+            {newMembers.map(u => (
+              <div key={u.id} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group">
+                <div className={`p-0.5 rounded-full ${u.is_online ? 'bg-gradient-to-tr from-green-400 to-cyan-400' : 'bg-white/20'}`}>
+                  <Avatar className="h-12 w-12 border-2 border-background">
+                    <AvatarImage src={u.avatar} className="object-cover" />
+                    <AvatarFallback className="bg-primary/20 text-primary font-black text-xs">
+                      {u.display_name?.[0]?.toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                <span className="text-[8px] font-black uppercase tracking-widest truncate max-w-[52px] text-white/60">
+                  {u.display_name?.split(' ')[0] || 'User'}
+                </span>
+                {u.is_online && <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Stories */}
+        <div className="flex gap-5 overflow-x-auto no-scrollbar shrink-0">
         <div className="flex flex-col items-center gap-3 flex-shrink-0 group cursor-pointer" onClick={() => router.push('/create-post/?type=story')}>
             <div className="p-1 rounded-full bg-muted transition-all duration-500 group-hover:scale-105">
                 <div className="relative h-16 w-16 md:h-20 md:w-20 rounded-full overflow-hidden border-2 border-background">
@@ -381,6 +406,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                 </DialogContent>
             </Dialog>
         ))}
+        </div>
       </section>
 
       <main className="space-y-12 pb-12">
@@ -392,7 +418,8 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                 <div className="flex items-center justify-between px-2">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8 border border-primary/20">
-                      <AvatarImage src={`https://picsum.photos/seed/${post.id}/100/100`} />
+                      <AvatarImage src={post.media_url} />
+                      <AvatarFallback className="bg-primary/20 text-primary font-black text-xs">Ad</AvatarFallback>
                     </Avatar>
                     <span className="text-xs font-black uppercase tracking-widest">{post.partner_name}</span>
                   </div>
@@ -414,7 +441,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                   <span className="text-xs font-black uppercase tracking-widest">{(post as any).userName}</span>
                 </div>
               </div>
-              <ContentCard id={post.id} title={(post as any).title || 'Broadcast Node'} creator={(post as any).userName} image={{ imageUrl: (post as any).mediaUrl || 'https://picsum.photos/seed/post/800/800', description: (post as any).caption, id: post.id, imageHint: 'media content', url: (post as any).url || (post as any).mediaUrl, category: (post as any).category } as any} />
+              <ContentCard id={post.id} title={(post as any).title || 'Broadcast Node'} creator={(post as any).userName} image={{ imageUrl: (post as any).mediaUrl || '', description: (post as any).caption, id: post.id, imageHint: 'media content', url: (post as any).url || (post as any).mediaUrl, category: (post as any).category } as any} />
             </div>
           );
         })}

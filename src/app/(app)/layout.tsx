@@ -391,6 +391,7 @@ export default function AppLayout({
   const [eduRemainingSeconds, setEduRemainingSeconds] = React.useState(EDUCATIONAL_LIMIT);
   const [themeVariant, setThemeVariant] = React.useState(0);
   const [showBranding, setShowBranding] = React.useState(false);
+  const [navCollapsed, setNavCollapsed] = React.useState(false);
 
   React.useEffect(() => {
     setMounted(true);
@@ -526,7 +527,9 @@ export default function AppLayout({
       }
       if (userProfile === null) {
         // New user — no profile doc yet, send to select-age only if not already there
-        if (pathname !== '/select-age') router.replace('/select-age');
+        // But don't redirect if already on a content page (prevents under-10 loop)
+        const isContentPage = pathname.startsWith('/HomeTon') || pathname.startsWith('/feed') || pathname.startsWith('/reels');
+        if (pathname !== '/select-age' && !isContentPage) router.replace('/select-age');
         return;
       }
       if (userProfile?.ageGroup) {
@@ -598,26 +601,41 @@ export default function AppLayout({
                      {children}
                  </div>
 
-                 <footer className="fixed bottom-0 left-0 right-0 h-20 bg-background/90 backdrop-blur-2xl border-t border-white/5 md:hidden z-[60] flex items-center justify-around px-6">
-                      <Link href={`/HomeTon/${ageGroup}`} className={cn("flex flex-col items-center gap-1 transition-all", pathname.startsWith('/HomeTon') ? "text-primary" : "text-foreground/40")}>
-                          <Home className="h-6 w-6" />
-                          <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
-                      </Link>
-                      <Link href="/search" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/search' ? "text-primary" : "text-foreground/40")}>
-                          <Search className="h-6 w-6" />
-                          <span className="text-[8px] font-black uppercase tracking-widest">Search</span>
-                      </Link>
-                      <CreateModal ageGroup={ageGroup} />
-                      <Link href="/learning-hub" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/learning-hub' ? "text-primary" : "text-foreground/40")}>
-                          <GraduationCap className="h-6 w-6" />
-                          <span className="text-[8px] font-black uppercase tracking-widest">Learn</span>
-                      </Link>
-                      <Link href="/settings" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/settings' ? "text-primary" : "text-foreground/40")}>
-                          <Avatar className={cn("h-7 w-7 border-2 transition-all", pathname === '/settings' ? "border-primary" : "border-transparent")}>
-                              <AvatarImage src={userProfile?.profilePicture || user?.photoURL || ''} />
-                          </Avatar>
-                          <span className="text-[8px] font-black uppercase tracking-widest">Profile</span>
-                      </Link>
+                 <footer className="fixed bottom-0 left-0 right-0 md:hidden z-[60]">
+                      {/* Collapse handle */}
+                      <div className="flex justify-center">
+                        <button
+                          onClick={() => setNavCollapsed(p => !p)}
+                          className="bg-background/90 backdrop-blur-2xl border border-white/10 rounded-full px-6 py-1 mb-1 shadow-lg"
+                        >
+                          <div className={cn("w-8 h-0.5 bg-white/30 rounded-full transition-transform", navCollapsed ? "rotate-180" : "")} />
+                        </button>
+                      </div>
+                      {/* Nav items */}
+                      <div className={cn(
+                        "bg-background/90 backdrop-blur-2xl border-t border-white/5 flex items-center justify-around px-6 transition-all duration-300 overflow-hidden",
+                        navCollapsed ? "h-0 border-none" : "h-20"
+                      )}>
+                          <Link href={`/HomeTon/${ageGroup}`} className={cn("flex flex-col items-center gap-1 transition-all", pathname.startsWith('/HomeTon') ? "text-primary" : "text-foreground/40")}>
+                              <Home className="h-6 w-6" />
+                              <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
+                          </Link>
+                          <Link href="/search" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/search' ? "text-primary" : "text-foreground/40")}>
+                              <Search className="h-6 w-6" />
+                              <span className="text-[8px] font-black uppercase tracking-widest">Search</span>
+                          </Link>
+                          <CreateModal ageGroup={ageGroup} />
+                          <Link href="/learning-hub" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/learning-hub' ? "text-primary" : "text-foreground/40")}>
+                              <GraduationCap className="h-6 w-6" />
+                              <span className="text-[8px] font-black uppercase tracking-widest">Learn</span>
+                          </Link>
+                          <Link href="/settings" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/settings' ? "text-primary" : "text-foreground/40")}>
+                              <Avatar className={cn("h-7 w-7 border-2 transition-all", pathname === '/settings' ? "border-primary" : "border-transparent")}>
+                                  <AvatarImage src={userProfile?.profilePicture || user?.photoURL || ''} />
+                              </Avatar>
+                              <span className="text-[8px] font-black uppercase tracking-widest">Profile</span>
+                          </Link>
+                      </div>
                  </footer>
 
                  {userProfile?.isBreached && pathname !== '/security' && (

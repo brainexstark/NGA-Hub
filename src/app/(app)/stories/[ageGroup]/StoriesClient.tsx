@@ -1,148 +1,163 @@
 'use client';
 
 import * as React from 'react';
-import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from "../../../../components/ui/avatar";
-import { Card } from "../../../../components/ui/card";
 import { Progress } from "../../../../components/ui/progress";
-import { PlaceHolderImages } from "../../../../lib/placeholder-images";
-import { ChevronLeft, ChevronRight, PlayCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, PlayCircle, Loader2 } from "lucide-react";
 import { Button } from "../../../../components/ui/button";
-import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "../../../../components/ui/dialog";
-import { useToast } from "../../../../hooks/use-toast";
-import { aiDatabase } from '../../../../lib/ai-database';
+import { Dialog, DialogContent, DialogTitle } from "../../../../components/ui/dialog";
 import { getEmbedUrl } from '../../../../lib/utils';
+import { supabase } from '../../../../lib/supabase';
 
-const InternalPlayer = ({ url }: { url: string }) => {
-    const embedUrl = getEmbedUrl(url);
-    return <iframe src={embedUrl} className="w-full h-full border-none" allowFullScreen />;
-};
+function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return lower.includes('youtube') || lower.includes('youtu.be') ||
+    lower.includes('tiktok') || lower.endsWith('.mp4') ||
+    lower.endsWith('.webm') || lower.endsWith('.mov') || lower.startsWith('data:video');
+}
+
+function StoryPlayer({ url }: { url: string }) {
+  if (isVideoUrl(url)) {
+    const isExternal = url.includes('youtube') || url.includes('youtu.be') || url.includes('tiktok');
+    if (isExternal) {
+      return <iframe src={getEmbedUrl(url)} className="w-full h-full border-none" allowFullScreen />;
+    }
+    return <video src={url} className="w-full h-full object-cover" autoPlay muted loop playsInline />;
+  }
+  // Static image
+  return <img src={url} alt="story" className="w-full h-full object-cover" />;
+}
 
 export default function StoriesClient({ ageGroup }: { ageGroup: string }) {
-  const { toast } = useToast();
+  const [stories, setStories] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [activeIndex, setActiveIndex] = React.useState(0);
+  const [open, setOpen] = React.useState(false);
 
-  const stories = React.useMemo(() => {
-    return aiDatabase.stories[ageGroup as keyof typeof aiDatabase.stories] || aiDatabase.stories['10-16'];
+  React.useEffect(() => {
+    supabase.from('stories').select('*')
+      .eq('age_group', ageGroup)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(30)
+      .then(({ data }) => { if (data) setStories(data); setLoading(false); });
+
+    const channel = supabase.channel(`stories-page-${ageGroup}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stories', filter: `age_group=eq.${ageGroup}` },
+        (payload) => setStories(prev => [payload.new, ...prev]))
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [ageGroup]);
 
-  const activeStory = stories[activeIndex];
-  const storyAuthor = PlaceHolderImages.find(img => img.id === 'user-avatar-2');
-
-  const nextStory = () => setActiveIndex((prev) => (prev + 1) % stories.length);
-  const prevStory = () => setActiveIndex((prev) => (prev - 1 + stories.length) % stories.length);
-
-  const handleWatchStory = () => {
-      window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
-  };
-
-  if (stories.length === 0) {
-    return <div className="flex h-full items-center justify-center py-20 opacity-40">Initializing node...</div>;
+  if (loading) {
+    return <div className="flex h-[60vh] items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
 
+  if (stories.length === 0) {
+    return (
+      <div className="flex h-[60vh] flex-col items-center justify-center gap-4 opacity-30">
+        <PlayCircle className="h-12 w-12" />
+        <p className="font-black text-sm uppercase tracking-widest">No stories yet</p>
+        <p className="text-xs opacity-60">Be the first to post a story</p>
+      </div>
+    );
+  }
+
+  const active = stories[activeIndex];
+
   return (
-    <div className="container mx-auto h-full p-4 flex flex-col items-center animate-in fade-in duration-700">
-       <div className="w-full max-w-4xl space-y-6">
-            <div className="flex gap-4 p-4 bg-card/40 backdrop-blur-md border border-white/5 rounded-2xl overflow-x-auto no-scrollbar scroll-smooth">
-                {stories.map((story, index) => (
-                    <button 
-                        key={story.id} 
-                        onClick={() => { setActiveIndex(index); handleWatchStory(); }}
-                        className="flex flex-col items-center gap-2 cursor-pointer flex-shrink-0 group transition-all"
-                    >
-                        <div className={`p-1 rounded-full transition-all duration-300 ${index === activeIndex ? 'bg-gradient-to-tr from-primary to-accent scale-110 shadow-lg' : 'bg-muted/20'}`}>
-                            <Avatar className="h-16 w-16 border-2 border-background">
-                                <AvatarImage src={story.imageUrl} className="object-cover" />
-                                <AvatarFallback>S</AvatarFallback>
-                            </Avatar>
-                        </div>
-                        <p className={`text-[10px] font-black uppercase tracking-widest ${index === activeIndex ? 'text-primary' : 'text-white/40'}`}>
-                            Node {index + 1}
-                        </p>
-                    </button>
-                ))}
+    <div className="container mx-auto max-w-lg p-4 space-y-4 animate-in fade-in duration-700">
+      {/* Story thumbnails row */}
+      <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+        {stories.map((story, i) => (
+          <button key={story.id} onClick={() => { setActiveIndex(i); setOpen(true); window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged')); }}
+            className="flex flex-col items-center gap-1.5 shrink-0">
+            <div className={`p-0.5 rounded-full ${i === activeIndex ? 'bg-gradient-to-tr from-primary to-accent' : 'bg-white/20'}`}>
+              <Avatar className="h-14 w-14 border-2 border-background">
+                <AvatarImage src={story.user_avatar || story.media_url} className="object-cover" />
+                <AvatarFallback className="bg-primary/20 text-primary font-black">
+                  {story.user_name?.[0]?.toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
             </div>
-            
-            <div className="relative group">
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <div className="cursor-pointer block relative" onClick={handleWatchStory}>
-                            <Card className="w-full aspect-[9/16] max-h-[75vh] relative overflow-hidden rounded-[3rem] border-4 border-primary/10 shadow-2xl">
-                                {activeStory && (
-                                    <Image
-                                        src={activeStory.imageUrl}
-                                        alt={activeStory.title}
-                                        fill
-                                        className="object-cover transition-transform duration-1000 group-hover:scale-105"
-                                    />
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80"></div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-white/60 truncate max-w-[56px]">
+              @{story.user_name?.replace(/\s/g,'_').toLowerCase() || 'user'}
+            </span>
+          </button>
+        ))}
+      </div>
 
-                                <div className="absolute top-0 left-0 right-0 p-8 z-10">
-                                    <div className="flex gap-1 mb-6">
-                                        {stories.map((_, idx) => (
-                                            <Progress 
-                                                key={idx} 
-                                                value={idx === activeIndex ? 100 : (idx < activeIndex ? 100 : 0)} 
-                                                className="h-1 flex-1 bg-white/10" 
-                                            />
-                                        ))}
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <Avatar className="h-12 w-12 ring-2 ring-white/50 border-2 border-background">
-                                                <AvatarImage src={storyAuthor?.imageUrl} />
-                                            </Avatar>
-                                            <div>
-                                                <p className="text-white font-black text-lg uppercase tracking-tighter">STARK-B LEGACY</p>
-                                                <p className="text-white/40 text-[10px] uppercase font-bold tracking-widest mt-0.5">Sourced from Archive</p>
-                                            </div>
-                                        </div>
-                                        <div className="bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full animate-pulse shadow-lg uppercase tracking-widest">Live Node</div>
-                                    </div>
-                                </div>
+      {/* Active story card */}
+      <div className="relative group cursor-pointer" onClick={() => setOpen(true)}>
+        <div className="w-full aspect-[9/16] max-h-[75vh] rounded-[2.5rem] overflow-hidden border-2 border-primary/20 shadow-2xl bg-black relative">
+          {isVideoUrl(active.media_url) ? (
+            <video src={active.media_url} className="w-full h-full object-cover" muted playsInline />
+          ) : (
+            <img src={active.media_url} alt="story" className="w-full h-full object-cover" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/70" />
 
-                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <div className="rounded-full bg-white/10 p-6 backdrop-blur-xl border-2 border-white/20">
-                                        <PlayCircle className="h-16 w-16 text-white" />
-                                    </div>
-                                </div>
+          {/* Progress bars */}
+          <div className="absolute top-4 left-4 right-4 flex gap-1">
+            {stories.map((_, idx) => (
+              <Progress key={idx} value={idx <= activeIndex ? 100 : 0} className="h-0.5 flex-1 bg-white/20" />
+            ))}
+          </div>
 
-                                <div className="absolute bottom-0 left-0 right-0 p-10 z-10 text-center">
-                                    <h3 className="text-white font-black text-2xl mb-3 uppercase tracking-tight">{activeStory?.title}</h3>
-                                    <Button className="mt-8 rounded-full px-10 h-14 font-black uppercase tracking-widest shadow-2xl shadow-primary/20 bg-primary text-white border-none">
-                                        View Full Feature
-                                    </Button>
-                                </div>
-                            </Card>
-                        </div>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-2 border-primary/20 bg-black rounded-[3rem] shadow-2xl flex flex-col items-center justify-center">
-                        <DialogTitle className="sr-only">Story Player</DialogTitle>
-                        <div className="w-full h-full relative aspect-video">
-                            <InternalPlayer url={activeStory.url || activeStory.imageUrl} />
-                        </div>
-                    </DialogContent>
-                </Dialog>
-
-                <Button 
-                    variant="secondary" 
-                    size="icon" 
-                    className="absolute left-6 top-1/2 -translate-y-1/2 rounded-full shadow-2xl opacity-0 group-hover:opacity-100 transition-all z-20 h-12 w-12 bg-white/10 text-white hover:bg-white/20"
-                    onClick={(e) => { e.preventDefault(); prevStory(); }}
-                >
-                    <ChevronLeft className="h-6 w-6" />
-                </Button>
-                <Button 
-                    variant="secondary" 
-                    size="icon" 
-                    className="absolute right-6 top-1/2 -translate-y-1/2 rounded-full shadow-2xl opacity-0 group-hover:opacity-100 transition-all z-20 h-12 w-12 bg-white/10 text-white hover:bg-white/20"
-                    onClick={(e) => { e.preventDefault(); nextStory(); }}
-                >
-                    <ChevronRight className="h-6 w-6" />
-                </Button>
+          {/* Author */}
+          <div className="absolute top-8 left-4 right-4 flex items-center gap-3">
+            <Avatar className="h-9 w-9 border-2 border-white/30">
+              <AvatarImage src={active.user_avatar} />
+              <AvatarFallback>{active.user_name?.[0] || 'U'}</AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="text-white font-black text-sm uppercase tracking-tight">@{active.user_name?.replace(/\s/g,'_').toLowerCase()}</p>
+              <p className="text-white/40 text-[9px] uppercase font-bold">
+                {new Date(active.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
             </div>
-       </div>
+          </div>
+
+          {/* Caption */}
+          {active.caption && (
+            <div className="absolute bottom-8 left-4 right-4 text-center">
+              <p className="text-white font-medium text-sm italic">"{active.caption}"</p>
+            </div>
+          )}
+
+          {/* Play overlay */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="bg-white/10 backdrop-blur-md rounded-full p-5 border border-white/20">
+              <PlayCircle className="h-12 w-12 text-white" />
+            </div>
+          </div>
+        </div>
+
+        {/* Nav buttons */}
+        {activeIndex > 0 && (
+          <Button variant="secondary" size="icon" onClick={(e) => { e.stopPropagation(); setActiveIndex(p => p - 1); }}
+            className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full h-10 w-10 bg-black/40 text-white border-none z-10">
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+        )}
+        {activeIndex < stories.length - 1 && (
+          <Button variant="secondary" size="icon" onClick={(e) => { e.stopPropagation(); setActiveIndex(p => p + 1); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full h-10 w-10 bg-black/40 text-white border-none z-10">
+            <ChevronRight className="h-5 w-5" />
+          </Button>
+        )}
+      </div>
+
+      {/* Full screen dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-2 border-primary/20 bg-black rounded-[3rem] shadow-2xl">
+          <DialogTitle className="sr-only">Story</DialogTitle>
+          <div className="w-full h-full">
+            <StoryPlayer url={active.media_url} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

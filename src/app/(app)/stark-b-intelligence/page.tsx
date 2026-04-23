@@ -2,8 +2,6 @@
 
 import * as React from 'react';
 import Image from 'next/image';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
-import { PlaceHolderImages } from '../../../lib/placeholder-images';
 import { Button } from '../../../components/ui/button';
 import { ArrowRight, Sparkles, Star, Zap, Users2, Shield, Cpu, PlayCircle, ExternalLink, RefreshCw } from 'lucide-react';
 import { ContentCard } from '../../../components/content-card';
@@ -83,8 +81,8 @@ export default function STARKBIntelligencePage() {
     );
   }
 
-  const towerImage = PlaceHolderImages.find(img => img.id === 'mbita-1');
-  const specialAsset = PlaceHolderImages.find(img => img.id === 'stark-b-special-asset');
+  const towerImage = null;
+  const specialAsset = { imageUrl: 'https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=1920&q=80' };
 
   return (
     <div className="container mx-auto space-y-12 pb-20 max-w-6xl animate-in slide-in-from-bottom-4 duration-700">
@@ -170,21 +168,11 @@ export default function STARKBIntelligencePage() {
       </section>
       
       <section className="rounded-xl bg-primary/5 p-8 border border-primary/10">
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 mb-4">
               <Star className="h-6 w-6 text-primary fill-primary" />
-              <h2 className="font-headline text-3xl font-bold">STARK-B Legacy Spotlight</h2>
+              <h2 className="font-headline text-3xl font-bold">Intelligence Hub</h2>
           </div>
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {PlaceHolderImages.filter(img => img.id.startsWith('reel-') || img.id.startsWith('mbita-')).slice(0, 6).map((img) => (
-                  <ContentCard
-                      key={img.id}
-                      id={img.id}
-                      title={img.description.split(':')[0]}
-                      creator="STARK-B Official"
-                      image={img}
-                  />
-              ))}
-          </div>
+          <p className="text-white/40 italic text-sm">Connect with the community to explore shared knowledge and resources.</p>
       </section>
     </div>
   );

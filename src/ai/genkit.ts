@@ -1,22 +1,17 @@
-// Genkit AI - only initialized when GEMINI_API_KEY is available
-let ai: any = null;
+// Genkit AI - server-side only, never imported client-side
+// Use dynamic require to prevent webpack from bundling Node.js deps
 
 export function getAI() {
-  if (ai) return ai;
+  if (typeof window !== 'undefined') return null; // never run client-side
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('GEMINI_API_KEY not set — AI features disabled.');
-    return null;
-  }
+  if (!apiKey) return null;
   try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { genkit } = require('genkit');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { googleAI } = require('@genkit-ai/google-genai');
-    ai = genkit({ plugins: [googleAI()] });
-    return ai;
-  } catch (e) {
-    console.warn('Genkit init failed:', e);
+    return genkit({ plugins: [googleAI()] });
+  } catch {
     return null;
   }
 }
-
-export { ai };

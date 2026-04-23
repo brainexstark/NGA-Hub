@@ -5,7 +5,6 @@
  */
 
 import { z } from 'zod';
-import { simulateDelay } from '../../lib/ai-database';
 
 const ModerateContentInputSchema = z.object({
   text: z.string().describe('The caption or title to analyze.'),
@@ -24,8 +23,6 @@ export type ModerateContentOutput = z.infer<typeof ModerateContentOutputSchema>;
  * High-Performance Moderation Mock
  */
 export async function moderateContent(input: ModerateContentInput): Promise<ModerateContentOutput> {
-    console.log("STARK-B: Moderation Node Scanning Data Bursts.");
-    await simulateDelay(300);
     
     // Legacy rule-based matching for static environments
     const forbidden = ['damn', 'hell', 'stupid', 'idiot', 'sex', 'nude'];

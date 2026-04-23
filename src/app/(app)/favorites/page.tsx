@@ -6,7 +6,6 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '../../../
 import { collection, query, orderBy } from 'firebase/firestore';
 import { ContentCard } from '../../../components/content-card';
 import { Bookmark, Film, BookOpen, MessageSquare, Loader2, Star } from 'lucide-react';
-import { PlaceHolderImages } from '../../../lib/placeholder-images';
 import type { VideoEntry } from '../../../lib/types';
 
 export default function FavoritesPage() {
@@ -31,11 +30,7 @@ export default function FavoritesPage() {
 
   const savedAssets = React.useMemo(() => {
     if (!savedPosts) return [];
-    return savedPosts.map(p => {
-      // Find matching mock image or use fallback
-      const asset = PlaceHolderImages.find(img => img.id === p.id) || PlaceHolderImages[0];
-      return { ...p, asset };
-    });
+    return savedPosts.map(p => ({ ...p, asset: { imageUrl: '', url: '', description: '' } }));
   }, [savedPosts]);
 
   const savedLegacyVideos = React.useMemo(() => {

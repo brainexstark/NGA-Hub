@@ -1,22 +1,15 @@
+export type SecurityAlertsOutput = { alerts: string };
 
-/**
- * @fileOverview Generates security alerts via AI logic.
- * Recalibrated for client-side static synchronization.
- */
-
-import { z } from 'zod';
-import { aiDatabase, simulateDelay } from '../../lib/ai-database';
-
-const SecurityAlertsOutputSchema = z.object({
-  alerts: z.string().describe('A formatted string containing security alerts and recommendations.'),
-});
-export type SecurityAlertsOutput = z.infer<typeof SecurityAlertsOutputSchema>;
-
-/**
- * High-Performance Security Node Mock
- */
 export async function getSecurityAlerts(): Promise<SecurityAlertsOutput> {
-    console.log("STARK-B: Security Node Fetching Superdatabase Alerts.");
-    await simulateDelay(400);
-    return { alerts: aiDatabase.securityAlerts };
+  if (typeof window === 'undefined') {
+    try {
+      const { getAI } = await import('../genkit');
+      const ai = getAI();
+      if (ai) {
+        const { text } = await ai.generate({ prompt: 'List 3 cybersecurity tips for young social platform users. Be brief.' });
+        return { alerts: text };
+      }
+    } catch {}
+  }
+  return { alerts: '• Keep your password strong and private\n• Never share personal info with strangers\n• Report suspicious content immediately' };
 }

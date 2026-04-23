@@ -10,7 +10,6 @@ import { useRouter } from 'next/navigation';
 import { doc } from 'firebase/firestore';
 import type { UserProfile } from '../lib/types';
 import { supabase, type SupabasePost } from '../lib/supabase';
-import { aiDatabase } from '../lib/ai-database';
 import { PlayCircle, Heart, Loader2, Zap, Users, BookOpen } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '../components/ui/dialog';
 import { getEmbedUrl, cn } from '../lib/utils';
@@ -26,27 +25,6 @@ const InternalPlayer = ({ url }: { url: string }) => {
     />
   );
 };
-
-// Fallback posts from database when Supabase has no data yet
-const FALLBACK_POSTS = [
-  ...aiDatabase.superdatabasePosts['10-16'].slice(0, 4),
-  ...aiDatabase.superdatabasePosts['16-plus'].slice(0, 4),
-  ...aiDatabase.superdatabasePosts['under-10'].slice(0, 4),
-].map(p => ({
-  id: p.id,
-  user_name: p.userName,
-  user_avatar: `https://picsum.photos/seed/${p.id}/100/100`,
-  title: p.title,
-  caption: p.caption,
-  media_url: p.mediaUrl,
-  video_url: p.url,
-  category: p.category,
-  age_group: 'all',
-  likes_count: Math.floor(Math.random() * 2000),
-  comments_count: Math.floor(Math.random() * 200),
-  is_flagged: false,
-  created_at: new Date().toISOString(),
-} as SupabasePost));
 
 export default function Home() {
   const [mounted, setMounted] = React.useState(false);
@@ -91,8 +69,8 @@ export default function Home() {
           return;
         }
       }
-      // Fallback to static database content
-      setPosts(FALLBACK_POSTS);
+      // No data yet — show empty state
+      setPosts([]);
       setFeedLoading(false);
     };
 
@@ -193,7 +171,7 @@ export default function Home() {
               >
                 <div className={cn("relative w-full", i === 0 ? "aspect-video" : "aspect-square")}>
                   <Image
-                    src={post.media_url || `https://picsum.photos/seed/${post.id}/800/800`}
+                    src={post.media_url || ''}
                     alt={post.title}
                     fill
                     className="object-cover transition-transform duration-700 group-hover:scale-105"

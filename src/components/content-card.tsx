@@ -22,11 +22,25 @@ interface ContentCardProps {
   commentsCount?: number;
 }
 
+function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return lower.includes('youtube') || lower.includes('youtu.be') ||
+    lower.includes('tiktok') || lower.includes('instagram') ||
+    lower.endsWith('.mp4') || lower.endsWith('.webm') ||
+    lower.endsWith('.mov') || lower.endsWith('.avi') ||
+    lower.endsWith('.mkv') || lower.startsWith('data:video');
+}
+
 function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
+  const isVideo = isVideoUrl(url);
+  const isExternal = url?.includes('youtube') || url?.includes('youtu.be') ||
+    url?.includes('instagram') || url?.includes('tiktok');
 
   useEffect(() => {
+    if (!isVideo) return; // photos never autoplay
     const el = ref.current;
     if (!el) return;
     const observer = new IntersectionObserver(
@@ -35,7 +49,7 @@ function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [isVideo]);
 
   const embedUrl = React.useMemo(() => {
     const base = getEmbedUrl(url);
@@ -48,12 +62,12 @@ function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
     return base;
   }, [url, playing]);
 
-  const isExternal = url?.includes('youtube') || url?.includes('youtu.be') ||
-    url?.includes('instagram') || url?.includes('tiktok');
-
   return (
     <div ref={ref} className="w-full h-full">
-      {playing ? (
+      {!isVideo ? (
+        // Static photo — display as image, never autoplay
+        <Image src={url || thumbnail} alt="post" fill className="object-cover" unoptimized />
+      ) : playing ? (
         isExternal ? (
           <iframe key="playing" src={embedUrl} className="w-full h-full border-none"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
@@ -62,7 +76,10 @@ function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
         )
       ) : (
         <div className="w-full h-full relative">
-          <Image src={thumbnail} alt="thumbnail" fill className="object-cover" unoptimized />
+          <Image src={thumbnail || url} alt="thumbnail" fill className="object-cover" unoptimized />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+            <PlayCircle className="h-12 w-12 text-white/80 drop-shadow-2xl" />
+          </div>
         </div>
       )}
     </div>
