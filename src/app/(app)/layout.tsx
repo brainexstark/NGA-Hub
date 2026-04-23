@@ -25,44 +25,115 @@ import { useRealtimeNotifications, usePresence, upsertAppUser } from '../../hook
 function NotificationBell({ userId, userName, userAvatar }: { userId: string; userName: string; userAvatar: string }) {
   const { unreadCount, notifications, markAllRead } = useRealtimeNotifications(userId);
   const [open, setOpen] = React.useState(false);
+  const [prevCount, setPrevCount] = React.useState(0);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
 
+  // Auto-open dropdown when a NEW notification arrives
+  React.useEffect(() => {
+    if (unreadCount > prevCount && prevCount >= 0) {
+      setOpen(true);
+    }
+    setPrevCount(unreadCount);
+  }, [unreadCount]);
+
+  // Close on click outside
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const handleOpen = () => {
+    setOpen(p => !p);
+  };
+
+  const handleMarkRead = () => {
+    if (unreadCount > 0) markAllRead();
+  };
+
   return (
-    <div className="relative">
-      <button onClick={() => { setOpen(p => !p); if (unreadCount > 0) markAllRead(); }}
+    <div className="relative" ref={dropdownRef}>
+      <button onClick={handleOpen}
         className="relative text-foreground/60 hover:text-primary transition-colors">
         <Bell className="h-6 w-6" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full text-[9px] font-black text-white flex items-center justify-center border border-background">
+          <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full text-[9px] font-black text-white flex items-center justify-center border border-background animate-pulse">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
+
       {open && (
-        <div className="absolute right-0 top-10 w-72 bg-slate-900 border border-white/10 rounded-3xl shadow-2xl z-[99999] overflow-hidden animate-in slide-in-from-top-2">
-          <div className="p-4 border-b border-white/5">
-            <p className="font-black text-xs uppercase tracking-widest">Notifications</p>
+        <div className="absolute right-0 top-10 w-80 bg-slate-900/98 border border-white/10 rounded-3xl shadow-2xl z-[99999] overflow-hidden animate-in slide-in-from-top-2 duration-200">
+          {/* Header */}
+          <div className="p-4 border-b border-white/5 flex items-center justify-between">
+            <p className="font-black text-xs uppercase tracking-widest">
+              Notifications
+              {unreadCount > 0 && (
+                <span className="ml-2 bg-primary/20 text-primary px-2 py-0.5 rounded-full text-[9px]">
+                  {unreadCount} new
+                </span>
+              )}
+            </p>
+            {unreadCount > 0 && (
+              <button onClick={handleMarkRead}
+                className="text-[9px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors">
+                Mark all read
+              </button>
+            )}
           </div>
-          <div className="max-h-80 overflow-y-auto no-scrollbar">
+
+          {/* List */}
+          <div className="max-h-96 overflow-y-auto no-scrollbar divide-y divide-white/5">
             {notifications.length === 0 ? (
-              <div className="p-6 text-center opacity-30">
+              <div className="p-8 text-center opacity-30 space-y-2">
+                <Bell className="h-8 w-8 mx-auto opacity-50" />
                 <p className="text-xs font-black uppercase">No notifications yet</p>
               </div>
-            ) : notifications.slice(0, 10).map(n => (
-              <div key={n.id} className={`flex items-start gap-3 p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all ${!n.is_read ? 'bg-primary/5' : ''}`}
-                onClick={() => { setOpen(false); if (n.post_id) router.push(`/comments/${n.post_id}`); }}>
-                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 text-sm">
-                  {n.type === 'like' ? '❤️' : n.type === 'comment' ? '💬' : n.type === 'follow' ? '👤' : n.type === 'message' ? '✉️' : '🔔'}
+            ) : notifications.slice(0, 20).map(n => (
+              <div key={n.id}
+                className={`flex items-start gap-3 p-4 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] ${!n.is_read ? 'bg-primary/5 border-l-2 border-primary' : ''}`}
+                onClick={() => {
+                  setOpen(false);
+                  markAllRead();
+                  if (n.type === 'live') router.push('/live-stream');
+                  else if (n.post_id) router.push(`/comments/${n.post_id}`);
+                  else if (n.type === 'follow') router.push('/network');
+                  else if (n.type === 'message') router.push('/chat');
+                }}>
+                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-base border border-white/5">
+                  {n.type === 'like' ? '❤️'
+                    : n.type === 'comment' ? '💬'
+                    : n.type === 'follow' ? '👤'
+                    : n.type === 'message' ? '✉️'
+                    : n.type === 'live' ? '🔴'
+                    : n.type === 'group' ? '👥'
+                    : n.type === 'mention' ? '@️'
+                    : '🔔'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white/80 line-clamp-2">{n.message}</p>
+                  <p className="text-xs font-medium text-white/90 line-clamp-2 leading-relaxed">{n.message}</p>
                   <p className="text-[9px] font-black uppercase text-white/30 mt-1">
                     {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-                {!n.is_read && <div className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1" />}
+                {!n.is_read && <div className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5 animate-pulse" />}
               </div>
             ))}
+          </div>
+
+          {/* Footer */}
+          <div className="p-3 border-t border-white/5">
+            <button onClick={() => { setOpen(false); router.push('/activity'); }}
+              className="w-full text-center text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors py-1">
+              View All Activity →
+            </button>
           </div>
         </div>
       )}

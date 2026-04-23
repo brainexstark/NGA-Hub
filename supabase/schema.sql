@@ -364,3 +364,42 @@ $$ language plpgsql;
 -- ============================================================
 -- DONE
 -- ============================================================
+
+-- ============================================================
+-- FEATURE REQUESTS
+-- ============================================================
+create table if not exists feature_requests (
+  id uuid default gen_random_uuid() primary key,
+  user_id text references app_users(id) on delete cascade,
+  user_name text not null,
+  user_avatar text default '',
+  request_text text not null,
+  benefit text default '',
+  votes integer default 0,
+  status text default 'pending' check (status in ('pending','reviewing','planned','done')),
+  created_at timestamptz default now()
+);
+select safe_add_to_realtime('feature_requests');
+alter table feature_requests enable row level security;
+create policy "Public read requests" on feature_requests for select using (true);
+create policy "Anyone insert request" on feature_requests for insert with check (true);
+create policy "Anyone update request" on feature_requests for update using (true);
+create index if not exists feature_requests_votes on feature_requests(votes desc);
+
+-- ============================================================
+-- MUSIC LIBRARY (background music for posts)
+-- ============================================================
+create table if not exists music_library (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  url text not null,
+  uploaded_by text references app_users(id) on delete cascade,
+  duration text default '',
+  is_public boolean default true,
+  created_at timestamptz default now()
+);
+select safe_add_to_realtime('music_library');
+alter table music_library enable row level security;
+create policy "Public read music" on music_library for select using (is_public = true);
+create policy "Anyone insert music" on music_library for insert with check (true);
+create index if not exists music_library_created on music_library(created_at desc);

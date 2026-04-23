@@ -117,15 +117,6 @@ function FeedPostCard({ post }: { post: Post }) {
           <span className="font-black text-sm text-white uppercase tracking-tight">@{post.userName?.replace(/\s/g, '_').toLowerCase()}</span>
         </div>
         <p className="text-xs text-white/80 font-medium italic line-clamp-2">"{post.caption || post.title}"</p>
-        {/* Quick reaction bar */}
-        <div className="flex gap-2 mt-1">
-          {['❤️','🔥','😂','👏','😮'].map(emoji => (
-            <button key={emoji} onClick={(e) => { e.stopPropagation(); sendReaction(emoji, user?.displayName || 'User'); }}
-              className="text-lg active:scale-125 transition-transform">
-              {emoji}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Right actions */}

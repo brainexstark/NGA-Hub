@@ -131,9 +131,17 @@ export default function SettingsPage() {
     setIsUpdating(true);
     try {
       await updateDoc(doc(firestore, 'users', user.uid), {
-        displayName, profilePicture, timerNotifications, darkTheme,
-        language, country, privacyLevel,
+        displayName,
+        profilePicture,
+        timerNotifications,
+        darkTheme,
+        language,
+        country,
+        privacyLevel,
       });
+      // Also update in Supabase app_users so it shows in chat/network
+      const { upsertAppUser } = await import('../../../hooks/use-realtime');
+      await upsertAppUser({ id: user.uid, display_name: displayName, avatar: profilePicture });
       toast({ title: 'Settings Saved', description: 'All changes synchronized.' });
       setLastSynced(new Date());
     } catch {
@@ -309,7 +317,19 @@ export default function SettingsPage() {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       const reader = new FileReader();
-                      reader.onload = ev => setProfilePicture(ev.target?.result as string);
+                      reader.onload = async ev => {
+                        const dataUrl = ev.target?.result as string;
+                        setProfilePicture(dataUrl);
+                        // Save immediately to Firestore
+                        if (user && firestore) {
+                          try {
+                            await updateDoc(doc(firestore, 'users', user.uid), { profilePicture: dataUrl });
+                            const { upsertAppUser } = await import('../../../hooks/use-realtime');
+                            upsertAppUser({ id: user.uid, avatar: dataUrl });
+                            toast({ title: 'Profile picture updated!' });
+                          } catch {}
+                        }
+                      };
                       reader.readAsDataURL(file);
                     }} />
                 </div>

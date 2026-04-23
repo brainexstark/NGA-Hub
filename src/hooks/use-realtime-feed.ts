@@ -141,7 +141,19 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
       comments_count: 0,
       is_flagged: false,
     }).select().single();
-    if (data) results.push(data.id);
+    if (data) {
+      results.push(data.id);
+      // Broadcast notification to all users about new post
+      const { broadcastNotification } = await import('../lib/ads');
+      broadcastNotification({
+        type: 'system',
+        actorId: post.userId,
+        actorName: post.userName,
+        actorAvatar: post.userAvatar || '',
+        message: `${post.userName} posted something new — check it out!`,
+        postId: data.id,
+      });
+    }
     if (error) console.warn('Supabase insert error:', error.message);
   } catch (e) {
     console.warn('Supabase publish failed:', e);

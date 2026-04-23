@@ -11,10 +11,9 @@ export interface Ad {
   target_age_group: string;
   category: string;
   click_url?: string;
-  is_ad: true; // internal flag, never shown to user
+  is_ad: true;
 }
 
-// Fallback static ads that look like regular content
 const STATIC_ADS: Ad[] = [
   {
     id: 'ad-1', partner_name: 'TechBrand', is_ad: true,
@@ -40,18 +39,26 @@ const STATIC_ADS: Ad[] = [
 ];
 
 export async function fetchAds(ageGroup: string): Promise<Ad[]> {
-  if (!supabase) return STATIC_ADS;
-  const { data } = await supabase
-    .from('ads')
-    .select('*')
-    .eq('is_active', true)
-    .or(`target_age_group.eq.all,target_age_group.eq.${ageGroup}`)
-    .limit(5);
-  if (!data || data.length === 0) return STATIC_ADS;
-  return data.map(d => ({ ...d, is_ad: true as const }));
+  try {
+    const { data, error } = await supabase
+      .from('ads')
+      .select('*')
+      .eq('is_active', true)
+      .or(`target_age_group.eq.all,target_age_group.eq.${ageGroup}`)
+      .order('impressions', { ascending: false })
+      .limit(5);
+    if (error) { console.warn('Ads fetch error:', error.message); return STATIC_ADS; }
+    if (!data || data.length === 0) return STATIC_ADS;
+    // Track impression
+    const ids = data.map((d: any) => d.id);
+    supabase.from('ads').update({ impressions: data[0].impressions + 1 }).in('id', ids).then(() => {});
+    return data.map((d: any) => ({ ...d, is_ad: true as const }));
+  } catch (e) {
+    console.warn('Ads fetch failed:', e);
+    return STATIC_ADS;
+  }
 }
 
-// Inject ads into a feed array at natural intervals (every 5 posts)
 export function injectAds<T>(posts: T[], ads: Ad[], interval = 5): (T | Ad)[] {
   if (ads.length === 0) return posts;
   const result: (T | Ad)[] = [];
@@ -68,4 +75,59 @@ export function injectAds<T>(posts: T[], ads: Ad[], interval = 5): (T | Ad)[] {
 
 export function isAd(item: any): item is Ad {
   return item?.is_ad === true;
+}
+
+// Send a notification to a user
+export async function sendNotification(params: {
+  userId: string;
+  type: string;
+  actorId: string;
+  actorName: string;
+  actorAvatar: string;
+  message: string;
+  postId?: string;
+}) {
+  try {
+    await supabase.from('notifications').insert({
+      user_id: params.userId,
+      type: params.type,
+      actor_id: params.actorId,
+      actor_name: params.actorName,
+      actor_avatar: params.actorAvatar,
+      message: params.message,
+      post_id: params.postId || null,
+      is_read: false,
+    });
+  } catch (e) {
+    console.warn('Notification send failed:', e);
+  }
+}
+
+// Broadcast a system notification to all users
+export async function broadcastNotification(params: {
+  type: string;
+  actorId: string;
+  actorName: string;
+  actorAvatar: string;
+  message: string;
+  postId?: string;
+}) {
+  try {
+    const { data: users } = await supabase.from('app_users').select('id').neq('id', params.actorId);
+    if (!users?.length) return;
+    await supabase.from('notifications').insert(
+      users.map((u: any) => ({
+        user_id: u.id,
+        type: params.type,
+        actor_id: params.actorId,
+        actor_name: params.actorName,
+        actor_avatar: params.actorAvatar,
+        message: params.message,
+        post_id: params.postId || null,
+        is_read: false,
+      }))
+    );
+  } catch (e) {
+    console.warn('Broadcast notification failed:', e);
+  }
 }

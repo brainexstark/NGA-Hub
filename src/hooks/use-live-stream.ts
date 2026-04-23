@@ -83,6 +83,17 @@ export async function startLiveStream(hostId: string, hostName: string, hostAvat
     title, age_group: ageGroup, viewer_count: 0, is_active: true,
   }).select().single();
   if (error) { console.error('Failed to start stream:', error.message); return null; }
+  // Notify all users that someone went live
+  if (data?.id) {
+    const { broadcastNotification } = await import('../lib/ads');
+    broadcastNotification({
+      type: 'live',
+      actorId: hostId,
+      actorName: hostName,
+      actorAvatar: hostAvatar,
+      message: `${hostName} is now LIVE — "${title}" 🔴`,
+    }).catch(() => {});
+  }
   return data?.id || null;
 }
 

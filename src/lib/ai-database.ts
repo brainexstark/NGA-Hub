@@ -143,18 +143,9 @@ export const aiDatabase = {
     ]
   },
 
-  contacts: [
-    { id: 'c1', name: 'Elon Musk', avatar: 'https://picsum.photos/seed/elon/200/200', email: 'elon@spacex.com' },
-    { id: 'c2', name: 'Donald Trump', avatar: 'https://picsum.photos/seed/trump/200/200', email: 'donald@potus.com' },
-    { id: 'c3', name: 'Vybz Kartel', avatar: 'https://picsum.photos/seed/vybz/200/200', email: 'vybz@dancehall.com' },
-    { id: 'c4', name: 'Kendrick Lamar', avatar: 'https://picsum.photos/seed/kendrick/200/200', email: 'kendrick@kungfukenny.com' },
-    { id: 'c5', name: 'MrBeast', avatar: 'https://picsum.photos/seed/beast/200/200', email: 'jimmy@mrbeast.com' }
-  ],
+  contacts: [],
 
-  chatHistory: [
-    { id: 'ch1', name: 'Sarah Wade', lastMessage: 'The legacy node is stable. 📡', time: '10:30 AM', unread: 2, avatar: 'https://picsum.photos/seed/sarah/200/200', status: 'read' },
-    { id: 'ch2', name: 'Elon Musk', lastMessage: 'Launch sequence synchronized. 🚀', time: 'Yesterday', unread: 0, avatar: 'https://picsum.photos/seed/elon/200/200', status: 'delivered' }
-  ],
+  chatHistory: [],
 
   intelligenceResponses: [
     "STARK-B Intelligence Core online. Analyzing community trends. 🔍",

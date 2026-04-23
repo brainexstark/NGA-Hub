@@ -6,7 +6,6 @@ import Image from 'next/image';
 import { Heart, MessageCircle, Send, PlayCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Card, CardContent, CardFooter, CardHeader } from './ui/card';
-import { PlaceHolderImages } from '../lib/placeholder-images';
 import { ShareDialog } from './share-dialog';
 import Link from 'next/link';
 import { cn, getEmbedUrl } from '../lib/utils';
@@ -90,17 +89,21 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
     }
   };
 
+  // Use creator avatar from image data, or generate from creator name seed
+  const avatarSrc = image?.userAvatar || image?.avatar || '';
+
   return (
     <Card className="border-none bg-transparent shadow-none w-full space-y-4" onClick={handleEngagement}>
       <CardHeader className="p-0 flex flex-row items-center justify-between">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9 border-2 border-background ring-2 ring-primary/20">
-            <AvatarImage src={PlaceHolderImages.find(img => img.id === 'user-avatar-1')?.imageUrl} />
-            <AvatarFallback>U</AvatarFallback>
+            <AvatarImage src={avatarSrc} />
+            <AvatarFallback className="bg-primary/20 text-primary font-black text-sm">
+              {creator?.[0]?.toUpperCase() || 'U'}
+            </AvatarFallback>
           </Avatar>
           <div className="flex flex-col">
             <span className="text-sm font-black uppercase tracking-tighter">{creator.toLowerCase().replace(/\s/g, '_')}</span>
-            <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest mt-1">STARK-B Node</span>
           </div>
         </div>
       </CardHeader>

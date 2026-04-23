@@ -62,7 +62,25 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     setMounted(true);
   }, []);
 
-  const storyImages = React.useMemo(() => getRecommendedContent(profile, 'story'), [profile]);
+  // Real stories from Supabase — only real registered users
+  const [realtimeStories, setRealtimeStories] = React.useState<any[]>([]);
+  React.useEffect(() => {
+    const { supabase } = require('../../../../lib/supabase');
+    supabase.from('stories')
+      .select('*')
+      .eq('age_group', ageGroup)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data }: any) => { if (data) setRealtimeStories(data); });
+
+    const channel = supabase.channel(`stories-${ageGroup}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stories', filter: `age_group=eq.${ageGroup}` },
+        (payload: any) => setRealtimeStories((prev: any[]) => [payload.new, ...prev]))
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [ageGroup]);
+
   const staticFeedPosts = React.useMemo(() => getRecommendedContent(profile, 'video'), [profile]);
 
   // Supabase realtime feed
@@ -331,25 +349,34 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
             <span className="text-[9px] font-black uppercase tracking-widest opacity-60">Your Story</span>
         </div>
 
-        {storyImages.map((story, idx) => (
+        {realtimeStories.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 flex-shrink-0 opacity-30">
+                <div className="h-16 w-16 rounded-full border-2 border-dashed border-white/20 flex items-center justify-center">
+                    <span className="text-xs">📸</span>
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest opacity-60">No stories yet</span>
+            </div>
+        ) : realtimeStories.map((story, idx) => (
             <Dialog key={story.id}>
                 <DialogTrigger asChild>
                     <div className="flex flex-col items-center gap-3 flex-shrink-0 group cursor-pointer" onClick={handleTriggerCycle}>
                         <div className="p-1 rounded-full bg-gradient-to-tr from-primary to-accent shadow-lg transition-all duration-500 group-hover:scale-105">
                             <div className="relative h-16 w-16 md:h-20 md:w-20 rounded-full overflow-hidden border-2 border-background">
                                 <Avatar className="h-full w-full">
-                                    <AvatarImage src={story.imageUrl} className="object-cover" />
-                                    <AvatarFallback>S</AvatarFallback>
+                                    <AvatarImage src={story.user_avatar || story.media_url} className="object-cover" />
+                                    <AvatarFallback className="bg-primary/20 text-primary font-black">
+                                        {story.user_name?.[0]?.toUpperCase() || 'U'}
+                                    </AvatarFallback>
                                 </Avatar>
                             </div>
                         </div>
-                        <span className="text-[9px] font-black uppercase tracking-widest opacity-60 truncate max-w-[64px]">@{story.userName || `NODE_${idx}`}</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest opacity-60 truncate max-w-[64px]">@{story.user_name?.replace(/\s/g,'_').toLowerCase() || `user_${idx}`}</span>
                     </div>
                 </DialogTrigger>
                 <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-2 border-primary/20 bg-black rounded-[3rem] shadow-2xl flex flex-col items-center justify-center">
-                    <DialogTitle className="sr-only">Trending Node Player</DialogTitle>
+                    <DialogTitle className="sr-only">Story</DialogTitle>
                     <div className="w-full h-full relative aspect-[9/16]">
-                        <InternalPlayer url={story.url || story.imageUrl} />
+                        <InternalPlayer url={story.media_url} />
                     </div>
                 </DialogContent>
             </Dialog>

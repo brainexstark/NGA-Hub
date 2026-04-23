@@ -328,7 +328,19 @@ export function useAppUsers() {
 }
 
 export async function upsertAppUser(user: Partial<AppUser> & { id: string }) {
-  return supabase.from('app_users').upsert(user, { onConflict: 'id' });
+  const result = await supabase.from('app_users').upsert(user, { onConflict: 'id' });
+  // If this is a new user (has display_name), broadcast a join notification
+  if (user.display_name && user.is_online) {
+    const { broadcastNotification } = await import('../lib/ads');
+    broadcastNotification({
+      type: 'system',
+      actorId: user.id,
+      actorName: user.display_name,
+      actorAvatar: user.avatar || '',
+      message: `${user.display_name} just joined NGA Hub! 👋`,
+    }).catch(() => {});
+  }
+  return result;
 }
 
 // ─── DIRECT MESSAGES ─────────────────────────────────────────────────────────
