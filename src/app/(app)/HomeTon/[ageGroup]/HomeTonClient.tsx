@@ -335,44 +335,52 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
       </header>
 
       <section className="flex gap-5 overflow-x-auto no-scrollbar py-2 pb-6">
-        {/* New Members row — all registered users */}
-        {newMembers.length > 0 && (
-          <div className="flex gap-4 overflow-x-auto no-scrollbar w-full pb-2 mb-2 border-b border-white/5">
-            <div className="flex flex-col items-center gap-1 shrink-0 opacity-40">
-              <span className="text-[8px] font-black uppercase tracking-widest writing-mode-vertical">Members</span>
-            </div>
-            {newMembers.map(u => (
-              <div key={u.id} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group">
-                <div className={`p-0.5 rounded-full ${u.is_online ? 'bg-gradient-to-tr from-green-400 to-cyan-400' : 'bg-white/20'}`}>
-                  <Avatar className="h-12 w-12 border-2 border-background">
-                    <AvatarImage src={u.avatar} className="object-cover" />
-                    <AvatarFallback className="bg-primary/20 text-primary font-black text-xs">
-                      {u.display_name?.[0]?.toUpperCase() || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-                <span className="text-[8px] font-black uppercase tracking-widest truncate max-w-[52px] text-white/60">
-                  {u.display_name?.split(' ')[0] || 'User'}
-                </span>
-                {u.is_online && <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Stories */}
-        <div className="flex gap-5 overflow-x-auto no-scrollbar shrink-0">
+        {/* Your Story — always first */}
         <div className="flex flex-col items-center gap-3 flex-shrink-0 group cursor-pointer" onClick={() => router.push('/create-post/?type=story')}>
             <div className="p-1 rounded-full bg-muted transition-all duration-500 group-hover:scale-105">
                 <div className="relative h-16 w-16 md:h-20 md:w-20 rounded-full overflow-hidden border-2 border-background">
                     <Avatar className="h-full w-full">
                         <AvatarImage src={profile?.profilePicture || user?.photoURL || ''} className="object-cover" />
-                        <AvatarFallback>U</AvatarFallback>
+                        <AvatarFallback className="bg-primary/20 text-primary font-black">
+                          {profile?.displayName?.[0]?.toUpperCase() || 'U'}
+                        </AvatarFallback>
                     </Avatar>
                 </div>
             </div>
             <span className="text-[9px] font-black uppercase tracking-widest opacity-60">Your Story</span>
         </div>
+
+        {/* Other registered users — their chosen profile pictures, right next to Your Story */}
+        {newMembers.map((member, idx) => (
+          <div key={member.id} className="flex flex-col items-center gap-3 flex-shrink-0 group cursor-pointer">
+            <div className={`p-1 rounded-full transition-all duration-500 group-hover:scale-105 ${member.is_online ? 'bg-gradient-to-tr from-green-400 to-cyan-400' : 'bg-gradient-to-tr from-primary to-accent'}`}>
+              <div className="relative h-16 w-16 md:h-20 md:w-20 rounded-full overflow-hidden border-2 border-background">
+                <Avatar className="h-full w-full">
+                  <AvatarImage src={member.avatar || ''} className="object-cover" />
+                  <AvatarFallback className="bg-primary/20 text-primary font-black">
+                    {member.display_name?.[0]?.toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-[9px] font-black uppercase tracking-widest opacity-60 truncate max-w-[64px]">
+                @{member.display_name?.replace(/\s/g,'_').toLowerCase() || `user_${idx}`}
+              </span>
+              {member.is_online && <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />}
+            </div>
+          </div>
+        ))}
+
+        {/* Stories from Supabase */}
+        {realtimeStories.length === 0 && newMembers.length === 0 && (
+            <div className="flex flex-col items-center gap-3 flex-shrink-0 opacity-30">
+                <div className="h-16 w-16 rounded-full border-2 border-dashed border-white/20 flex items-center justify-center">
+                    <span className="text-xs">📸</span>
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest opacity-60">No stories yet</span>
+            </div>
+        )}
 
         {realtimeStories.length === 0 ? (
             <div className="flex flex-col items-center gap-3 flex-shrink-0 opacity-30">
@@ -406,7 +414,6 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                 </DialogContent>
             </Dialog>
         ))}
-        </div>
       </section>
 
       <main className="space-y-12 pb-12">

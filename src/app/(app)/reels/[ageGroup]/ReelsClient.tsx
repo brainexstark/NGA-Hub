@@ -79,6 +79,8 @@ function ReelItem({
   const { likesCount, liked, toggleLike } = useRealtimeLikes(reel.id, user?.uid || '');
   const [followed, setFollowed] = React.useState(false);
   const [isDisciple, setIsDisciple] = React.useState(false);
+  const [showHeart, setShowHeart] = React.useState(false);
+  const lastTapRef = React.useRef<number>(0);
 
   const handleFollow = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -101,10 +103,21 @@ function ReelItem({
     toast({ title: isDisciple ? 'Removed from disciples' : `You are now a disciple of @${reel.userName}` });
   };
 
+  const handleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (!liked) toggleLike();
+      setShowHeart(true);
+      setTimeout(() => setShowHeart(false), 900);
+    }
+    lastTapRef.current = now;
+  };
+
   return (
     <div
       ref={ref}
       className="h-full w-full flex items-center justify-center snap-center relative bg-black"
+      onClick={handleTap}
     >
       {/* Full-screen player */}
       <div className="absolute inset-0">
@@ -113,6 +126,13 @@ function ReelItem({
 
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+
+      {/* Double-tap heart animation */}
+      {showHeart && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
+          <Heart className="h-28 w-28 fill-red-500 text-red-500 animate-in zoom-in-50 duration-300 drop-shadow-2xl" />
+        </div>
+      )}
 
       {/* Bottom info */}
       <div className="absolute bottom-0 left-0 right-16 p-5 z-10 space-y-3">
@@ -128,15 +148,19 @@ function ReelItem({
           </p>
           {/* Follow button */}
           <button onClick={handleFollow}
-            className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95",
-              followed ? "bg-white/20 text-white border-white/20" : "bg-primary text-white border-primary")}>
-            {followed ? 'Following' : '+ Follow'}
+            className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all duration-300 active:scale-95",
+              followed
+                ? "bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-600/30"
+                : "bg-primary text-white border-primary shadow-lg shadow-primary/30")}>
+            {followed ? '✓ Following' : '+ Follow'}
           </button>
           {/* Disciple button */}
           <button onClick={handleDisciple}
-            className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95",
-              isDisciple ? "bg-accent/20 text-accent border-accent/30" : "bg-white/10 text-white/70 border-white/20")}>
-            {isDisciple ? '✓ Disciple' : 'Be Disciple?'}
+            className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all duration-300 active:scale-95",
+              isDisciple
+                ? "bg-yellow-400 text-black border-yellow-400 shadow-lg shadow-yellow-400/30"
+                : "bg-white/10 text-white/70 border-white/20")}>
+            {isDisciple ? '⭐ Disciple' : 'Be Disciple?'}
           </button>
         </div>
         <p className="text-xs text-white/80 font-medium italic line-clamp-2">"{reel.description || reel.caption}"</p>
