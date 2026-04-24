@@ -13,8 +13,6 @@ const nextConfig = {
     }
     return config;
   },
-  // Turbopack config for dev server — just keep it minimal
-  experimental: {},
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'placehold.co' },
@@ -32,6 +30,7 @@ const nextConfig = {
   },
   compress: true,
   staticPageGenerationTimeout: 120,
+  experimental: {},
 };
 
 module.exports = nextConfig;
