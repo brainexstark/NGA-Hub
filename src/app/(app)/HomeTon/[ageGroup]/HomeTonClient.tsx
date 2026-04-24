@@ -8,16 +8,12 @@ import { Card } from '../../../../components/ui/card';
 import Link from 'next/link';
 import Image from 'next/image';
 import { 
-  Home,
-  Search,
-  Clapperboard,
-  Heart,
-  Camera,
-  PlayCircle,
-  Loader2,
-  Rocket,
-  BookOpen
+  Home, Search, Clapperboard, Heart, Camera, PlayCircle,
+  Loader2, Rocket, BookOpen, MessageCircle, Repeat2, Send,
+  Bookmark, Volume2, VolumeX
 } from 'lucide-react';
+import { useRealtimeLikes } from '../../../../hooks/use-realtime';
+import { supabase as supabaseClient } from '../../../../lib/supabase';
 import { ContentCard } from '../../../../components/content-card';
 import { doc, collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import type { Post, UserProfile } from '../../../../lib/types';
@@ -39,6 +35,84 @@ const InternalPlayer = ({ url }: { url: string }) => {
     const embedUrl = getEmbedUrl(url);
     return <iframe src={embedUrl} className="w-full h-full border-none" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
 };
+
+// ─── Post Action Buttons (Like, Comment, Repost, Send, Save, Volume) ─────────
+function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid }: {
+  postId: string; userId: string; postUrl: string; postTitle: string;
+  firestore: any; userUid?: string;
+}) {
+  const { likesCount, liked, toggleLike } = useRealtimeLikes(postId, userId);
+  const [saved, setSaved] = React.useState(false);
+  const [reposted, setReposted] = React.useState(false);
+  const [muted, setMuted] = React.useState(true);
+  const { toast } = useToast();
+
+  // Toggle mute on all videos in this post
+  const handleMute = () => {
+    setMuted(p => !p);
+    // Find video elements near this post and toggle mute
+    const videos = document.querySelectorAll(`[data-post-id="${postId}"] video`);
+    videos.forEach((v: any) => { v.muted = !muted; });
+  };
+
+  const handleSave = async () => {
+    setSaved(p => !p);
+    if (!saved && firestore && userUid) {
+      const { addDoc, collection: col, serverTimestamp } = await import('firebase/firestore');
+      addDoc(col(firestore, 'users', userUid, 'saved_posts'), {
+        postId, savedAt: serverTimestamp(),
+      }).catch(() => {});
+    }
+    toast({ title: saved ? 'Removed from saved' : 'Saved!' });
+  };
+
+  const handleRepost = () => {
+    setReposted(p => !p);
+    toast({ title: reposted ? 'Repost removed' : 'Reposted to your feed!' });
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({ title: postTitle, url: postUrl || window.location.href }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(postUrl || window.location.href);
+      toast({ title: 'Link copied!' });
+    }
+  };
+
+  return (
+    <div className="px-4 py-2 flex items-center justify-between">
+      {/* Left: Like, Comment, Repost, Send */}
+      <div className="flex items-center gap-5">
+        <button onClick={toggleLike} className="flex items-center gap-1.5 active:scale-125 transition-transform">
+          <Heart className={cn("h-6 w-6 transition-all duration-200", liked ? "fill-red-500 text-red-500" : "text-white/80")} />
+          {likesCount > 0 && <span className="text-xs font-black text-white/60">{likesCount}</span>}
+        </button>
+        <Link href={`/comments/${postId}`} className="flex items-center gap-1.5 active:scale-110 transition-transform">
+          <MessageCircle className="h-6 w-6 text-white/80" />
+        </Link>
+        <button onClick={handleRepost} className="active:scale-110 transition-transform">
+          <Repeat2 className={cn("h-6 w-6 transition-all duration-200", reposted ? "text-green-400" : "text-white/80")} />
+        </button>
+        <button onClick={handleShare} className="active:scale-110 transition-transform">
+          <Send className="h-6 w-6 text-white/80" />
+        </button>
+      </div>
+      {/* Right: Volume + Save */}
+      <div className="flex items-center gap-4">
+        <button onClick={handleMute} className="active:scale-110 transition-transform">
+          {muted
+            ? <VolumeX className="h-6 w-6 text-white/80" />
+            : <Volume2 className="h-6 w-6 text-white" />
+          }
+        </button>
+        <button onClick={handleSave} className="active:scale-110 transition-transform">
+          <Bookmark className={cn("h-6 w-6 transition-all duration-200", saved ? "fill-white text-white" : "text-white/80")} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
   const isUnder10 = ageGroup === 'under-10';
@@ -466,7 +540,8 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
             }
             const p = post as any;
             return (
-              <div key={p.id} className="space-y-0">
+              <div key={p.id} data-post-id={p.id} className="space-y-0 border-b border-white/5">
+                {/* Post header */}
                 <div className="flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9 border border-white/10 ring-2 ring-primary/20">
@@ -485,14 +560,21 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                       )}
                     </div>
                   </div>
-                  <span className="text-white/20 text-lg">···</span>
+                  <span className="text-white/20 text-lg cursor-pointer">···</span>
                 </div>
+
+                {/* Post media */}
                 <div className="w-full bg-black overflow-hidden">
                   <ContentCard id={p.id} title={p.title || ''} creator={p.userName || ''}
                     image={{ imageUrl: p.mediaUrl || '', description: p.caption, id: p.id, url: p.url || p.mediaUrl, category: p.category, userAvatar: p.userAvatar } as any} />
                 </div>
+
+                {/* Action buttons — Instagram style */}
+                <PostActions postId={p.id} userId={user?.uid || ''} postUrl={p.url || p.mediaUrl} postTitle={p.title || p.caption} firestore={firestore} userUid={user?.uid} />
+
+                {/* Caption */}
                 {p.caption && (
-                  <div className="px-4 py-2">
+                  <div className="px-4 pb-3">
                     <span className="font-black text-xs mr-2">@{p.userName?.replace(/\s/g,'_').toLowerCase()}</span>
                     <span className="text-xs text-white/70">{p.caption}</span>
                   </div>
