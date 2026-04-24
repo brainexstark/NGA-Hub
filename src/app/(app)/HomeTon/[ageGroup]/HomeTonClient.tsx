@@ -33,6 +33,7 @@ import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
 import { useRealtimeFollowers, useAppUsers } from '../../../../hooks/use-realtime';
 import { getEmbedUrl as _getEmbedUrl } from '../../../../lib/utils';
 import { filterForUnder10 } from '../../../../lib/inappropriate-words';
+import { supabase } from '../../../../lib/supabase';
 
 const InternalPlayer = ({ url }: { url: string }) => {
     const embedUrl = getEmbedUrl(url);
@@ -68,7 +69,6 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
   // Real stories from Supabase — only real registered users
   const [realtimeStories, setRealtimeStories] = React.useState<any[]>([]);
   React.useEffect(() => {
-    const { supabase } = require('../../../../lib/supabase');
     supabase.from('stories')
       .select('*')
       .eq('age_group', ageGroup)
@@ -154,6 +154,20 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     .filter(p => !filterForUnder10(`${p.caption} ${p.title || ''}`))
     .slice(0, 6);
 
+  // Hide profiles row on scroll down, show on scroll up — must be before any conditional return
+  const [profilesVisible, setProfilesVisible] = React.useState(true);
+  const lastScrollY = React.useRef(0);
+  React.useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      if (currentY > lastScrollY.current + 10) setProfilesVisible(false);
+      else if (currentY < lastScrollY.current - 10) setProfilesVisible(true);
+      lastScrollY.current = currentY;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   if (isUnder10) {
     return (
       <div className="min-h-screen bg-[#0a052a] text-white relative overflow-x-hidden animate-in fade-in duration-1000">
@@ -221,22 +235,29 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                     </div>
                     <span className="bg-orange-500 px-4 py-1 rounded-full text-[9px] font-black uppercase text-white shadow-lg">MY STORY</span>
                 </div>
-                {storyImages.map((story, i) => (
+                {realtimeStories.filter(s => !filterForUnder10(`${s.caption || ''}`)).map((story, i) => (
                     <Dialog key={story.id}>
                         <DialogTrigger asChild>
                             <div className="flex flex-col items-center gap-3 shrink-0 group cursor-pointer" onClick={handleTriggerCycle}>
                                 <div className={cn("relative p-1.5 rounded-full shadow-xl group-hover:scale-110 transition-transform", i % 2 === 0 ? "bg-gradient-to-tr from-blue-400 to-cyan-500" : "bg-gradient-to-tr from-purple-400 to-pink-500")}>
                                     <div className="h-20 w-20 rounded-full border-4 border-[#0a052a] overflow-hidden">
-                                        <Avatar className="h-full w-full"><AvatarImage src={story.imageUrl} className="object-cover" /></Avatar>
+                                        <Avatar className="h-full w-full">
+                                          <AvatarImage src={story.user_avatar || story.media_url} className="object-cover" />
+                                          <AvatarFallback className="bg-cyan-900 text-white font-black">
+                                            {story.user_name?.[0]?.toUpperCase() || 'U'}
+                                          </AvatarFallback>
+                                        </Avatar>
                                     </div>
                                 </div>
-                                <span className={cn("px-4 py-1 rounded-full text-[9px] font-black uppercase text-white shadow-lg truncate max-w-[80px]", i % 2 === 0 ? "bg-blue-500" : "bg-purple-500")}>@{story.userName || `STAR_${i}`}</span>
+                                <span className={cn("px-4 py-1 rounded-full text-[9px] font-black uppercase text-white shadow-lg truncate max-w-[80px]", i % 2 === 0 ? "bg-blue-500" : "bg-purple-500")}>
+                                  @{story.user_name?.split(' ')[0] || `user_${i}`}
+                                </span>
                             </div>
                         </DialogTrigger>
                         <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-4 border-cyan-400 bg-black rounded-[3rem] shadow-2xl flex items-center justify-center">
                             <DialogTitle className="sr-only">Story</DialogTitle>
                             <div className="w-full h-full relative aspect-[9/16]">
-                                <InternalPlayer url={story.url || story.imageUrl} />
+                                <InternalPlayer url={story.media_url} />
                             </div>
                         </DialogContent>
                     </Dialog>
@@ -290,7 +311,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                         <Dialog key={v.id}>
                             <DialogTrigger asChild>
                                 <div className="relative overflow-hidden cursor-pointer group aspect-video" onClick={handleTriggerCycle}>
-                                    <Image src={v.mediaUrl || v.imageUrl || `https://picsum.photos/seed/${v.id}/400/225`} alt={v.title || v.caption || 'video'} fill className="object-cover opacity-70 group-hover:opacity-90 transition-opacity rounded-[1.5rem]" />
+                                    <Image src={v.mediaUrl || v.imageUrl || ''} alt={v.title || v.caption || 'video'} fill className="object-cover opacity-70 group-hover:opacity-90 transition-opacity rounded-[1.5rem]" unoptimized />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent rounded-[1.5rem]" />
                                     <div className="absolute bottom-3 left-4 right-4">
                                         <p className="font-black text-sm text-white uppercase tracking-tight line-clamp-1">{v.title || v.caption}</p>
@@ -310,20 +331,6 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
       </div>
     );
   }
-
-  // Hide profiles row on scroll down, show on scroll up
-  const [profilesVisible, setProfilesVisible] = React.useState(true);
-  const lastScrollY = React.useRef(0);
-  React.useEffect(() => {
-    const handleScroll = () => {
-      const currentY = window.scrollY;
-      if (currentY > lastScrollY.current + 10) setProfilesVisible(false);
-      else if (currentY < lastScrollY.current - 10) setProfilesVisible(true);
-      lastScrollY.current = currentY;
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // non-under-10 return below — Instagram-style layout
 
