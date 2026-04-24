@@ -2,7 +2,7 @@
 const nextConfig = {
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
-  // Prevent Node.js-only packages from being bundled client-side
+  // Webpack fallbacks for Node.js-only packages (production builds)
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
@@ -12,6 +12,19 @@ const nextConfig = {
       };
     }
     return config;
+  },
+  // Turbopack fallbacks for dev server
+  experimental: {
+    turbo: {
+      resolveAlias: {
+        fs: { browser: false },
+        net: { browser: false },
+        tls: { browser: false },
+        dns: { browser: false },
+        child_process: { browser: false },
+        readline: { browser: false },
+      },
+    },
   },
   images: {
     remotePatterns: [
@@ -30,7 +43,6 @@ const nextConfig = {
   },
   compress: true,
   staticPageGenerationTimeout: 120,
-  experimental: {},
 };
 
 module.exports = nextConfig;
