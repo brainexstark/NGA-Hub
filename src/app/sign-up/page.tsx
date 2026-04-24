@@ -1,32 +1,41 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
 import { Logo } from "../../components/logo";
-import { ArrowLeft, Loader2, Shield, Eye, EyeOff, Zap, Calendar, Smartphone } from "lucide-react";
+import { Loader2, Eye, EyeOff, ArrowRight, ArrowLeft, Mail, Lock, User, Camera, Upload, Link2 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, updateProfile, createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth, useFirestore } from "../../firebase";
 import { useToast } from "../../hooks/use-toast";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { DatePicker } from "../../components/ui/date-picker";
-import { differenceInYears } from 'date-fns';
+import { upsertAppUser } from "../../hooks/use-realtime";
+import { cn } from "../../lib/utils";
 
-type AgeGroup = 'under-10' | '10-16' | '16-plus' | '';
+type Step = 'account' | 'profile' | 'age';
+type AgeGroup = 'under-10' | '10-16' | '16-plus';
+
+const AGE_GROUPS = [
+  { id: 'under-10' as AgeGroup, label: 'Under 10', emoji: '🧒', desc: 'Kids content & learning' },
+  { id: '10-16' as AgeGroup, label: '10 – 16', emoji: '🎓', desc: 'Teen content & education' },
+  { id: '16-plus' as AgeGroup, label: '16+', emoji: '🚀', desc: 'Full access & community' },
+];
 
 export default function SignUpPage() {
-  const [username, setUsername] = useState('');
+  const [step, setStep] = useState<Step>('account');
+  // Step 1
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [ageGroup, setAgeGroup] = useState<AgeGroup>('');
-  const [dob, setDob] = useState<Date>();
-  const [phoneNumber, setPhoneNumber] = useState('');
+  // Step 2 — profile picture
+  const [profilePic, setProfilePic] = useState('');
+  const [picMode, setPicMode] = useState<'upload' | 'url'>('upload');
+  const [picUrl, setPicUrl] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+  // Step 3
+  const [ageGroup, setAgeGroup] = useState<AgeGroup | ''>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -38,217 +47,279 @@ export default function SignUpPage() {
 
   useEffect(() => {
     setMounted(true);
-    // Handle redirect result from Google sign-in
     if (auth && firestore) {
-      getRedirectResult(auth)
-        .then(async (result) => {
-          if (result?.user) {
-            const user = result.user;
-            const userRef = doc(firestore, "users", user.uid);
-            await setDoc(userRef, { uid: user.uid, displayName: user.displayName, email: user.email, lastLogin: serverTimestamp() }, { merge: true });
-            toast({ title: "Authorized", description: "Google account synchronized." });
-            router.push('/select-age');
-          }
-        })
-        .catch((err) => { if (err?.code !== 'auth/no-current-user') console.error(err); });
+      getRedirectResult(auth).then(async (result) => {
+        if (result?.user) {
+          const u = result.user;
+          await setDoc(doc(firestore, "users", u.uid), { uid: u.uid, displayName: u.displayName, email: u.email, lastLogin: serverTimestamp() }, { merge: true });
+          router.push('/select-age');
+        }
+      }).catch(() => {});
     }
   }, [auth, firestore]);
 
-  const validateAgeGroup = (birthDate: Date, group: AgeGroup): boolean => {
-      const age = differenceInYears(new Date(), birthDate);
-      if (group === 'under-10' && age < 10) return true;
-      if (group === '10-16' && age >= 10 && age <= 16) return true;
-      if (group === '16-plus' && age > 16) return true;
-      return false;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => setProfilePic(ev.target?.result as string);
+    reader.readAsDataURL(file);
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!auth || !firestore) return;
-
-    if (!ageGroup || !dob) {
-      toast({ variant: 'destructive', title: "Incomplete Node Data", description: "All fields are required for synchronization." });
-      return;
-    }
-
-    if (!validateAgeGroup(dob, ageGroup)) {
-        toast({ variant: 'destructive', title: "Validation Error", description: "Date of birth does not match age group protocols." });
-        return;
-    }
-
-    setIsLoading(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      await updateProfile(user, { displayName: username });
-      
-      const userRef = doc(firestore, "users", user.uid);
-      const userData = {
-        uid: user.uid,
-        displayName: username,
-        email: user.email,
-        ageGroup: ageGroup,
-        dob: dob.toISOString(),
-        phoneNumber: ageGroup === '16-plus' ? phoneNumber : null,
-        lastLogin: serverTimestamp(),
-      };
-
-      await setDoc(userRef, userData, { merge: true });
-      toast({ title: "Authorized", description: "Account created and synchronized." });
-      router.push(`/`);
-    } catch (err: any) {
-      console.error("Sign Up Node Sync Error:", err);
-      toast({ variant: 'destructive', title: "Sync Failed", description: err.message });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
+  const handleGoogle = async () => {
     if (!auth || !firestore) return;
     setIsGoogleLoading(true);
     const provider = new GoogleAuthProvider();
-    provider.addScope('email');
-    provider.addScope('profile');
     try {
       const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      const userRef = doc(firestore, "users", user.uid);
-      await setDoc(userRef, { uid: user.uid, displayName: user.displayName, email: user.email, lastLogin: serverTimestamp() }, { merge: true });
-      toast({ title: "Authorized", description: "Google account synchronized." });
+      const u = result.user;
+      await setDoc(doc(firestore, "users", u.uid), { uid: u.uid, displayName: u.displayName, email: u.email, lastLogin: serverTimestamp() }, { merge: true });
       router.push('/select-age');
-    } catch (popupError: any) {
-      if (popupError?.code === 'auth/popup-blocked' ||
-          popupError?.code === 'auth/popup-closed-by-user' ||
-          popupError?.code === 'auth/cancelled-popup-request') {
-        try {
-          await signInWithRedirect(auth, provider);
-        } catch (redirectError: any) {
-          toast({ variant: "destructive", title: "Sign In Failed", description: redirectError.message });
-          setIsGoogleLoading(false);
-        }
+    } catch (err: any) {
+      if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/popup-closed-by-user') {
+        try { await signInWithRedirect(auth, provider); } catch {}
       } else {
-        toast({ variant: "destructive", title: "Sign In Failed", description: popupError.message });
+        toast({ variant: "destructive", title: "Google sign up failed", description: err.message });
         setIsGoogleLoading(false);
       }
     }
   };
 
-  if (!mounted) {
-    return <div className="min-h-screen bg-[#0a051a]" />;
-  }
+  const handleFinish = async () => {
+    if (!auth || !firestore || !ageGroup) return;
+    setIsLoading(true);
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      const u = cred.user;
+      const finalPic = profilePic || picUrl || '';
+      await updateProfile(u, { displayName: username, photoURL: finalPic });
+      await setDoc(doc(firestore, "users", u.uid), {
+        uid: u.uid, displayName: username, email: u.email,
+        ageGroup, profilePicture: finalPic, lastLogin: serverTimestamp(),
+      }, { merge: true });
+      // Register in Supabase app_users
+      await upsertAppUser({ id: u.uid, display_name: username, email: u.email || '', avatar: finalPic, age_group: ageGroup, is_online: true });
+      toast({ title: 'Account created!', description: 'Welcome to NGA Hub.' });
+      router.push(`/HomeTon/${ageGroup}`);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: "Sign up failed", description: err.message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!mounted) return <div className="min-h-screen bg-[#0a051a]" />;
+
+  const stepNum = step === 'account' ? 1 : step === 'profile' ? 2 : 3;
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center p-6 overflow-y-auto bg-[#0a051a]">
-      <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-600/20 rounded-full blur-[140px] animate-pulse" />
-          <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-purple-600/20 rounded-full blur-[140px] animate-pulse [animation-delay:3s]" />
+    <main className="min-h-screen bg-[#0a051a] flex flex-col">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+        <Logo />
+        <Link href="/sign-in" className="text-xs font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors">
+          Sign in →
+        </Link>
       </div>
 
-      <Link href="/" className="absolute top-8 left-8 z-50">
-        <Button variant="ghost" size="sm" className="rounded-full bg-blue-950/40 backdrop-blur-md hover:bg-blue-900/60 text-white border border-blue-500/20 transition-all">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Home
-        </Button>
-      </Link>
-      
-      <div className="w-full max-md relative z-10 animate-in zoom-in-95 duration-700 py-12">
-        <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 rounded-[3rem] blur opacity-30 animate-pulse"></div>
-        
-        <Card className="relative border border-blue-500/30 bg-[#0a0525]/90 backdrop-blur-3xl shadow-[0_0_100px_rgba(64,93,230,0.2)] rounded-[2.5rem] overflow-hidden">
-          <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-400 to-purple-600 animate-pulse" />
-          
-          <CardHeader className="text-center pt-10 space-y-6">
-            <div className="mb-2 flex justify-center scale-110">
-              <Logo />
-            </div>
-            <div className="space-y-2">
-                <CardTitle className="font-headline text-4xl font-black uppercase tracking-tighter animate-text-color-sync">Establish Node</CardTitle>
-                <CardDescription className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60 flex items-center justify-center gap-2 text-blue-200 animate-text-color-sync">
-                    <Shield className="h-3 w-3 text-blue-400" /> Initialize network lineage
-                </CardDescription>
-            </div>
-          </CardHeader>
-          
-          <CardContent className="space-y-6 p-8 relative">
-            <form className="space-y-4 relative z-10" onSubmit={handleSignUp}>
-               <div className="space-y-1.5">
-                <Label className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40 ml-2 text-blue-300">Community Identifier (Username)</Label>
-                <Input placeholder="legacy_node_01" required value={username} onChange={(e) => setUsername(e.target.value)} className="h-12 rounded-2xl bg-blue-950/40 border-blue-500/20 focus:border-blue-400/50 text-white font-bold" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40 ml-2 text-blue-300">Network Address (Email)</Label>
-                <Input type="email" placeholder="node@stark-b.network" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 rounded-2xl bg-blue-950/40 border-blue-500/20 focus:border-blue-400/50 text-white font-bold" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40 ml-2 text-purple-300">Security Token (Password)</Label>
-                 <div className="relative">
-                    <Input type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} className="h-12 pr-12 rounded-2xl bg-purple-950/40 border-purple-500/20 focus:border-purple-400/50 text-white font-bold" placeholder="••••••••" />
-                    <Button type="button" variant="ghost" size="icon" className="absolute inset-y-0 right-0 h-full text-purple-300/30 hover:text-purple-300" onClick={() => setShowPassword((prev) => !prev)}>
-                        {showPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
-                    </Button>
-                </div>
+      {/* Background */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[120px]" />
+        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-accent/15 rounded-full blur-[120px]" />
+      </div>
+
+      <div className="flex-1 flex items-center justify-center px-6 py-12 relative z-10">
+        <div className="w-full max-w-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+          {/* Step indicator */}
+          <div className="flex items-center gap-2 justify-center">
+            {[1,2,3].map(n => (
+              <div key={n} className={cn("h-1.5 rounded-full transition-all duration-300",
+                n === stepNum ? "w-8 bg-primary" : n < stepNum ? "w-4 bg-primary/40" : "w-4 bg-white/10")} />
+            ))}
+          </div>
+
+          {/* ── STEP 1: Account ── */}
+          {step === 'account' && (
+            <div className="space-y-6">
+              <div className="text-center space-y-1">
+                <h1 className="text-3xl font-black uppercase tracking-tight text-white">Create account</h1>
+                <p className="text-sm text-white/40">Join the NGA Hub community</p>
               </div>
 
-              <div className="grid gap-4">
+              {/* Google */}
+              <button onClick={handleGoogle} disabled={isGoogleLoading}
+                className="w-full flex items-center justify-center gap-3 h-12 bg-white text-black rounded-2xl font-bold text-sm hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50">
+                {isGoogleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                  <svg className="h-5 w-5" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                )}
+                Continue with Google
+              </button>
+
+              <div className="flex items-center gap-4">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-white/20">or</span>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+
+              <div className="space-y-4">
                 <div className="space-y-1.5">
-                    <Label className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40 ml-2 text-blue-300">Mission Sector (Age Group)</Label>
-                    <Select value={ageGroup} onValueChange={(value: AgeGroup) => setAgeGroup(value)}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-blue-950/40 border-blue-500/20 text-white font-bold">
-                        <SelectValue placeholder="Select Sector" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#0a0525] border-blue-500/30">
-                        <SelectItem value="under-10" className="text-white font-bold">Under 10</SelectItem>
-                        <SelectItem value="10-16" className="text-white font-bold">10-16</SelectItem>
-                        <SelectItem value="16-plus" className="text-white font-bold">16 Plus</SelectItem>
-                    </SelectContent>
-                    </Select>
-                </div>
-                {ageGroup === '16-plus' && (
-                    <div className="space-y-1.5">
-                        <Label className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40 ml-2 text-blue-300">Hardware Link (Phone)</Label>
-                        <div className="relative">
-                            <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-400/40" />
-                            <Input type="tel" placeholder="+254..." required value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} className="h-12 pl-12 rounded-2xl bg-blue-950/40 border-blue-500/20 focus:border-blue-400/50 text-white font-bold" />
-                        </div>
-                    </div>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40 ml-2 text-blue-300 flex items-center gap-2">
-                      <Calendar className="h-3 w-3" /> Solar Cycle (DOB)
-                  </Label>
-                  <div className="bg-blue-950/40 border border-blue-500/20 rounded-2xl p-2">
-                    <DatePicker date={dob} setDate={setDob} />
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Username</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                    <input value={username} onChange={e => setUsername(e.target.value)} placeholder="your_name"
+                      className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20" />
                   </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
+                      className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                    <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
+                      className="w-full h-12 pl-11 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20" />
+                    <button type="button" onClick={() => setShowPassword(p => !p)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60 transition-colors">
+                      {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <button onClick={() => {
+                  if (!username.trim() || !email.trim() || !password.trim()) { toast({ variant: 'destructive', title: 'Fill all fields' }); return; }
+                  setStep('profile');
+                }}
+                  className="w-full h-12 bg-primary rounded-2xl font-black text-white text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all shadow-xl shadow-primary/20">
+                  Next <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-center text-xs text-white/30">
+                Already have an account?{' '}
+                <Link href="/sign-in" className="text-primary font-black hover:text-primary/80 transition-colors">Sign in</Link>
+              </p>
+            </div>
+          )}
+
+          {/* ── STEP 2: Profile Picture ── */}
+          {step === 'profile' && (
+            <div className="space-y-6">
+              <div className="text-center space-y-1">
+                <h1 className="text-3xl font-black uppercase tracking-tight text-white">Profile picture</h1>
+                <p className="text-sm text-white/40">Add a photo so people know it's you</p>
               </div>
 
-              <Button type="submit" className="w-full font-black h-14 rounded-2xl text-[11px] tracking-[0.2em] animate-bg-color-sync border-none text-white shadow-xl" disabled={isLoading || isGoogleLoading}>
-                {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : (
-                    <span className="flex items-center gap-2 animate-text-color-sync brightness-200">
-                        CREATE ACCOUNT <Zap className="h-4 w-4" />
-                    </span>
-                )}
-              </Button>
-            </form>
-
-            <div className="relative pt-2">
-                <div className="relative flex justify-center text-[8px] font-black uppercase tracking-[0.4em] mb-4">
-                    <span className="bg-[#0a0525] px-4 text-blue-300/30 relative z-10">External Node Sync</span>
-                    <div className="absolute top-1/2 left-0 w-full h-[1px] bg-blue-500/10" />
+              {/* Preview */}
+              <div className="flex justify-center">
+                <div className="relative h-28 w-28">
+                  <div className="h-28 w-28 rounded-full overflow-hidden border-4 border-primary/30 bg-white/5">
+                    {profilePic || picUrl ? (
+                      <img src={profilePic || picUrl} alt="preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <User className="h-12 w-12 text-white/20" />
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => fileRef.current?.click()}
+                    className="absolute bottom-0 right-0 h-9 w-9 bg-primary rounded-full flex items-center justify-center border-2 border-background shadow-lg">
+                    <Camera className="h-4 w-4 text-white" />
+                  </button>
+                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                 </div>
-                <Button variant="outline" onClick={handleGoogleSignIn} disabled={isLoading || isGoogleLoading} className="w-full h-12 rounded-2xl font-black text-[9px] tracking-widest bg-white/5 border-blue-500/20 text-blue-100 hover:text-white">
-                    <span className="animate-text-color-sync">Authorize with Google Account</span>
-                </Button>
-            </div>
+              </div>
 
-            <div className="text-center text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 text-blue-200">
-              Already a legacy member?{" "}
-              <Link href="/sign-in" className="font-black text-blue-400 hover:text-blue-300 transition-colors underline decoration-blue-400/20 underline-offset-8">Login Node</Link>
+              {/* Mode toggle */}
+              <div className="flex gap-2 bg-white/5 p-1 rounded-2xl">
+                {(['upload', 'url'] as const).map(m => (
+                  <button key={m} onClick={() => setPicMode(m)}
+                    className={cn("flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                      picMode === m ? "bg-primary text-white" : "text-white/40")}>
+                    {m === 'upload' ? '📁 Upload' : '🔗 URL'}
+                  </button>
+                ))}
+              </div>
+
+              {picMode === 'upload' ? (
+                <button onClick={() => fileRef.current?.click()}
+                  className="w-full h-12 border-2 border-dashed border-white/10 rounded-2xl text-white/40 text-sm font-bold hover:border-primary/40 hover:text-white/60 transition-all flex items-center justify-center gap-2">
+                  <Upload className="h-4 w-4" /> Choose from device
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                    <input value={picUrl} onChange={e => { setPicUrl(e.target.value); setProfilePic(''); }}
+                      placeholder="https://example.com/photo.jpg"
+                      className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20" />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button onClick={() => setStep('account')}
+                  className="flex-1 h-12 bg-white/5 border border-white/10 rounded-2xl font-black text-white/60 text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </button>
+                <button onClick={() => setStep('age')}
+                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all shadow-xl shadow-primary/20">
+                  Next <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+              <button onClick={() => setStep('age')} className="w-full text-center text-xs text-white/20 hover:text-white/40 transition-colors">
+                Skip for now
+              </button>
             </div>
-          </CardContent>
-        </Card>
+          )}
+
+          {/* ── STEP 3: Age Group ── */}
+          {step === 'age' && (
+            <div className="space-y-6">
+              <div className="text-center space-y-1">
+                <h1 className="text-3xl font-black uppercase tracking-tight text-white">Your age group</h1>
+                <p className="text-sm text-white/40">We'll personalize your experience</p>
+              </div>
+
+              <div className="space-y-3">
+                {AGE_GROUPS.map(ag => (
+                  <button key={ag.id} onClick={() => setAgeGroup(ag.id)}
+                    className={cn("w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all active:scale-[0.98]",
+                      ageGroup === ag.id ? "border-primary bg-primary/10" : "border-white/10 bg-white/5 hover:bg-white/8")}>
+                    <span className="text-2xl">{ag.emoji}</span>
+                    <div className="text-left">
+                      <p className={cn("font-black text-sm uppercase tracking-tight", ageGroup === ag.id ? "text-primary" : "text-white")}>{ag.label}</p>
+                      <p className="text-[10px] text-white/40 font-medium">{ag.desc}</p>
+                    </div>
+                    {ageGroup === ag.id && <div className="ml-auto h-5 w-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                      <span className="text-white text-xs">✓</span>
+                    </div>}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => setStep('profile')}
+                  className="flex-1 h-12 bg-white/5 border border-white/10 rounded-2xl font-black text-white/60 text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </button>
+                <button onClick={handleFinish} disabled={!ageGroup || isLoading}
+                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Create account <ArrowRight className="h-4 w-4" /></>}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

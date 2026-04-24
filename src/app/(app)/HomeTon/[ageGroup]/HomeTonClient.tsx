@@ -311,50 +311,76 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     );
   }
 
-  // non-under-10 return below
+  // Hide profiles row on scroll down, show on scroll up
+  const [profilesVisible, setProfilesVisible] = React.useState(true);
+  const lastScrollY = React.useRef(0);
+  React.useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      if (currentY > lastScrollY.current + 10) setProfilesVisible(false);
+      else if (currentY < lastScrollY.current - 10) setProfilesVisible(true);
+      lastScrollY.current = currentY;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // non-under-10 return below — Instagram-style layout
 
   return (
-    <div className="mx-auto max-w-2xl pb-32 space-y-8 px-4 relative animate-in fade-in duration-700">
-      <header className="hidden md:flex items-center justify-between py-6 sticky top-0 bg-background/80 backdrop-blur-xl z-50">
-        <div className="flex items-center gap-8">
-            <Logo className="scale-90" />
-            <div className="flex items-center gap-6 border-l border-primary/10 pl-8">
-                <SocialStatsPopover type="disciples" count={profile?.disciplesCount || 0} label="Disciples" colorClass="text-sm font-black text-primary" />
-                <SocialStatsPopover type="followers" count={followersCount} label="Followers" colorClass="text-sm font-black text-accent" />
-                <SocialStatsPopover type="following" count={followingCount} label="Following" colorClass="text-sm font-black text-foreground" />
-            </div>
+    <div className="mx-auto max-w-2xl pb-32 relative animate-in fade-in duration-700">
+
+      {/* ── TOP HEADER — App icon + NGA Hub + stats ── */}
+      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {/* App icon */}
+          <div className="h-9 w-9 rounded-xl overflow-hidden border border-white/10 shrink-0">
+            <img src="/icons/icon-192.png" alt="NGA Hub" className="w-full h-full object-cover" />
+          </div>
+          <span className="font-headline text-xl font-black tracking-tight dynamic-text-mesh">NGA Hub</span>
         </div>
-        <div className="flex items-center gap-5">
-            <Link href="/settings/">
-                <Avatar className="h-9 w-9 ring-2 ring-primary/20 border-2 border-background">
-                    <AvatarImage src={profile?.profilePicture || user?.photoURL || ''} />
-                    <AvatarFallback>U</AvatarFallback>
-                </Avatar>
-            </Link>
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
+            <SocialStatsPopover type="disciples" count={profile?.disciplesCount || 0} label="Disciples" colorClass="text-primary" />
+            <SocialStatsPopover type="followers" count={followersCount} label="Followers" colorClass="text-accent" />
+            <SocialStatsPopover type="following" count={followingCount} label="Following" colorClass="text-foreground/60" />
+          </div>
+          <Link href="/settings/">
+            <Avatar className="h-8 w-8 ring-2 ring-primary/20 border-2 border-background">
+              <AvatarImage src={profile?.profilePicture || user?.photoURL || ''} />
+              <AvatarFallback className="bg-primary/20 text-primary font-black text-xs">
+                {profile?.displayName?.[0]?.toUpperCase() || 'U'}
+              </AvatarFallback>
+            </Avatar>
+          </Link>
         </div>
       </header>
 
-      <section className="flex gap-5 overflow-x-auto no-scrollbar py-2 pb-6">
-        {/* Your Story — always first */}
-        <div className="flex flex-col items-center gap-3 flex-shrink-0 group cursor-pointer" onClick={() => router.push('/create-post/?type=story')}>
-            <div className="p-1 rounded-full bg-muted transition-all duration-500 group-hover:scale-105">
-                <div className="relative h-16 w-16 md:h-20 md:w-20 rounded-full overflow-hidden border-2 border-background">
-                    <Avatar className="h-full w-full">
-                        <AvatarImage src={profile?.profilePicture || user?.photoURL || ''} className="object-cover" />
-                        <AvatarFallback className="bg-primary/20 text-primary font-black">
-                          {profile?.displayName?.[0]?.toUpperCase() || 'U'}
-                        </AvatarFallback>
-                    </Avatar>
-                </div>
+      {/* ── STORIES / PROFILES ROW — hides on scroll down ── */}
+      <div className={`transition-all duration-300 overflow-hidden border-b border-white/5 ${profilesVisible ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0'}`}>
+        <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 py-3">
+          {/* Your Story */}
+          <div className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group" onClick={() => router.push('/create-post/?type=story')}>
+            <div className="relative">
+              <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-background ring-2 ring-white/20 group-hover:ring-primary/60 transition-all">
+                <Avatar className="h-full w-full">
+                  <AvatarImage src={profile?.profilePicture || user?.photoURL || ''} className="object-cover" />
+                  <AvatarFallback className="bg-primary/20 text-primary font-black">
+                    {profile?.displayName?.[0]?.toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 h-5 w-5 bg-primary rounded-full border-2 border-background flex items-center justify-center">
+                <span className="text-white text-[10px] font-black">+</span>
+              </div>
             </div>
-            <span className="text-[9px] font-black uppercase tracking-widest opacity-60">Your Story</span>
-        </div>
+            <span className="text-[9px] font-medium text-white/50 truncate max-w-[60px] text-center">Your story</span>
+          </div>
 
-        {/* Other registered users — their chosen profile pictures, right next to Your Story */}
-        {newMembers.map((member, idx) => (
-          <div key={member.id} className="flex flex-col items-center gap-3 flex-shrink-0 group cursor-pointer">
-            <div className={`p-1 rounded-full transition-all duration-500 group-hover:scale-105 ${member.is_online ? 'bg-gradient-to-tr from-green-400 to-cyan-400' : 'bg-gradient-to-tr from-primary to-accent'}`}>
-              <div className="relative h-16 w-16 md:h-20 md:w-20 rounded-full overflow-hidden border-2 border-background">
+          {/* Other users */}
+          {newMembers.map((member, idx) => (
+            <div key={member.id} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group">
+              <div className={`h-16 w-16 rounded-full overflow-hidden border-2 border-background ring-2 transition-all group-hover:scale-105 ${member.is_online ? 'ring-green-400' : 'ring-primary/60'}`}>
                 <Avatar className="h-full w-full">
                   <AvatarImage src={member.avatar || ''} className="object-cover" />
                   <AvatarFallback className="bg-primary/20 text-primary font-black">
@@ -362,94 +388,152 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                   </AvatarFallback>
                 </Avatar>
               </div>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="text-[9px] font-black uppercase tracking-widest opacity-60 truncate max-w-[64px]">
-                @{member.display_name?.replace(/\s/g,'_').toLowerCase() || `user_${idx}`}
+              <span className="text-[9px] font-medium text-white/50 truncate max-w-[60px] text-center">
+                {member.display_name?.split(' ')[0] || `user_${idx}`}
               </span>
-              {member.is_online && <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />}
             </div>
-          </div>
-        ))}
+          ))}
 
-        {/* Stories from Supabase */}
-        {realtimeStories.length === 0 && newMembers.length === 0 && (
-            <div className="flex flex-col items-center gap-3 flex-shrink-0 opacity-30">
-                <div className="h-16 w-16 rounded-full border-2 border-dashed border-white/20 flex items-center justify-center">
-                    <span className="text-xs">📸</span>
-                </div>
-                <span className="text-[9px] font-black uppercase tracking-widest opacity-60">No stories yet</span>
-            </div>
-        )}
-
-        {realtimeStories.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 flex-shrink-0 opacity-30">
-                <div className="h-16 w-16 rounded-full border-2 border-dashed border-white/20 flex items-center justify-center">
-                    <span className="text-xs">📸</span>
-                </div>
-                <span className="text-[9px] font-black uppercase tracking-widest opacity-60">No stories yet</span>
-            </div>
-        ) : realtimeStories.map((story, idx) => (
+          {/* Stories */}
+          {realtimeStories.map((story, idx) => (
             <Dialog key={story.id}>
-                <DialogTrigger asChild>
-                    <div className="flex flex-col items-center gap-3 flex-shrink-0 group cursor-pointer" onClick={handleTriggerCycle}>
-                        <div className="p-1 rounded-full bg-gradient-to-tr from-primary to-accent shadow-lg transition-all duration-500 group-hover:scale-105">
-                            <div className="relative h-16 w-16 md:h-20 md:w-20 rounded-full overflow-hidden border-2 border-background">
-                                <Avatar className="h-full w-full">
-                                    <AvatarImage src={story.user_avatar || story.media_url} className="object-cover" />
-                                    <AvatarFallback className="bg-primary/20 text-primary font-black">
-                                        {story.user_name?.[0]?.toUpperCase() || 'U'}
-                                    </AvatarFallback>
-                                </Avatar>
-                            </div>
-                        </div>
-                        <span className="text-[9px] font-black uppercase tracking-widest opacity-60 truncate max-w-[64px]">@{story.user_name?.replace(/\s/g,'_').toLowerCase() || `user_${idx}`}</span>
-                    </div>
-                </DialogTrigger>
-                <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-2 border-primary/20 bg-black rounded-[3rem] shadow-2xl flex flex-col items-center justify-center">
-                    <DialogTitle className="sr-only">Story</DialogTitle>
-                    <div className="w-full h-full relative aspect-[9/16]">
-                        <InternalPlayer url={story.media_url} />
-                    </div>
-                </DialogContent>
-            </Dialog>
-        ))}
-      </section>
-
-      <main className="space-y-12 pb-12">
-        {feedPosts.map((post) => {
-          if (isAd(post)) {
-            // Ad looks identical to a regular post — no label shown to user
-            return (
-              <div key={post.id} className="space-y-4">
-                <div className="flex items-center justify-between px-2">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-8 w-8 border border-primary/20">
-                      <AvatarImage src={post.media_url} />
-                      <AvatarFallback className="bg-primary/20 text-primary font-black text-xs">Ad</AvatarFallback>
+              <DialogTrigger asChild>
+                <div className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group" onClick={handleTriggerCycle}>
+                  <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-background ring-2 ring-primary group-hover:scale-105 transition-all">
+                    <Avatar className="h-full w-full">
+                      <AvatarImage src={story.user_avatar || story.media_url} className="object-cover" />
+                      <AvatarFallback className="bg-primary/20 text-primary font-black">
+                        {story.user_name?.[0]?.toUpperCase() || 'U'}
+                      </AvatarFallback>
                     </Avatar>
-                    <span className="text-xs font-black uppercase tracking-widest">{post.partner_name}</span>
+                  </div>
+                  <span className="text-[9px] font-medium text-white/50 truncate max-w-[60px] text-center">
+                    {story.user_name?.split(' ')[0] || `user_${idx}`}
+                  </span>
+                </div>
+              </DialogTrigger>
+              <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-2 border-primary/20 bg-black rounded-[3rem] shadow-2xl">
+                <DialogTitle className="sr-only">Story</DialogTitle>
+                <div className="w-full h-full"><InternalPlayer url={story.media_url} /></div>
+              </DialogContent>
+            </Dialog>
+          ))}
+        </div>
+      </div>
+
+      {/* ── FEED POSTS — Instagram style ── */}
+      <main className="divide-y divide-white/5">
+        {feedPosts.length === 0 && (
+          <div className="py-20 text-center opacity-30 space-y-3">
+            <div className="h-12 w-12 rounded-full border-2 border-white/20 mx-auto flex items-center justify-center">
+              <span className="text-xl">📸</span>
+            </div>
+            <p className="text-sm font-black uppercase tracking-widest">No posts yet</p>
+            <p className="text-xs">Be the first to post something!</p>
+          </div>
+        )}
+        {feedPosts.map((post, index) => {
+          const postElement = (() => {
+            if (isAd(post)) {
+              return (
+                <div key={post.id} className="space-y-0">
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9 border border-white/10">
+                        <AvatarImage src={post.media_url} />
+                        <AvatarFallback className="bg-yellow-400/20 text-yellow-400 font-black text-xs">Ad</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-black text-sm">{post.partner_name}</p>
+                        <p className="text-[9px] text-yellow-400 font-black uppercase tracking-widest">Sponsored</p>
+                      </div>
+                    </div>
+                    <span className="text-white/20">···</span>
+                  </div>
+                  <div className="aspect-square w-full bg-black overflow-hidden">
+                    <ContentCard id={post.id} title={post.title} creator={post.partner_name}
+                      image={{ imageUrl: post.media_url, description: post.caption, id: post.id, url: post.video_url || post.media_url, category: post.category } as any} />
                   </div>
                 </div>
-                <ContentCard
-                  id={post.id}
-                  title={post.title}
-                  creator={post.partner_name}
-                  image={{ imageUrl: post.media_url, description: post.caption, id: post.id, imageHint: 'trending content', url: post.video_url || post.media_url, category: post.category } as any}
-                />
+              );
+            }
+            const p = post as any;
+            return (
+              <div key={p.id} className="space-y-0">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-9 w-9 border border-white/10 ring-2 ring-primary/20">
+                      <AvatarImage src={p.userAvatar || ''} className="object-cover" />
+                      <AvatarFallback className="bg-primary/20 text-primary font-black text-xs">
+                        {p.userName?.[0]?.toUpperCase() || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-black text-sm">@{p.userName?.replace(/\s/g,'_').toLowerCase()}</p>
+                      {p.category && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px]">🎵</span>
+                          <span className="text-[9px] text-white/40 font-medium">{p.category}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-white/20 text-lg">···</span>
+                </div>
+                <div className="w-full bg-black overflow-hidden">
+                  <ContentCard id={p.id} title={p.title || ''} creator={p.userName || ''}
+                    image={{ imageUrl: p.mediaUrl || '', description: p.caption, id: p.id, url: p.url || p.mediaUrl, category: p.category, userAvatar: p.userAvatar } as any} />
+                </div>
+                {p.caption && (
+                  <div className="px-4 py-2">
+                    <span className="font-black text-xs mr-2">@{p.userName?.replace(/\s/g,'_').toLowerCase()}</span>
+                    <span className="text-xs text-white/70">{p.caption}</span>
+                  </div>
+                )}
               </div>
             );
-          }
+          })();
+
+          // Insert "Suggested Reels" after every 10 posts
+          const showSuggested = (index + 1) % 10 === 0 && supabasePosts.length > 0;
+
           return (
-            <div key={post.id} className="space-y-4">
-              <div className="flex items-center justify-between px-2">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8 border border-primary/20"><AvatarImage src={(post as any).userAvatar} /></Avatar>
-                  <span className="text-xs font-black uppercase tracking-widest">{(post as any).userName}</span>
+            <React.Fragment key={isAd(post) ? post.id : (post as any).id}>
+              {postElement}
+              {showSuggested && (
+                <div className="px-4 py-4 bg-background/50 border-y border-white/5">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="font-black text-sm uppercase tracking-tight">Suggested Reels</p>
+                    <Link href={`/reels/${ageGroup}`} className="text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80 transition-colors">
+                      See all →
+                    </Link>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                    {supabasePosts.slice(0, 6).map(reel => (
+                      <Link key={reel.id} href={`/reels/${ageGroup}`}
+                        className="shrink-0 w-28 rounded-2xl overflow-hidden relative bg-black border border-white/10 active:scale-95 transition-all">
+                        <div className="aspect-[9/16] relative">
+                          {reel.mediaUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={reel.mediaUrl} alt={reel.title || ''} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-white/5 flex items-center justify-center">
+                              <span className="text-2xl">🎬</span>
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                          <div className="absolute bottom-2 left-2 right-2">
+                            <p className="text-[9px] font-black text-white truncate">@{reel.userName?.replace(/\s/g,'_').toLowerCase()}</p>
+                          </div>
+                          {/* Three dots */}
+                          <button className="absolute top-1.5 right-1.5 text-white/60 text-xs">···</button>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <ContentCard id={post.id} title={(post as any).title || 'Broadcast Node'} creator={(post as any).userName} image={{ imageUrl: (post as any).mediaUrl || '', description: (post as any).caption, id: post.id, imageHint: 'media content', url: (post as any).url || (post as any).mediaUrl, category: (post as any).category } as any} />
-            </div>
+              )}
+            </React.Fragment>
           );
         })}
       </main>

@@ -8,7 +8,7 @@ const STATIC_ASSETS = [
   '/offline.html',
 ];
 
-// Install — cache static assets immediately
+// Install
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -16,7 +16,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate — clean old caches
+// Activate
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -25,16 +25,13 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch — stale-while-revalidate for pages, cache-first for assets
+// Fetch
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
-
-  // Skip non-GET, cross-origin API calls, Firebase
   if (request.method !== 'GET') return;
   if (url.hostname.includes('firestore') || url.hostname.includes('googleapis') || url.hostname.includes('firebase')) return;
 
-  // Cache-first for static assets (images, fonts, icons)
   if (request.destination === 'image' || request.destination === 'font' || url.pathname.startsWith('/icons/')) {
     event.respondWith(
       caches.match(request).then((cached) => {
@@ -49,7 +46,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first for HTML pages (stale-while-revalidate)
   if (request.destination === 'document' || request.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
       fetch(request)
@@ -63,7 +59,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Stale-while-revalidate for JS/CSS
   event.respondWith(
     caches.match(request).then((cached) => {
       const fetchPromise = fetch(request).then((res) => {
@@ -73,4 +68,91 @@ self.addEventListener('fetch', (event) => {
       return cached || fetchPromise;
     })
   );
+});
+
+// ─── PUSH NOTIFICATIONS ───────────────────────────────────────────────────────
+// Shows native phone notification even when app is closed/background
+self.addEventListener('push', (event) => {
+  let data = {
+    title: 'NGA Hub',
+    body: 'You have a new notification',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-32.png',
+    url: '/',
+    tag: 'nga-hub',
+  };
+
+  try {
+    if (event.data) {
+      const parsed = event.data.json();
+      data = { ...data, ...parsed };
+    }
+  } catch (e) {
+    try {
+      if (event.data) data.body = event.data.text();
+    } catch {}
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: data.icon,
+      badge: data.badge,
+      tag: data.tag,
+      renotify: true,
+      requireInteraction: false,
+      data: { url: data.url },
+      actions: [
+        { action: 'open', title: 'Open NGA Hub' },
+        { action: 'dismiss', title: 'Dismiss' },
+      ],
+    })
+  );
+});
+
+// Handle notification click — open app to correct page
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'dismiss') return;
+
+  const url = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If app is already open, focus it and navigate
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.focus();
+          client.navigate(url);
+          return;
+        }
+      }
+      // Otherwise open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(url);
+      }
+    })
+  );
+});
+
+// Handle notification close
+self.addEventListener('notificationclose', (event) => {
+  // Analytics could go here
+});
+
+// ─── BACKGROUND SYNC ─────────────────────────────────────────────────────────
+// Receive messages from the app to show notifications
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+    const { title, body, icon, url, tag } = event.data;
+    self.registration.showNotification(title || 'NGA Hub', {
+      body: body || '',
+      icon: icon || '/icons/icon-192.png',
+      badge: '/icons/icon-32.png',
+      tag: tag || 'nga-hub',
+      renotify: true,
+      data: { url: url || '/' },
+    });
+  }
 });

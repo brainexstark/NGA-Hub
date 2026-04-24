@@ -286,17 +286,26 @@ function FeedPostCard({ post }: { post: Post }) {
           {post.userId !== user?.uid && (
             <>
               <button onClick={handleFollow}
-                className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all duration-300 active:scale-95",
-                  followed
-                    ? "bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-600/30"
-                    : "bg-primary text-white border-primary shadow-lg shadow-primary/30")}>
+                style={{
+                  background: followed
+                    ? 'linear-gradient(135deg, #7c3aed, #4f46e5)'
+                    : 'linear-gradient(135deg, #ff007f, #ff4d94)',
+                  transition: 'background 0.6s ease, box-shadow 0.3s ease',
+                  boxShadow: followed ? '0 0 12px rgba(124,58,237,0.5)' : '0 0 12px rgba(255,0,127,0.4)',
+                }}
+                className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest text-white border-none active:scale-95 transition-transform duration-150">
                 {followed ? '✓ Following' : '+ Follow'}
               </button>
               <button onClick={handleDisciple}
-                className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all duration-300 active:scale-95",
-                  isDisciple
-                    ? "bg-yellow-400 text-black border-yellow-400 shadow-lg shadow-yellow-400/30"
-                    : "bg-white/10 text-white/70 border-white/20")}>
+                style={{
+                  background: isDisciple
+                    ? 'linear-gradient(135deg, #f59e0b, #fbbf24)'
+                    : 'rgba(255,255,255,0.1)',
+                  color: isDisciple ? '#000' : 'rgba(255,255,255,0.7)',
+                  transition: 'background 0.6s ease, color 0.4s ease, box-shadow 0.3s ease',
+                  boxShadow: isDisciple ? '0 0 12px rgba(245,158,11,0.5)' : 'none',
+                }}
+                className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/20 active:scale-95 transition-transform duration-150">
                 {isDisciple ? '⭐ Disciple' : 'Be Disciple?'}
               </button>
             </>

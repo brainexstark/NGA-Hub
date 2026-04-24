@@ -71,7 +71,7 @@ function MediaPreview({ url, fileType, filter, textOverlay, textColor, musicUrl,
     <div className="relative w-full h-full bg-black overflow-hidden">
       {isVideo ? (
         isExternal ? (
-          <iframe src={url} className="w-full h-full border-none"
+          <iframe src={getEmbedUrl(url)} className="w-full h-full border-none"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
         ) : (
           <video src={url} className="w-full h-full object-cover" autoPlay loop playsInline muted={muted}

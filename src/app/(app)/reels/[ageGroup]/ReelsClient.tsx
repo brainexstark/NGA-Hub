@@ -24,40 +24,69 @@ const CATEGORIES = [
   { id: 'entertainment', label: 'Fun', icon: Tv },
 ];
 
-// Auto-play iframe when scrolled into view
+// One video at a time — plays only when active, pauses when not
 function AutoPlayReel({ url, isActive }: { url: string; isActive: boolean }) {
-  const embedUrl = React.useMemo(() => {
-    const base = getEmbedUrl(url);
-    // Force autoplay when active
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const isExternal = url.includes('youtube') || url.includes('youtu.be') ||
+    url.includes('instagram') || url.includes('tiktok');
+
+  // Explicitly play/pause based on isActive
+  React.useEffect(() => {
+    const video = videoRef.current;
+    if (!video || isExternal) return;
     if (isActive) {
-      if (base.includes('youtube.com/embed')) {
-        return base.includes('?')
-          ? `${base}&autoplay=1&mute=1&playsinline=1`
-          : `${base}?autoplay=1&mute=1&playsinline=1`;
-      }
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+      // Reset to start so next time it plays from beginning
+      video.currentTime = 0;
     }
+  }, [isActive, isExternal]);
+
+  const embedUrl = React.useMemo(() => {
+    if (!isExternal) return url;
+    const base = getEmbedUrl(url);
+    if (isActive && base.includes('youtube.com/embed')) {
+      return base.includes('?')
+        ? `${base}&autoplay=1&mute=1&playsinline=1`
+        : `${base}?autoplay=1&mute=1&playsinline=1`;
+    }
+    // When not active, use non-autoplay URL
     return base;
-  }, [url, isActive]);
+  }, [url, isActive, isExternal]);
 
   if (!url) return null;
 
-  // Direct video file
-  if (!url.includes('youtube') && !url.includes('youtu.be') && !url.includes('instagram') && !url.includes('tiktok')) {
+  if (!isExternal) {
     return (
       <video
+        ref={videoRef}
         src={url}
         className="w-full h-full object-cover"
-        autoPlay={isActive}
         muted
         loop
         playsInline
+        preload="metadata"
       />
+    );
+  }
+
+  // External — only render iframe when active to prevent all playing at once
+  if (!isActive) {
+    return (
+      <div className="w-full h-full bg-black flex items-center justify-center">
+        <div className="opacity-30 text-white text-center space-y-2">
+          <div className="h-12 w-12 rounded-full border-2 border-white/20 flex items-center justify-center mx-auto">
+            <span className="text-xl">▶</span>
+          </div>
+        </div>
+      </div>
     );
   }
 
   return (
     <iframe
-      key={isActive ? 'active' : 'inactive'}
+      key={`active-${url}`}
       src={embedUrl}
       className="w-full h-full border-none"
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -148,18 +177,27 @@ function ReelItem({
           </p>
           {/* Follow button */}
           <button onClick={handleFollow}
-            className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all duration-300 active:scale-95",
-              followed
-                ? "bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-600/30"
-                : "bg-primary text-white border-primary shadow-lg shadow-primary/30")}>
+            style={{
+              background: followed
+                ? 'linear-gradient(135deg, #7c3aed, #4f46e5)'
+                : 'linear-gradient(135deg, #ff007f, #ff4d94)',
+              transition: 'background 0.6s ease, box-shadow 0.3s ease',
+              boxShadow: followed ? '0 0 12px rgba(124,58,237,0.5)' : '0 0 12px rgba(255,0,127,0.4)',
+            }}
+            className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest text-white border-none active:scale-95 transition-transform duration-150">
             {followed ? '✓ Following' : '+ Follow'}
           </button>
           {/* Disciple button */}
           <button onClick={handleDisciple}
-            className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all duration-300 active:scale-95",
-              isDisciple
-                ? "bg-yellow-400 text-black border-yellow-400 shadow-lg shadow-yellow-400/30"
-                : "bg-white/10 text-white/70 border-white/20")}>
+            style={{
+              background: isDisciple
+                ? 'linear-gradient(135deg, #f59e0b, #fbbf24)'
+                : 'rgba(255,255,255,0.1)',
+              color: isDisciple ? '#000' : 'rgba(255,255,255,0.7)',
+              transition: 'background 0.6s ease, color 0.4s ease, box-shadow 0.3s ease',
+              boxShadow: isDisciple ? '0 0 12px rgba(245,158,11,0.5)' : 'none',
+            }}
+            className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/20 active:scale-95 transition-transform duration-150">
             {isDisciple ? '⭐ Disciple' : 'Be Disciple?'}
           </button>
         </div>
@@ -207,7 +245,6 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
   }, [user, firestore]);
   const { data: profile } = useDoc<UserProfile>(profileRef);
 
-  const [followedUsers, setFollowedUsers] = React.useState<Record<string, boolean>>({});
   const [activeCategory, setActiveCategory] = React.useState('all');
   const [activeIndex, setActiveIndex] = React.useState(0);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -260,20 +297,6 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
     items.forEach(item => observer.observe(item));
     return () => observer.disconnect();
   }, [reels]);
-
-  const toggleLike = (id: string) => {
-    setLikedReels(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const handleFollow = (userName: string) => {
-    setFollowedUsers(prev => ({ ...prev, [userName]: true }));
-    if (user && firestore && profile) {
-      updateDocumentNonBlocking(doc(firestore, 'users', user.uid), {
-        followersCount: (profile.followersCount || 0) + 1,
-      });
-    }
-    toast({ title: 'Lineage Linked', description: `Following @${userName}` });
-  };
 
   const handleSave = (reel: any) => {
     if (!user || !firestore) return;

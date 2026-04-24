@@ -20,22 +20,78 @@ import { Dialog, DialogContent, DialogTitle } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { useRealtimeNotifications, usePresence, upsertAppUser } from '../../hooks/use-realtime';
+import { showNativeNotification, setupPushNotifications } from '../../hooks/use-push-notifications';
 
-// ─── Notification Bell ────────────────────────────────────────────────────────
+// ─── Push Notification Helper ─────────────────────────────────────────────────
+async function requestPushPermission(): Promise<boolean> {
+  if (typeof window === 'undefined' || !('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  const result = await Notification.requestPermission();
+  return result === 'granted';
+}
+
+function sendPushNotification(title: string, body: string, icon = '/icons/icon-192.png') {
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  try {
+    const n = new Notification(title, {
+      body,
+      icon,
+      badge: '/icons/icon-32.png',
+      tag: 'nga-hub-notification',
+      renotify: true,
+      silent: false,
+    });
+    n.onclick = () => { window.focus(); n.close(); };
+  } catch {}
+}
 function NotificationBell({ userId, userName, userAvatar }: { userId: string; userName: string; userAvatar: string }) {
   const { unreadCount, notifications, markAllRead } = useRealtimeNotifications(userId);
   const [open, setOpen] = React.useState(false);
   const [prevCount, setPrevCount] = React.useState(0);
+  const [bgIndex, setBgIndex] = React.useState(0);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Auto-open dropdown when a NEW notification arrives
+  // Purple-blue gradient backgrounds that cycle with fade
+  const gradients = [
+    'linear-gradient(135deg, #1a0533 0%, #0d1b4b 50%, #1a0533 100%)',
+    'linear-gradient(135deg, #0d1b4b 0%, #2d0a5e 50%, #0a1a3d 100%)',
+    'linear-gradient(135deg, #2d0a5e 0%, #1a0533 50%, #0d2b5e 100%)',
+    'linear-gradient(135deg, #0a1a3d 0%, #3d0a6e 50%, #1a0533 100%)',
+  ];
+
+  // Cycle background gradient
   React.useEffect(() => {
-    if (unreadCount > prevCount && prevCount >= 0) {
+    if (!open) return;
+    const t = setInterval(() => setBgIndex(p => (p + 1) % gradients.length), 2000);
+    return () => clearInterval(t);
+  }, [open]);
+
+  // Request push permission on mount
+  React.useEffect(() => {
+    if (userId) setupPushNotifications();
+  }, [userId]);
+
+  // Auto-open + send push notification when NEW notification arrives
+  React.useEffect(() => {
+    if (unreadCount > prevCount && prevCount >= 0 && unreadCount > 0) {
       setOpen(true);
+      // Send native phone notification via service worker
+      const latest = notifications[0];
+      if (latest) {
+        showNativeNotification({
+          title: 'NGA Hub',
+          body: latest.message,
+          icon: userAvatar || '/icons/icon-192.png',
+          url: latest.post_id ? `/comments/${latest.post_id}` : '/',
+          tag: `nga-${latest.type}-${latest.id}`,
+        });
+      }
     }
     setPrevCount(unreadCount);
-  }, [unreadCount]);
+  }, [unreadCount, notifications]);
 
   // Close on click outside
   React.useEffect(() => {
@@ -49,17 +105,9 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const handleOpen = () => {
-    setOpen(p => !p);
-  };
-
-  const handleMarkRead = () => {
-    if (unreadCount > 0) markAllRead();
-  };
-
   return (
     <div className="relative" ref={dropdownRef}>
-      <button onClick={handleOpen}
+      <button onClick={() => setOpen(p => !p)}
         className="relative text-foreground/60 hover:text-primary transition-colors">
         <Bell className="h-6 w-6" />
         {unreadCount > 0 && (
@@ -70,20 +118,26 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 w-80 bg-slate-900/98 border border-white/10 rounded-3xl shadow-2xl z-[99999] overflow-hidden animate-in slide-in-from-top-2 duration-200">
+        <div
+          className="absolute right-0 top-10 w-80 rounded-3xl shadow-2xl z-[99999] overflow-hidden animate-in slide-in-from-top-2 duration-200 border border-purple-500/20"
+          style={{
+            background: gradients[bgIndex],
+            transition: 'background 2s ease-in-out',
+          }}
+        >
           {/* Header */}
-          <div className="p-4 border-b border-white/5 flex items-center justify-between">
-            <p className="font-black text-xs uppercase tracking-widest">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between backdrop-blur-xl">
+            <p className="font-black text-xs uppercase tracking-widest text-white">
               Notifications
               {unreadCount > 0 && (
-                <span className="ml-2 bg-primary/20 text-primary px-2 py-0.5 rounded-full text-[9px]">
+                <span className="ml-2 bg-purple-500/30 text-purple-300 px-2 py-0.5 rounded-full text-[9px]">
                   {unreadCount} new
                 </span>
               )}
             </p>
             {unreadCount > 0 && (
-              <button onClick={handleMarkRead}
-                className="text-[9px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors">
+              <button onClick={() => { markAllRead(); }}
+                className="text-[9px] font-black uppercase tracking-widest text-purple-300/60 hover:text-purple-300 transition-colors">
                 Mark all read
               </button>
             )}
@@ -92,13 +146,13 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
           {/* List */}
           <div className="max-h-96 overflow-y-auto no-scrollbar divide-y divide-white/5">
             {notifications.length === 0 ? (
-              <div className="p-8 text-center opacity-30 space-y-2">
-                <Bell className="h-8 w-8 mx-auto opacity-50" />
-                <p className="text-xs font-black uppercase">No notifications yet</p>
+              <div className="p-8 text-center space-y-2">
+                <Bell className="h-8 w-8 mx-auto opacity-20 text-white" />
+                <p className="text-xs font-black uppercase text-white/30">No notifications yet</p>
               </div>
             ) : notifications.slice(0, 20).map(n => (
               <div key={n.id}
-                className={`flex items-start gap-3 p-4 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] ${!n.is_read ? 'bg-primary/5 border-l-2 border-primary' : ''}`}
+                className={`flex items-start gap-3 p-4 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] ${!n.is_read ? 'border-l-2 border-purple-400' : ''}`}
                 onClick={() => {
                   setOpen(false);
                   markAllRead();
@@ -107,7 +161,7 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
                   else if (n.type === 'follow') router.push('/network');
                   else if (n.type === 'message') router.push('/chat');
                 }}>
-                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-base border border-white/5">
+                <div className="h-9 w-9 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0 text-base border border-purple-500/20">
                   {n.type === 'like' ? '❤️'
                     : n.type === 'comment' ? '💬'
                     : n.type === 'follow' ? '👤'
@@ -119,19 +173,19 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-white/90 line-clamp-2 leading-relaxed">{n.message}</p>
-                  <p className="text-[9px] font-black uppercase text-white/30 mt-1">
+                  <p className="text-[9px] font-black uppercase text-purple-300/40 mt-1">
                     {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-                {!n.is_read && <div className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5 animate-pulse" />}
+                {!n.is_read && <div className="h-2 w-2 rounded-full bg-purple-400 shrink-0 mt-1.5 animate-pulse" />}
               </div>
             ))}
           </div>
 
           {/* Footer */}
-          <div className="p-3 border-t border-white/5">
+          <div className="p-3 border-t border-white/10">
             <button onClick={() => { setOpen(false); router.push('/activity'); }}
-              className="w-full text-center text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors py-1">
+              className="w-full text-center text-[10px] font-black uppercase tracking-widest text-purple-300/60 hover:text-purple-300 transition-colors py-1">
               View All Activity →
             </button>
           </div>
