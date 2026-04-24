@@ -13,19 +13,8 @@ const nextConfig = {
     }
     return config;
   },
-  // Turbopack fallbacks for dev server
-  experimental: {
-    turbo: {
-      resolveAlias: {
-        fs: { browser: false },
-        net: { browser: false },
-        tls: { browser: false },
-        dns: { browser: false },
-        child_process: { browser: false },
-        readline: { browser: false },
-      },
-    },
-  },
+  // Turbopack config for dev server — just keep it minimal
+  experimental: {},
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'placehold.co' },
