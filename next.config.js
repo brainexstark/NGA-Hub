@@ -2,17 +2,6 @@
 const nextConfig = {
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
-  // Webpack fallbacks for Node.js-only packages (production builds)
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false, net: false, tls: false, dns: false,
-        child_process: false, readline: false,
-      };
-    }
-    return config;
-  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'placehold.co' },

@@ -138,9 +138,21 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     window.dispatchEvent(new CustomEvent('stark-b-mission-complete'));
   };
 
-  if (!mounted) return null;
+  // ALL hooks must be before any return — Rules of Hooks
+  const [profilesVisible, setProfilesVisible] = React.useState(true);
+  const lastScrollY = React.useRef(0);
+  React.useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      if (currentY > lastScrollY.current + 10) setProfilesVisible(false);
+      else if (currentY < lastScrollY.current - 10) setProfilesVisible(true);
+      lastScrollY.current = currentY;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
-  // Must be defined before any conditional return — rules of hooks
+  // Non-hook derived values — safe after hooks
   const kidsSubjects = [
     { id: 'phonics', name: 'PHONICS FUN!', category: 'LANGUAGE', color: 'from-purple-500 to-indigo-600', icon: 'A', image: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b', url: 'https://www.youtube.com/watch?v=3JZ_D3ELwOQ' },
     { id: 'numbers', name: 'NUMBER SAFARI', category: 'MATH', color: 'from-blue-500 to-cyan-600', icon: '1', image: 'https://images.unsplash.com/photo-1509228468518-180dd4864904', url: 'https://www.youtube.com/watch?v=DR-cfDsHCGA' },
@@ -154,19 +166,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     .filter(p => !filterForUnder10(`${p.caption} ${p.title || ''}`))
     .slice(0, 6);
 
-  // Hide profiles row on scroll down, show on scroll up — must be before any conditional return
-  const [profilesVisible, setProfilesVisible] = React.useState(true);
-  const lastScrollY = React.useRef(0);
-  React.useEffect(() => {
-    const handleScroll = () => {
-      const currentY = window.scrollY;
-      if (currentY > lastScrollY.current + 10) setProfilesVisible(false);
-      else if (currentY < lastScrollY.current - 10) setProfilesVisible(true);
-      lastScrollY.current = currentY;
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  if (!mounted) return null;
 
   if (isUnder10) {
     return (
