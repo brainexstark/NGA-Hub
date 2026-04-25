@@ -54,6 +54,19 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
         if (data && data.length > 0) {
           setPosts(data.map(mapSupabasePost));
         }
+        // If Supabase returns nothing, try without age_group filter
+        // (old posts may have been posted before age_group was required)
+        if (!data || data.length === 0) {
+          const { data: allData } = await supabase
+            .from('posts')
+            .select('*')
+            .eq('is_flagged', false)
+            .order('created_at', { ascending: false })
+            .limit(50);
+          if (allData && allData.length > 0) {
+            setPosts(allData.map(mapSupabasePost));
+          }
+        }
       } catch (e) {
         console.warn('Supabase fetch failed:', e);
       } finally {
@@ -128,15 +141,15 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
 
   try {
     const { data, error } = await supabase.from('posts').insert({
-      user_id: post.userId,
-      user_name: post.userName,
+      user_id: post.userId || 'anonymous',
+      user_name: post.userName || 'User',
       user_avatar: post.userAvatar || '',
       title: post.title || post.caption,
       caption: post.caption,
       media_url: post.mediaUrl,
-      video_url: post.url,
+      video_url: post.url || post.mediaUrl,
       category: post.category || 'general',
-      age_group: post.ageGroup,
+      age_group: post.ageGroup || '10-16',
       likes_count: 0,
       comments_count: 0,
       is_flagged: false,

@@ -22,6 +22,7 @@ import Image from 'next/image';
 import type { UserProfile } from '../../../lib/types';
 import { publishPost } from '../../../hooks/use-realtime-feed';
 import { cn } from '../../../lib/utils';
+import { isVideoUrl as isVideoMedia } from '../../../lib/utils';
 import { supabase } from '../../../lib/supabase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -38,17 +39,6 @@ const FILTERS = [
   { id: 'drama',    label: 'Drama',   css: 'contrast(1.5) saturate(0.8)' },
   { id: 'neon',     label: 'Neon',    css: 'saturate(2.5) hue-rotate(15deg) brightness(1.1)' },
 ];
-
-// ─── Detect if file/url is a video ───────────────────────────────────────────
-function isVideoMedia(url: string, fileType?: string): boolean {
-  if (fileType) return fileType.startsWith('video/');
-  const lower = url.toLowerCase();
-  return lower.includes('youtube') || lower.includes('youtu.be') ||
-    lower.includes('tiktok') || lower.includes('instagram') ||
-    lower.endsWith('.mp4') || lower.endsWith('.webm') ||
-    lower.endsWith('.mov') || lower.endsWith('.avi') ||
-    lower.endsWith('.mkv') || lower.includes('video');
-}
 
 // ─── Media Preview ────────────────────────────────────────────────────────────
 function MediaPreview({ url, fileType, filter, textOverlay, textColor, musicUrl, muted = false }:

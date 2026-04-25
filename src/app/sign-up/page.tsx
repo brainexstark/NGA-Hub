@@ -12,6 +12,7 @@ import { useAuth, useFirestore } from "../../firebase";
 import { useToast } from "../../hooks/use-toast";
 import { upsertAppUser } from "../../hooks/use-realtime";
 import { cn } from "../../lib/utils";
+import { AnimatedBg } from "../../components/animated-bg";
 
 type Step = 'account' | 'profile' | 'age';
 type AgeGroup = 'under-10' | '10-16' | '16-plus';

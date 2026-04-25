@@ -62,3 +62,34 @@ export function getEmbedUrl(url: string) {
 export function getYoutubeEmbedUrl(url: string) {
     return getEmbedUrl(url);
 }
+
+/**
+ * Detects if a URL points to video content.
+ * Handles YouTube, TikTok, Instagram, Vimeo, direct video files, and data URLs.
+ */
+export function isVideoUrl(url: string, fileType?: string): boolean {
+  if (!url) return false;
+  // File type takes priority
+  if (fileType) return fileType.startsWith('video/');
+  const lower = url.toLowerCase();
+  return (
+    lower.includes('youtube.com') ||
+    lower.includes('youtu.be') ||
+    lower.includes('tiktok.com') ||
+    lower.includes('instagram.com') ||
+    lower.includes('vimeo.com') ||
+    lower.includes('facebook.com/watch') ||
+    lower.includes('fb.watch') ||
+    lower.endsWith('.mp4') ||
+    lower.endsWith('.webm') ||
+    lower.endsWith('.mov') ||
+    lower.endsWith('.avi') ||
+    lower.endsWith('.mkv') ||
+    lower.endsWith('.m4v') ||
+    lower.endsWith('.ogv') ||
+    lower.startsWith('data:video') ||
+    lower.includes('/video/') ||
+    lower.includes('video_url') ||
+    lower.includes('shorts/')
+  );
+}

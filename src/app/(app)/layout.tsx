@@ -665,29 +665,25 @@ export default function AppLayout({
                           <div className={cn("w-8 h-0.5 bg-white/30 rounded-full transition-transform", navCollapsed ? "rotate-180" : "")} />
                         </button>
                       </div>
-                      {/* Nav items */}
+                      {/* Nav items — icons only, no labels */}
                       <div className={cn(
                         "bg-background/90 backdrop-blur-2xl border-t border-white/5 flex items-center justify-around px-6 transition-all duration-300 overflow-hidden",
-                        navCollapsed ? "h-0 border-none" : "h-20"
+                        navCollapsed ? "h-0 border-none" : "h-16"
                       )}>
-                          <Link href={`/HomeTon/${ageGroup}`} className={cn("flex flex-col items-center gap-1 transition-all", pathname.startsWith('/HomeTon') ? "text-primary" : "text-foreground/40")}>
+                          <Link href={`/HomeTon/${ageGroup}`} className={cn("flex items-center justify-center h-10 w-10 rounded-2xl transition-all", pathname.startsWith('/HomeTon') ? "text-primary bg-primary/10" : "text-foreground/40")}>
                               <Home className="h-6 w-6" />
-                              <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
                           </Link>
-                          <Link href="/search" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/search' ? "text-primary" : "text-foreground/40")}>
+                          <Link href="/search" className={cn("flex items-center justify-center h-10 w-10 rounded-2xl transition-all", pathname === '/search' ? "text-primary bg-primary/10" : "text-foreground/40")}>
                               <Search className="h-6 w-6" />
-                              <span className="text-[8px] font-black uppercase tracking-widest">Search</span>
                           </Link>
                           <CreateModal ageGroup={ageGroup} />
-                          <Link href="/learning-hub" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/learning-hub' ? "text-primary" : "text-foreground/40")}>
+                          <Link href="/learning-hub" className={cn("flex items-center justify-center h-10 w-10 rounded-2xl transition-all", pathname === '/learning-hub' ? "text-primary bg-primary/10" : "text-foreground/40")}>
                               <GraduationCap className="h-6 w-6" />
-                              <span className="text-[8px] font-black uppercase tracking-widest">Learn</span>
                           </Link>
-                          <Link href="/settings" className={cn("flex flex-col items-center gap-1 transition-all", pathname === '/settings' ? "text-primary" : "text-foreground/40")}>
-                              <Avatar className={cn("h-7 w-7 border-2 transition-all", pathname === '/settings' ? "border-primary" : "border-transparent")}>
+                          <Link href="/settings" className={cn("flex items-center justify-center transition-all", pathname === '/settings' ? "opacity-100" : "opacity-40")}>
+                              <Avatar className={cn("h-8 w-8 border-2 transition-all", pathname === '/settings' ? "border-primary" : "border-transparent")}>
                                   <AvatarImage src={userProfile?.profilePicture || user?.photoURL || ''} />
                               </Avatar>
-                              <span className="text-[8px] font-black uppercase tracking-widest">Profile</span>
                           </Link>
                       </div>
                  </footer>

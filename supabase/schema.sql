@@ -403,3 +403,27 @@ alter table music_library enable row level security;
 create policy "Public read music" on music_library for select using (is_public = true);
 create policy "Anyone insert music" on music_library for insert with check (true);
 create index if not exists music_library_created on music_library(created_at desc);
+
+-- ============================================================
+-- FIX: Remove foreign key constraints that block early users
+-- Run this in Supabase SQL Editor to fix "no posts" issue
+-- ============================================================
+
+-- Drop FK constraints so any user_id works (Firebase UIDs)
+ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_user_id_fkey;
+ALTER TABLE comments DROP CONSTRAINT IF EXISTS comments_user_id_fkey;
+ALTER TABLE likes DROP CONSTRAINT IF EXISTS likes_user_id_fkey;
+ALTER TABLE follows DROP CONSTRAINT IF EXISTS follows_follower_id_fkey;
+ALTER TABLE follows DROP CONSTRAINT IF EXISTS follows_following_id_fkey;
+ALTER TABLE direct_messages DROP CONSTRAINT IF EXISTS direct_messages_sender_id_fkey;
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_user_id_fkey;
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_actor_id_fkey;
+ALTER TABLE stories DROP CONSTRAINT IF EXISTS stories_user_id_fkey;
+ALTER TABLE group_chats DROP CONSTRAINT IF EXISTS group_chats_created_by_fkey;
+ALTER TABLE group_members DROP CONSTRAINT IF EXISTS group_members_user_id_fkey;
+ALTER TABLE group_messages DROP CONSTRAINT IF EXISTS group_messages_sender_id_fkey;
+ALTER TABLE live_streams DROP CONSTRAINT IF EXISTS live_streams_host_id_fkey;
+ALTER TABLE live_chat DROP CONSTRAINT IF EXISTS live_chat_user_id_fkey;
+ALTER TABLE lessons DROP CONSTRAINT IF EXISTS lessons_user_id_fkey;
+ALTER TABLE feature_requests DROP CONSTRAINT IF EXISTS feature_requests_user_id_fkey;
+ALTER TABLE music_library DROP CONSTRAINT IF EXISTS music_library_uploaded_by_fkey;

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { Newspaper, Music, Trophy, Tv, Globe, Flame, Heart, MessageCircle, Send, PlayCircle, Volume2, VolumeX } from 'lucide-react';
-import { cn, getEmbedUrl } from '../../../../lib/utils';
+import { cn, getEmbedUrl, isVideoUrl } from '../../../../lib/utils';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
 import { useRealtimeLikes, useLiveReactions } from '../../../../hooks/use-realtime';
 import type { Post } from '../../../../lib/types';
@@ -25,16 +25,6 @@ const CATEGORIES = [
   { id: 'sports', label: 'Sports', icon: Trophy },
   { id: 'entertainment', label: 'Fun', icon: Tv },
 ];
-
-function isVideoUrl(url: string): boolean {
-  if (!url) return false;
-  const lower = url.toLowerCase();
-  return lower.includes('youtube') || lower.includes('youtu.be') ||
-    lower.includes('tiktok') || lower.includes('instagram') ||
-    lower.endsWith('.mp4') || lower.endsWith('.webm') ||
-    lower.endsWith('.mov') || lower.endsWith('.avi') ||
-    lower.endsWith('.mkv') || lower.startsWith('data:video');
-}
 
 // Instagram-style video: shows first frame when not in view, plays when scrolled to
 function FeedVideo({ url, thumbnail }: { url: string; thumbnail: string }) {

@@ -41,11 +41,15 @@ function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid }:
   postId: string; userId: string; postUrl: string; postTitle: string;
   firestore: any; userUid?: string;
 }) {
-  const { likesCount, liked, toggleLike } = useRealtimeLikes(postId, userId);
+  // Guard — don't render if postId is missing
+  const safePostId = postId || 'placeholder';
+  const { likesCount, liked, toggleLike } = useRealtimeLikes(safePostId, userId || '');
   const [saved, setSaved] = React.useState(false);
   const [reposted, setReposted] = React.useState(false);
   const [muted, setMuted] = React.useState(true);
   const { toast } = useToast();
+
+  if (!postId) return null;
 
   // Toggle mute on all videos in this post
   const handleMute = () => {
@@ -411,29 +415,20 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
   return (
     <div className="mx-auto max-w-2xl pb-32 relative animate-in fade-in duration-700">
 
-      {/* ── TOP HEADER — App icon + NGA Hub + stats ── */}
+      {/* ── TOP HEADER — App icon + stats only (no NGA Hub text, no avatar) ── */}
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* App icon */}
+          {/* App icon only */}
           <div className="h-9 w-9 rounded-xl overflow-hidden border border-white/10 shrink-0">
             <img src="/icons/icon-192.png" alt="NGA Hub" className="w-full h-full object-cover" />
           </div>
-          <span className="font-headline text-xl font-black tracking-tight dynamic-text-mesh">NGA Hub</span>
         </div>
         <div className="flex items-center gap-4">
-          <div className="hidden sm:flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
+          <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
             <SocialStatsPopover type="disciples" count={profile?.disciplesCount || 0} label="Disciples" colorClass="text-primary" />
             <SocialStatsPopover type="followers" count={followersCount} label="Followers" colorClass="text-accent" />
             <SocialStatsPopover type="following" count={followingCount} label="Following" colorClass="text-foreground/60" />
           </div>
-          <Link href="/settings/">
-            <Avatar className="h-8 w-8 ring-2 ring-primary/20 border-2 border-background">
-              <AvatarImage src={profile?.profilePicture || user?.photoURL || ''} />
-              <AvatarFallback className="bg-primary/20 text-primary font-black text-xs">
-                {profile?.displayName?.[0]?.toUpperCase() || 'U'}
-              </AvatarFallback>
-            </Avatar>
-          </Link>
         </div>
       </header>
 

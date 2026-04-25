@@ -24,7 +24,3 @@ export async function consultPeerCounsellor(input: PeerCounsellorInput): Promise
         response: "Remember that every challenge is an opportunity for growth. Stay focused on your goals, and don't hesitate to reach out for support when you need it." 
     };
 }
-    return { 
-        response: "The STARK-B legacy is built on resilience. Remember that every challenge is a node for growth. Stay focused on your mission, and excellence will synchronize with your efforts." 
-    };
-}

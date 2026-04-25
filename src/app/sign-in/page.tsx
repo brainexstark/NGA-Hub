@@ -8,6 +8,7 @@ import Link from "next/link";
 import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword } from "firebase/auth";
 import { useAuth } from "../../firebase";
 import { useToast } from "../../hooks/use-toast";
+import { AnimatedBg } from "../../components/animated-bg";
 
 export default function SignInPage() {
   const [email, setEmail] = useState('');
@@ -25,12 +26,7 @@ export default function SignInPage() {
     if (auth) {
       setIsGoogleLoading(true);
       getRedirectResult(auth)
-        .then((result) => {
-          if (result?.user) {
-            toast({ title: "Welcome back!" });
-            router.push('/');
-          }
-        })
+        .then((result) => { if (result?.user) { toast({ title: "Welcome back!" }); router.push('/'); } })
         .catch(() => {})
         .finally(() => setIsGoogleLoading(false));
     }
@@ -45,9 +41,7 @@ export default function SignInPage() {
       router.push('/');
     } catch (error: any) {
       toast({ variant: 'destructive', title: "Sign in failed", description: error.message });
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
   const handleGoogle = async () => {
@@ -70,34 +64,23 @@ export default function SignInPage() {
   if (!mounted) return <div className="min-h-screen bg-[#0a051a]" />;
 
   return (
-    <main className="min-h-screen bg-[#0a051a] flex flex-col">
-      {/* Top bar */}
+    <AnimatedBg className="min-h-screen flex flex-col">
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
         <Logo />
-        <Link href="/sign-up" className="text-xs font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors">
+        <Link href="/sign-up" className="text-sm font-medium text-white/40 hover:text-white transition-colors">
           Create account →
         </Link>
       </div>
 
-      {/* Background glow */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/20 rounded-full blur-[120px]" />
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 relative z-10">
-        <div className="w-full max-w-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-          {/* Header */}
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm space-y-7 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center space-y-2">
-            <h1 className="text-3xl font-black uppercase tracking-tight text-white">Welcome back</h1>
-            <p className="text-sm text-white/40 font-medium">Sign in to your NGA Hub account</p>
+            <h1 className="text-3xl font-bold text-white">Welcome back</h1>
+            <p className="text-sm text-white/40">Sign in to your NGA Hub account</p>
           </div>
 
-          {/* Google button */}
           <button onClick={handleGoogle} disabled={isGoogleLoading || isLoading}
-            className="w-full flex items-center justify-center gap-3 h-12 bg-white text-black rounded-2xl font-bold text-sm hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50">
+            className="w-full flex items-center justify-center gap-3 h-12 bg-white text-black rounded-2xl font-semibold text-sm hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50">
             {isGoogleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
               <svg className="h-5 w-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -109,27 +92,24 @@ export default function SignInPage() {
             Continue with Google
           </button>
 
-          {/* Divider */}
           <div className="flex items-center gap-4">
             <div className="flex-1 h-px bg-white/10" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/20">or</span>
+            <span className="text-xs text-white/20">or</span>
             <div className="flex-1 h-px bg-white/10" />
           </div>
 
-          {/* Email form */}
           <form onSubmit={handleSignIn} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Email</label>
+              <label className="text-xs font-medium text-white/50">Email</label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
                 <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 focus:bg-white/8 outline-none transition-all placeholder:text-white/20" />
+                  className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20" />
               </div>
             </div>
-
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Password</label>
+              <label className="text-xs font-medium text-white/50">Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
                 <input type={showPassword ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)}
@@ -141,19 +121,18 @@ export default function SignInPage() {
                 </button>
               </div>
             </div>
-
             <button type="submit" disabled={isLoading || isGoogleLoading}
-              className="w-full h-12 bg-primary rounded-2xl font-black text-white text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl shadow-primary/20">
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Sign In <ArrowRight className="h-4 w-4" /></>}
+              className="w-full h-12 bg-primary rounded-2xl font-semibold text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl shadow-primary/20">
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Sign in <ArrowRight className="h-4 w-4" /></>}
             </button>
           </form>
 
-          <p className="text-center text-xs text-white/30">
+          <p className="text-center text-sm text-white/30">
             Don't have an account?{' '}
-            <Link href="/sign-up" className="text-primary font-black hover:text-primary/80 transition-colors">Sign up</Link>
+            <Link href="/sign-up" className="text-primary font-semibold hover:text-primary/80 transition-colors">Sign up</Link>
           </p>
         </div>
       </div>
-    </main>
+    </AnimatedBg>
   );
 }
