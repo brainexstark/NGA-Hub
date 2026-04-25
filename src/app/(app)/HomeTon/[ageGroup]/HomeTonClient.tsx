@@ -41,7 +41,7 @@ function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid }:
   postId: string; userId: string; postUrl: string; postTitle: string;
   firestore: any; userUid?: string;
 }) {
-  // Guard — don't render if postId is missing
+  // Guard — use placeholder if postId missing to keep hooks order stable
   const safePostId = postId || 'placeholder';
   const { likesCount, liked, toggleLike } = useRealtimeLikes(safePostId, userId || '');
   const [saved, setSaved] = React.useState(false);
@@ -49,6 +49,7 @@ function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid }:
   const [muted, setMuted] = React.useState(true);
   const { toast } = useToast();
 
+  // Early return AFTER all hooks
   if (!postId) return null;
 
   // Toggle mute on all videos in this post
