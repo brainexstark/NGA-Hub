@@ -9,11 +9,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { 
   Home, Search, Clapperboard, Heart, Camera, PlayCircle,
-  Loader2, Rocket, BookOpen, MessageCircle, Repeat2, Send,
-  Bookmark, Volume2, VolumeX
+  Rocket, BookOpen, MessageCircle, Repeat2, Send,
+  Bookmark, Volume2, VolumeX, Bell
 } from 'lucide-react';
-import { useRealtimeLikes } from '../../../../hooks/use-realtime';
-import { supabase as supabaseClient } from '../../../../lib/supabase';
 import { ContentCard } from '../../../../components/content-card';
 import { doc, collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import type { Post, UserProfile } from '../../../../lib/types';
@@ -21,14 +19,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '../../../../components/ui/a
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "../../../../components/ui/dialog";
 import { useToast } from '../../../../hooks/use-toast';
 import { cn, getEmbedUrl } from '../../../../lib/utils';
-import { getRecommendedContent } from '../../../../lib/recommendation-engine';
-import { Logo } from '../../../../components/logo';
 import { SocialStatsPopover } from '../../../../components/social-stats-popover';
 import { fetchAds, injectAds, isAd, type Ad } from '../../../../lib/ads';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
 import { useRealtimeFollowers, useAppUsers } from '../../../../hooks/use-realtime';
-import { Bell } from 'lucide-react';
-import { getEmbedUrl as _getEmbedUrl } from '../../../../lib/utils';
 import { filterForUnder10 } from '../../../../lib/inappropriate-words';
 import { supabase } from '../../../../lib/supabase';
 
@@ -106,44 +100,48 @@ function NotificationBellInline({ userId, userName, userAvatar }: { userId: stri
   );
 }
 
-// ─── Post Action Buttons (Like, Comment, Repost, Send, Save, Volume) ─────────
-function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid }: {
+// ─── Post Action Buttons — lightweight, no per-post Supabase subscriptions ─────
+function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid, initialLikes = 0 }: {
   postId: string; userId: string; postUrl: string; postTitle: string;
-  firestore: any; userUid?: string;
+  firestore: any; userUid?: string; initialLikes?: number;
 }) {
-  // Guard — use placeholder if postId missing to keep hooks order stable
-  const safePostId = postId || 'placeholder';
-  const { likesCount, liked, toggleLike } = useRealtimeLikes(safePostId, userId || '');
+  const [liked, setLiked] = React.useState(false);
+  const [likesCount, setLikesCount] = React.useState(initialLikes);
   const [saved, setSaved] = React.useState(false);
   const [reposted, setReposted] = React.useState(false);
   const [muted, setMuted] = React.useState(true);
   const { toast } = useToast();
 
-  // Early return AFTER all hooks
   if (!postId) return null;
 
-  // Toggle mute on all videos in this post
+  const handleLike = async () => {
+    const newLiked = !liked;
+    setLiked(newLiked);
+    setLikesCount(p => newLiked ? p + 1 : Math.max(0, p - 1));
+    // Fire and forget to Supabase
+    try {
+      if (newLiked) {
+        await supabase.from('likes').insert({ post_id: postId, user_id: userId || 'anon' });
+      } else {
+        await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', userId || 'anon');
+      }
+    } catch {}
+  };
+
   const handleMute = () => {
     setMuted(p => !p);
-    // Find video elements near this post and toggle mute
     const videos = document.querySelectorAll(`[data-post-id="${postId}"] video`);
     videos.forEach((v: any) => { v.muted = !muted; });
   };
 
   const handleSave = async () => {
     setSaved(p => !p);
-    if (!saved && firestore && userUid) {
-      const { addDoc, collection: col, serverTimestamp } = await import('firebase/firestore');
-      addDoc(col(firestore, 'users', userUid, 'saved_posts'), {
-        postId, savedAt: serverTimestamp(),
-      }).catch(() => {});
-    }
     toast({ title: saved ? 'Removed from saved' : 'Saved!' });
   };
 
   const handleRepost = () => {
     setReposted(p => !p);
-    toast({ title: reposted ? 'Repost removed' : 'Reposted to your feed!' });
+    toast({ title: reposted ? 'Repost removed' : 'Reposted!' });
   };
 
   const handleShare = () => {
@@ -157,9 +155,8 @@ function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid }:
 
   return (
     <div className="px-4 py-2 flex items-center justify-between">
-      {/* Left: Like, Comment, Repost, Send */}
       <div className="flex items-center gap-5">
-        <button onClick={toggleLike} className="flex items-center gap-1.5 active:scale-125 transition-transform">
+        <button onClick={handleLike} className="flex items-center gap-1.5 active:scale-125 transition-transform">
           <Heart className={cn("h-6 w-6 transition-all duration-200", liked ? "fill-red-500 text-red-500" : "text-white/80")} />
           {likesCount > 0 && <span className="text-xs font-black text-white/60">{likesCount}</span>}
         </button>
@@ -172,8 +169,7 @@ function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid }:
         <button onClick={handleShare} className="active:scale-110 transition-transform">
           <Send className="h-6 w-6 text-white/80" />
         </button>
-      </div>
-      {/* Right: Volume + Save */}
+      </div>      {/* Right: Volume + Save */}
       <div className="flex items-center gap-4">
         <button onClick={handleMute} className="active:scale-110 transition-transform">
           {muted
