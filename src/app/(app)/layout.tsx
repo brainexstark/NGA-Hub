@@ -633,9 +633,6 @@ export default function AppLayout({
                           {Math.floor(activeTimer / 60)}:{String(activeTimer % 60).padStart(2, '0')}
                       </div>
                   )}
-                  <Link href="/favorites" className="text-foreground/60 hover:text-primary transition-colors">
-                      <Heart className="h-6 w-6" />
-                  </Link>
                   {user && (
                     <NotificationBell
                       userId={user.uid}

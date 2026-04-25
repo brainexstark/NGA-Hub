@@ -165,7 +165,8 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
 
   const staticFeedPosts: any[] = []; // No mock fallback — only real user content
 
-  // Supabase realtime feed
+  // Supabase realtime feed — fetch ALL posts, not just by age_group
+  // This ensures early user posts (before age_group was required) still show
   const { posts: supabasePosts } = useRealtimeFeed(ageGroup);
 
   // Firestore realtime feed (fallback)

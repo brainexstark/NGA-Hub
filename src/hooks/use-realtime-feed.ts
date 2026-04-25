@@ -54,8 +54,8 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
         if (data && data.length > 0) {
           setPosts(data.map(mapSupabasePost));
         }
-        // If Supabase returns nothing, try without age_group filter
-        // (old posts may have been posted before age_group was required)
+        // If Supabase returns nothing with age_group filter,
+        // fetch ALL posts (covers early posts before age_group was required)
         if (!data || data.length === 0) {
           const { data: allData } = await supabase
             .from('posts')
