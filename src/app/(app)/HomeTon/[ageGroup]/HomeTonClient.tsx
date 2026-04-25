@@ -26,7 +26,8 @@ import { Logo } from '../../../../components/logo';
 import { SocialStatsPopover } from '../../../../components/social-stats-popover';
 import { fetchAds, injectAds, isAd, type Ad } from '../../../../lib/ads';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
-import { useRealtimeFollowers, useAppUsers } from '../../../../hooks/use-realtime';
+import { useRealtimeFollowers, useAppUsers, useRealtimeNotifications } from '../../../../hooks/use-realtime';
+import { Bell } from 'lucide-react';
 import { getEmbedUrl as _getEmbedUrl } from '../../../../lib/utils';
 import { filterForUnder10 } from '../../../../lib/inappropriate-words';
 import { supabase } from '../../../../lib/supabase';
@@ -35,6 +36,51 @@ const InternalPlayer = ({ url }: { url: string }) => {
     const embedUrl = getEmbedUrl(url);
     return <iframe src={embedUrl} className="w-full h-full border-none" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
 };
+
+// Inline notification bell for HomeTon header
+function NotificationBellInline({ userId, userName, userAvatar }: { userId: string; userName: string; userAvatar: string }) {
+  const { unreadCount, notifications, markAllRead } = useRealtimeNotifications(userId);
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => { setOpen(p => !p); if (unreadCount > 0) markAllRead(); }}
+        className="relative text-foreground/60 hover:text-primary transition-colors">
+        <Bell className="h-5 w-5" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-500 rounded-full text-[8px] font-black text-white flex items-center justify-center border border-background animate-pulse">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-8 w-72 bg-slate-900/98 border border-white/10 rounded-2xl shadow-2xl z-[99999] overflow-hidden animate-in slide-in-from-top-2 duration-200">
+          <div className="p-3 border-b border-white/5">
+            <p className="font-black text-xs text-white">Notifications {unreadCount > 0 && <span className="ml-1 text-primary">({unreadCount})</span>}</p>
+          </div>
+          <div className="max-h-64 overflow-y-auto no-scrollbar divide-y divide-white/5">
+            {notifications.length === 0 ? (
+              <div className="p-6 text-center opacity-30"><p className="text-xs font-black">No notifications yet</p></div>
+            ) : notifications.slice(0, 10).map(n => (
+              <div key={n.id} className={`flex items-start gap-2 p-3 hover:bg-white/5 cursor-pointer ${!n.is_read ? 'bg-primary/5' : ''}`}>
+                <span className="text-sm shrink-0">{n.type === 'like' ? '❤️' : n.type === 'comment' ? '💬' : n.type === 'follow' ? '👤' : n.type === 'live' ? '🔴' : '🔔'}</span>
+                <p className="text-[10px] text-white/80 line-clamp-2">{n.message}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Post Action Buttons (Like, Comment, Repost, Send, Save, Volume) ─────────
 function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid }: {
@@ -417,20 +463,35 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
   return (
     <div className="mx-auto max-w-2xl pb-32 relative animate-in fade-in duration-700">
 
-      {/* ── TOP HEADER — App icon + stats only (no NGA Hub text, no avatar) ── */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {/* App icon only */}
-          <div className="h-9 w-9 rounded-xl overflow-hidden border border-white/10 shrink-0">
+      {/* ── SINGLE TOP HEADER — icon + name + stats + notification + favorites ── */}
+      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-xl border-b border-white/5 px-4 py-2.5 flex items-center justify-between gap-2">
+        {/* Left: App icon + name */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="h-8 w-8 rounded-xl overflow-hidden border border-white/10 shrink-0">
             <img src="/icons/icon-192.png" alt="NGA Hub" className="w-full h-full object-cover" />
           </div>
+          <span className="font-bold text-sm text-white tracking-tight">NGA Hub</span>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
-            <SocialStatsPopover type="disciples" count={profile?.disciplesCount || 0} label="Disciples" colorClass="text-primary" />
-            <SocialStatsPopover type="followers" count={followersCount} label="Followers" colorClass="text-accent" />
-            <SocialStatsPopover type="following" count={followingCount} label="Following" colorClass="text-foreground/60" />
-          </div>
+
+        {/* Center: Stats */}
+        <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-widest">
+          <SocialStatsPopover type="disciples" count={profile?.disciplesCount || 0} label="Disciples" colorClass="text-primary" />
+          <SocialStatsPopover type="followers" count={followersCount} label="Followers" colorClass="text-accent" />
+          <SocialStatsPopover type="following" count={followingCount} label="Following" colorClass="text-foreground/60" />
+        </div>
+
+        {/* Right: Notification + Favorites */}
+        <div className="flex items-center gap-3 shrink-0">
+          <Link href="/favorites" className="text-foreground/60 hover:text-primary transition-colors">
+            <Heart className="h-5 w-5" />
+          </Link>
+          {user && (
+            <NotificationBellInline
+              userId={user.uid}
+              userName={profile?.displayName || user.displayName || ''}
+              userAvatar={profile?.profilePicture || user.photoURL || ''}
+            />
+          )}
         </div>
       </header>
 

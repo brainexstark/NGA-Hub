@@ -625,7 +625,11 @@ export default function AppLayout({
           protocolStatus={protocolStatus}
         />
         <SidebarInset className="flex flex-col relative overflow-hidden bg-background">
-          <header className="flex md:hidden items-center justify-between p-4 sticky top-0 bg-background/80 backdrop-blur-xl z-[60] border-b border-white/5">
+          <header className={cn(
+              "flex md:hidden items-center justify-between p-4 sticky top-0 bg-background/80 backdrop-blur-xl z-[60] border-b border-white/5",
+              // Hide on HomeTon — it has its own header
+              pathname.startsWith('/HomeTon') ? "hidden" : "flex"
+            )}>
               <Logo className="scale-75 origin-left" />
               <div className="flex items-center gap-4">
                   {activeTimer !== null && (
