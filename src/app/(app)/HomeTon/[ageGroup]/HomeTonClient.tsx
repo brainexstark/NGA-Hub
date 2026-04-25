@@ -26,7 +26,7 @@ import { Logo } from '../../../../components/logo';
 import { SocialStatsPopover } from '../../../../components/social-stats-popover';
 import { fetchAds, injectAds, isAd, type Ad } from '../../../../lib/ads';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
-import { useRealtimeFollowers, useAppUsers, useRealtimeNotifications } from '../../../../hooks/use-realtime';
+import { useRealtimeFollowers, useAppUsers } from '../../../../hooks/use-realtime';
 import { Bell } from 'lucide-react';
 import { getEmbedUrl as _getEmbedUrl } from '../../../../lib/utils';
 import { filterForUnder10 } from '../../../../lib/inappropriate-words';
@@ -39,9 +39,33 @@ const InternalPlayer = ({ url }: { url: string }) => {
 
 // Inline notification bell for HomeTon header
 function NotificationBellInline({ userId, userName, userAvatar }: { userId: string; userName: string; userAvatar: string }) {
-  const { unreadCount, notifications, markAllRead } = useRealtimeNotifications(userId);
+  const [unreadCount, setUnreadCount] = React.useState(0);
+  const [notifications, setNotifications] = React.useState<any[]>([]);
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
+
+  // Safe fetch — won't crash if table doesn't exist
+  React.useEffect(() => {
+    if (!userId) return;
+    supabase.from('notifications').select('*')
+      .eq('user_id', userId).order('created_at', { ascending: false }).limit(20)
+      .then(({ data, error }) => {
+        if (error) return; // table may not exist yet
+        if (data) {
+          setNotifications(data);
+          setUnreadCount(data.filter((n: any) => !n.is_read).length);
+        }
+      });
+
+    const channel = supabase.channel(`notif-inline-${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          setNotifications(prev => [payload.new, ...prev]);
+          setUnreadCount(prev => prev + 1);
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -52,7 +76,7 @@ function NotificationBellInline({ userId, userName, userAvatar }: { userId: stri
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => { setOpen(p => !p); if (unreadCount > 0) markAllRead(); }}
+      <button onClick={() => setOpen(p => !p)}
         className="relative text-foreground/60 hover:text-primary transition-colors">
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
@@ -69,7 +93,7 @@ function NotificationBellInline({ userId, userName, userAvatar }: { userId: stri
           <div className="max-h-64 overflow-y-auto no-scrollbar divide-y divide-white/5">
             {notifications.length === 0 ? (
               <div className="p-6 text-center opacity-30"><p className="text-xs font-black">No notifications yet</p></div>
-            ) : notifications.slice(0, 10).map(n => (
+            ) : notifications.slice(0, 10).map((n: any) => (
               <div key={n.id} className={`flex items-start gap-2 p-3 hover:bg-white/5 cursor-pointer ${!n.is_read ? 'bg-primary/5' : ''}`}>
                 <span className="text-sm shrink-0">{n.type === 'like' ? '❤️' : n.type === 'comment' ? '💬' : n.type === 'follow' ? '👤' : n.type === 'live' ? '🔴' : '🔔'}</span>
                 <p className="text-[10px] text-white/80 line-clamp-2">{n.message}</p>
