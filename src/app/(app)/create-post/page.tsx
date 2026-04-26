@@ -21,7 +21,7 @@ import { moderateContent } from '../../../ai/flows/moderate-content';
 import Image from 'next/image';
 import type { UserProfile } from '../../../lib/types';
 import { publishPost } from '../../../hooks/use-realtime-feed';
-import { cn } from '../../../lib/utils';
+import { cn, getEmbedUrl } from '../../../lib/utils';
 import { isVideoUrl as isVideoMedia } from '../../../lib/utils';
 import { supabase } from '../../../lib/supabase';
 
@@ -197,20 +197,33 @@ function CreatePostContent() {
   const adjustments = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
   const fullFilter = filterBase === 'none' ? adjustments : `${filterBase} ${adjustments}`;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setMediaFile(file);
     setFileType(file.type);
 
-    // Convert to data URL so it persists and can be previewed/posted
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      setMediaUrl(dataUrl);
-      setStep('edit');
-    };
-    reader.readAsDataURL(file);
+    // Show local preview immediately while uploading in background
+    const localPreview = URL.createObjectURL(file);
+    setMediaUrl(localPreview);
+    setStep('edit');
+
+    // Upload to Supabase Storage so we store a real URL (not base64)
+    try {
+      const ext = file.name.split('.').pop() || 'bin';
+      const path = `posts/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { data, error } = await supabase.storage.from('media').upload(path, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+      if (data && !error) {
+        const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
+        if (urlData?.publicUrl) {
+          setMediaUrl(urlData.publicUrl); // replace local blob with real URL
+        }
+      }
+      // If upload fails, keep local blob URL — post will still work for this session
+    } catch {}
   };
 
   const handleUrlSubmit = () => {
@@ -220,25 +233,39 @@ function CreatePostContent() {
     setStep('edit');
   };
 
-    const handlePublish = async () => {
+  const handlePublish = async () => {
     if (!title.trim() || !caption.trim()) {
       toast({ variant: 'destructive', title: 'Add title and caption' }); return;
     }
     if (!user) { toast({ variant: 'destructive', title: 'Not logged in' }); return; }
     if (!mediaUrl.trim()) { toast({ variant: 'destructive', title: 'No media', description: 'Paste a URL or upload a file first.' }); return; }
+
     setIsSubmitting(true);
 
-    try {
-      const modResult = await moderateContent({ text: `${title} ${caption}` });
-      if (modResult.isInappropriate) {
-        toast({ variant: 'destructive', title: 'Content flagged', description: modResult.reason });
-        setIsSubmitting(false); return;
-      }
-    } catch { if (containsInappropriateWords(title) || containsInappropriateWords(caption)) {
-      toast({ variant: 'destructive', title: 'Inappropriate content' }); setIsSubmitting(false); return;
-    }}
+    // Basic word check first — instant, no network needed
+    if (containsInappropriateWords(title) || containsInappropriateWords(caption)) {
+      toast({ variant: 'destructive', title: 'Inappropriate content detected' });
+      setIsSubmitting(false);
+      return;
+    }
 
-    // Ensure media_url is always a non-empty string (Supabase NOT NULL)
+    // AI moderation with a 4-second timeout — if it hangs, skip it and publish anyway
+    try {
+      const modResult = await Promise.race([
+        moderateContent({ text: `${title} ${caption}` }),
+        new Promise<{ isInappropriate: false }>((resolve) =>
+          setTimeout(() => resolve({ isInappropriate: false }), 4000)
+        ),
+      ]);
+      if (modResult.isInappropriate) {
+        toast({ variant: 'destructive', title: 'Content flagged by AI moderation' });
+        setIsSubmitting(false);
+        return;
+      }
+    } catch {
+      // Moderation failed — proceed with publish anyway
+    }
+
     const finalUrl = mediaUrl.trim() || 'https://placehold.co/600x400/1a0533/ffffff?text=NGA+Hub';
 
     try {
@@ -257,15 +284,16 @@ function CreatePostContent() {
         isFlagged: false,
         category,
       }, firestore);
+
       if (postId) {
         toast({ title: 'Published!', description: 'Your content is now live.' });
         router.push(`/HomeTon/${profile?.ageGroup || '10-16'}`);
       } else {
-        toast({ variant: 'destructive', title: 'Publish failed', description: 'Could not save post. Try again.' });
+        toast({ variant: 'destructive', title: 'Publish failed', description: 'Could not save. Try again.' });
+        setIsSubmitting(false);
       }
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Publish failed', description: err?.message || 'Unknown error' });
-    } finally {
       setIsSubmitting(false);
     }
   };

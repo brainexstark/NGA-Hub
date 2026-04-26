@@ -8,21 +8,24 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rhdfnxrbbz
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJoZGZueHJiYnphcWNlZHdnc2ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTc3MzQsImV4cCI6MjA5MjM3MzczNH0.m4I6dkc9Jw6McuBFjQYbnLce9_7Lo0fJOphC3VEBhZw';
 
 // Ultra-fast direct REST fetch — bypasses SDK overhead entirely
+// Only selects columns the feed actually uses — keeps payload tiny
+const FEED_COLUMNS = 'id,user_id,user_name,user_avatar,title,caption,media_url,video_url,category,age_group,likes_count,comments_count,created_at,is_flagged';
+
 async function fastFetchPosts(ageGroup: string, category: string): Promise<SupabasePost[]> {
   try {
-    // Build query params
     const params = new URLSearchParams({
+      select: FEED_COLUMNS,
       is_flagged: 'eq.false',
       order: 'created_at.desc',
-      limit: '50',
+      limit: '30',
     });
     if (category !== 'all') params.append('category', `eq.${category}`);
 
-    // Fire age-filtered and all-posts requests simultaneously
     const headers = {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
       'Content-Type': 'application/json',
+      'Accept-Profile': 'public',
     };
 
     const [ageRes, allRes] = await Promise.all([

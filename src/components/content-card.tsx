@@ -64,9 +64,8 @@ function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
   }, [url, playing]);
 
   return (
-    <div ref={ref} className="w-full h-full">
+    <div ref={ref} className="absolute inset-0 w-full h-full">
       {!isVideo ? (
-        // Static photo — display as image, never autoplay
         <Image src={url || thumbnail} alt="post" fill className="object-cover" unoptimized />
       ) : playing ? (
         isExternal ? (
@@ -76,7 +75,7 @@ function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
           <video src={url} className="w-full h-full object-cover" autoPlay muted loop playsInline />
         )
       ) : (
-        <div className="w-full h-full relative">
+        <div className="absolute inset-0">
           <Image src={thumbnail || url} alt="thumbnail" fill className="object-cover" unoptimized />
           <div className="absolute inset-0 flex items-center justify-center bg-black/10">
             <PlayCircle className="h-12 w-12 text-white/80 drop-shadow-2xl" />
@@ -111,7 +110,7 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
   const avatarSrc = image?.userAvatar || image?.avatar || '';
 
   return (
-    <Card className="border-none bg-transparent shadow-none w-full space-y-4" onClick={handleEngagement}>
+    <Card className={cn("border-none bg-transparent shadow-none w-full", hideActions ? "" : "space-y-4")} onClick={handleEngagement}>
       {!hideActions && (
       <CardHeader className="p-0 flex flex-row items-center justify-between">
         <div className="flex items-center gap-3">
@@ -128,7 +127,10 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
       </CardHeader>
       )}
 
-      <CardContent className="p-0 overflow-hidden relative aspect-square rounded-[2.5rem] border-none shadow-2xl bg-black">
+      <CardContent className={cn(
+        "p-0 overflow-hidden relative bg-black border-none shadow-2xl",
+        hideActions ? "w-full h-full" : "aspect-square rounded-[2.5rem]"
+      )}>
         <InlinePlayer url={image?.url || image?.imageUrl} thumbnail={image?.imageUrl} />
       </CardContent>
 

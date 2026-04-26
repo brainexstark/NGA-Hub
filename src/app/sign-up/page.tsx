@@ -52,8 +52,22 @@ export default function SignUpPage() {
       getRedirectResult(auth).then(async (result) => {
         if (result?.user) {
           const u = result.user;
-          await setDoc(doc(firestore, "users", u.uid), { uid: u.uid, displayName: u.displayName, email: u.email, lastLogin: serverTimestamp() }, { merge: true });
-          router.push('/select-age');
+          // Check if user already has an age group set — if so, go straight to app
+          const { doc: firestoreDoc, getDoc } = await import('firebase/firestore');
+          const snap = await getDoc(firestoreDoc(firestore, 'users', u.uid));
+          if (snap.exists() && snap.data()?.ageGroup) {
+            router.push(`/HomeTon/${snap.data().ageGroup}`);
+          } else {
+            // New Google user — save basic profile and show age step
+            await setDoc(doc(firestore, 'users', u.uid), {
+              uid: u.uid, displayName: u.displayName, email: u.email,
+              profilePicture: u.photoURL || '', lastLogin: serverTimestamp(),
+            }, { merge: true });
+            setEmail(u.email || '');
+            setUsername(u.displayName || '');
+            setProfilePic(u.photoURL || '');
+            setStep('age');
+          }
         }
       }).catch(() => {});
     }
@@ -74,13 +88,27 @@ export default function SignUpPage() {
     try {
       const result = await signInWithPopup(auth, provider);
       const u = result.user;
-      await setDoc(doc(firestore, "users", u.uid), { uid: u.uid, displayName: u.displayName, email: u.email, lastLogin: serverTimestamp() }, { merge: true });
-      router.push('/select-age');
+      // Check if user already has age group — if so skip to app
+      const { doc: firestoreDoc, getDoc } = await import('firebase/firestore');
+      const snap = await getDoc(firestoreDoc(firestore, 'users', u.uid));
+      if (snap.exists() && snap.data()?.ageGroup) {
+        router.push(`/HomeTon/${snap.data().ageGroup}`);
+        return;
+      }
+      // New Google user — save basic info, show age step
+      await setDoc(doc(firestore, 'users', u.uid), {
+        uid: u.uid, displayName: u.displayName, email: u.email,
+        profilePicture: u.photoURL || '', lastLogin: serverTimestamp(),
+      }, { merge: true });
+      setEmail(u.email || '');
+      setUsername(u.displayName || '');
+      setProfilePic(u.photoURL || '');
+      setStep('age');
     } catch (err: any) {
       if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/popup-closed-by-user') {
         try { await signInWithRedirect(auth, provider); } catch {}
       } else {
-        toast({ variant: "destructive", title: "Google sign up failed", description: err.message });
+        toast({ variant: 'destructive', title: 'Google sign up failed', description: err.message });
         setIsGoogleLoading(false);
       }
     }
@@ -288,7 +316,10 @@ export default function SignUpPage() {
             <div className="space-y-6">
               <div className="text-center space-y-1">
                 <h1 className="text-3xl font-black uppercase tracking-tight text-white">Your age group</h1>
-                <p className="text-sm text-white/40">We'll personalize your experience</p>
+                <p className="text-sm text-white/40">Choose carefully — this cannot be changed later</p>
+                <p className="text-[10px] text-amber-400/80 font-bold bg-amber-400/10 border border-amber-400/20 rounded-xl px-3 py-2 mt-2">
+                  ⚠️ Age group is permanent and locked after account creation
+                </p>
               </div>
 
               <div className="space-y-3">

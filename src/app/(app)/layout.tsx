@@ -566,7 +566,7 @@ export default function AppLayout({
     if (!mounted || isUserLoading) return;
     if (!user) {
       // Only redirect away from protected pages — never interrupt auth pages
-      const publicPaths = ['/sign-in', '/sign-up', '/select-age', '/add-phone', '/'];
+      const publicPaths = ['/sign-in', '/sign-up', '/add-phone', '/'];
       if (!publicPaths.some(p => pathname.startsWith(p))) {
         router.replace('/sign-in');
       }
@@ -574,20 +574,18 @@ export default function AppLayout({
     }
     // Wait for both profile loading to finish AND firestore to be ready
     if (!profileLoading && firestore) {
-      const isAuthFlow = ['/sign-in', '/sign-up', '/select-age', '/add-phone'].includes(pathname);
+      const isAuthFlow = ['/sign-in', '/sign-up', '/add-phone'].includes(pathname);
       if (userProfile && !userProfile.ageGroup) {
-        if (pathname !== '/select-age') router.replace('/select-age');
+        if (pathname !== '/sign-up') router.replace('/sign-up');
         return;
       }
       if (userProfile === null) {
-        // New user — no profile doc yet, send to select-age only if not already there
-        // But don't redirect if already on a content page (prevents under-10 loop)
         const isContentPage = pathname.startsWith('/HomeTon') || pathname.startsWith('/feed') || pathname.startsWith('/reels');
-        if (pathname !== '/select-age' && !isContentPage) router.replace('/select-age');
+        if (pathname !== '/sign-up' && !isContentPage) router.replace('/sign-up');
         return;
       }
       if (userProfile?.ageGroup) {
-        if (isAuthFlow || pathname === '/') {
+        if (isAuthFlow || pathname === '/' || pathname === '/select-age') {
           router.replace(`/HomeTon/${userProfile.ageGroup}`);
         }
       }
@@ -596,7 +594,7 @@ export default function AppLayout({
 
   if (!mounted) return null;
 
-  const isAuthFlow = ['/sign-in', '/sign-up', '/select-age', '/add-phone'].includes(pathname);
+  const isAuthFlow = ['/sign-in', '/sign-up', '/add-phone'].includes(pathname);
   
   if (isUserLoading || (user && profileLoading)) {
      if (isAuthFlow || pathname === '/') return null;

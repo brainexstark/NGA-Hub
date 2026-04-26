@@ -631,9 +631,9 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
             }
             const p = post as any;
             return (
-              <div key={p.id} data-post-id={p.id} className="space-y-0 border-b border-white/5">
+              <div key={p.id} data-post-id={p.id} className="border-b border-white/5">
                 {/* Post header */}
-                <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center justify-between px-4 py-2.5">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9 border border-white/10 ring-2 ring-primary/20">
                       <AvatarImage src={p.userAvatar || ''} className="object-cover" />
@@ -654,12 +654,13 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                   <span className="text-white/20 text-lg cursor-pointer">···</span>
                 </div>
 
-                  <div className="w-full bg-black overflow-hidden">
+                {/* Media — fills full width, square aspect, zero gap */}
+                <div className="w-full aspect-square bg-black overflow-hidden">
                   <ContentCard id={p.id} title={p.title || ''} creator={p.userName || ''} hideActions
                     image={{ imageUrl: p.mediaUrl || '', description: p.caption, id: p.id, url: p.url || p.mediaUrl, category: p.category, userAvatar: p.userAvatar } as any} />
                 </div>
 
-                {/* Action buttons — Instagram style */}
+                {/* Action buttons — only these, no others */}
                 <PostActions postId={p.id} userId={user?.uid || ''} postUrl={p.url || p.mediaUrl} postTitle={p.title || p.caption} firestore={firestore} userUid={user?.uid} />
 
                 {/* Caption */}
