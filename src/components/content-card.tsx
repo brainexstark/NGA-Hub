@@ -20,6 +20,7 @@ interface ContentCardProps {
   image: any;
   likesCount?: number;
   commentsCount?: number;
+  hideActions?: boolean;
 }
 
 function isVideoUrl(url: string): boolean {
@@ -86,7 +87,7 @@ function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
   );
 }
 
-export function ContentCard({ id, title, creator, image, likesCount: initialLikes = 0, commentsCount: initialComments = 0 }: ContentCardProps) {
+export function ContentCard({ id, title, creator, image, likesCount: initialLikes = 0, commentsCount: initialComments = 0, hideActions = false }: ContentCardProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { likesCount, liked, toggleLike } = useRealtimeLikes(id || '', user?.uid || '');
@@ -111,6 +112,7 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
 
   return (
     <Card className="border-none bg-transparent shadow-none w-full space-y-4" onClick={handleEngagement}>
+      {!hideActions && (
       <CardHeader className="p-0 flex flex-row items-center justify-between">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9 border-2 border-background ring-2 ring-primary/20">
@@ -124,11 +126,13 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
           </div>
         </div>
       </CardHeader>
+      )}
 
       <CardContent className="p-0 overflow-hidden relative aspect-square rounded-[2.5rem] border-none shadow-2xl bg-black">
         <InlinePlayer url={image?.url || image?.imageUrl} thumbnail={image?.imageUrl} />
       </CardContent>
 
+      {!hideActions && (
       <CardFooter className="p-0 flex flex-col items-start gap-4">
         <div className="flex items-center gap-5">
           <button className="transition-all active:scale-125 flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); toggleLike(); }}>
@@ -148,6 +152,7 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
           <span className="font-medium text-foreground/80">{image?.description || title}</span>
         </div>
       </CardFooter>
+      )}
     </Card>
   );
 }

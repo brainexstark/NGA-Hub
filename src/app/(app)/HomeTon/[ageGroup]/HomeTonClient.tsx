@@ -610,7 +610,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                     <span className="text-white/20">···</span>
                   </div>
                   <div className="aspect-square w-full bg-black overflow-hidden">
-                    <ContentCard id={post.id} title={post.title} creator={post.partner_name}
+                    <ContentCard id={post.id} title={post.title} creator={post.partner_name} hideActions
                       image={{ imageUrl: post.media_url, description: post.caption, id: post.id, url: post.video_url || post.media_url, category: post.category } as any} />
                   </div>
                 </div>
@@ -641,9 +641,8 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                   <span className="text-white/20 text-lg cursor-pointer">···</span>
                 </div>
 
-                {/* Post media */}
-                <div className="w-full bg-black overflow-hidden">
-                  <ContentCard id={p.id} title={p.title || ''} creator={p.userName || ''}
+                  <div className="w-full bg-black overflow-hidden">
+                  <ContentCard id={p.id} title={p.title || ''} creator={p.userName || ''} hideActions
                     image={{ imageUrl: p.mediaUrl || '', description: p.caption, id: p.id, url: p.url || p.mediaUrl, category: p.category, userAvatar: p.userAvatar } as any} />
                 </div>
 

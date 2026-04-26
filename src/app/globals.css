@@ -57,6 +57,21 @@
     background-image: radial-gradient(circle at 50% 0%, hsla(var(--primary), 0.2) 0%, transparent 85%);
     font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
     transition: background-color 0.8s ease, color 0.8s ease;
+    overflow-x: hidden;
+  }
+
+  /* Hide scrollbars everywhere while keeping scroll functionality */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  *::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Opera */
+  }
+
+  html, body, #__next {
+    height: 100%;
+    width: 100%;
   }
 }
 

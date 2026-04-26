@@ -220,11 +220,12 @@ function CreatePostContent() {
     setStep('edit');
   };
 
-  const handlePublish = async () => {
+    const handlePublish = async () => {
     if (!title.trim() || !caption.trim()) {
       toast({ variant: 'destructive', title: 'Add title and caption' }); return;
     }
     if (!user) { toast({ variant: 'destructive', title: 'Not logged in' }); return; }
+    if (!mediaUrl.trim()) { toast({ variant: 'destructive', title: 'No media', description: 'Paste a URL or upload a file first.' }); return; }
     setIsSubmitting(true);
 
     try {
@@ -237,11 +238,11 @@ function CreatePostContent() {
       toast({ variant: 'destructive', title: 'Inappropriate content' }); setIsSubmitting(false); return;
     }}
 
-    // Use data URL directly for local files — it works as a real media source
-    const finalUrl = mediaUrl;
+    // Ensure media_url is always a non-empty string (Supabase NOT NULL)
+    const finalUrl = mediaUrl.trim() || 'https://placehold.co/600x400/1a0533/ffffff?text=NGA+Hub';
 
     try {
-      await publishPost({
+      const postId = await publishPost({
         userId: user.uid,
         userName: profile?.displayName || user.displayName || 'User',
         userAvatar: profile?.profilePicture || user.photoURL || '',
@@ -256,10 +257,14 @@ function CreatePostContent() {
         isFlagged: false,
         category,
       }, firestore);
-      toast({ title: 'Published!', description: 'Your content is now live.' });
-      router.push(`/feed/${profile?.ageGroup || '10-16'}`);
+      if (postId) {
+        toast({ title: 'Published!', description: 'Your content is now live.' });
+        router.push(`/HomeTon/${profile?.ageGroup || '10-16'}`);
+      } else {
+        toast({ variant: 'destructive', title: 'Publish failed', description: 'Could not save post. Try again.' });
+      }
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Publish failed', description: err.message });
+      toast({ variant: 'destructive', title: 'Publish failed', description: err?.message || 'Unknown error' });
     } finally {
       setIsSubmitting(false);
     }

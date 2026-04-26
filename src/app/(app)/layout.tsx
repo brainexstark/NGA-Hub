@@ -652,7 +652,7 @@ export default function AppLayout({
                   "flex-1 overflow-y-auto relative z-10 pb-24 md:pb-0 flex flex-col items-center",
                   pathname.startsWith('/HomeTon') ? "p-0" : "p-4 sm:p-6 lg:p-10"
               )}>
-                 <div className="w-full max-w-2xl">
+                 <div className={cn("w-full", pathname.startsWith('/HomeTon') ? "" : "max-w-2xl")}>
                      {children}
                  </div>
 

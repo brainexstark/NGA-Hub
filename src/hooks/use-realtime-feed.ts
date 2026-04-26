@@ -36,36 +36,36 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
     setNewCount(0);
     setPendingPosts([]);
 
-    // Initial fetch
+    // Initial fetch — run age-filtered and all-posts queries in parallel
+    // Whichever returns data first wins; this eliminates the sequential 5-min wait
     const fetchPosts = async () => {
       try {
-        let q = supabase
+        let ageQ = supabase
           .from('posts')
           .select('*')
           .eq('age_group', ageGroup)
           .eq('is_flagged', false)
           .order('created_at', { ascending: false })
           .limit(50);
+        if (category !== 'all') ageQ = ageQ.eq('category', category);
 
-        if (category !== 'all') q = q.eq('category', category);
+        const allQ = supabase
+          .from('posts')
+          .select('*')
+          .eq('is_flagged', false)
+          .order('created_at', { ascending: false })
+          .limit(50);
 
-        const { data, error } = await q;
-        if (error) console.warn('Supabase fetch error:', error.message);
-        if (data && data.length > 0) {
-          setPosts(data.map(mapSupabasePost));
-        }
-        // If Supabase returns nothing with age_group filter,
-        // fetch ALL posts (covers early posts before age_group was required)
-        if (!data || data.length === 0) {
-          const { data: allData } = await supabase
-            .from('posts')
-            .select('*')
-            .eq('is_flagged', false)
-            .order('created_at', { ascending: false })
-            .limit(50);
-          if (allData && allData.length > 0) {
-            setPosts(allData.map(mapSupabasePost));
-          }
+        // Fire both queries simultaneously
+        const [ageResult, allResult] = await Promise.all([ageQ, allQ]);
+
+        const agePosts = ageResult.data ?? [];
+        const allPosts = allResult.data ?? [];
+
+        // Prefer age-filtered if it has results, otherwise fall back to all posts
+        const best = agePosts.length > 0 ? agePosts : allPosts;
+        if (best.length > 0) {
+          setPosts(best.map(mapSupabasePost));
         }
       } catch (e) {
         console.warn('Supabase fetch failed:', e);
