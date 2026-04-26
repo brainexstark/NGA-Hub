@@ -3,8 +3,6 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '../../../../firebase';
-import { Button } from '../../../../components/ui/button';
-import { Card } from '../../../../components/ui/card';
 import Link from 'next/link';
 import Image from 'next/image';
 import { 
@@ -13,7 +11,7 @@ import {
   Bookmark, Volume2, VolumeX, Bell
 } from 'lucide-react';
 import { ContentCard } from '../../../../components/content-card';
-import { doc, collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import type { Post, UserProfile } from '../../../../lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../../components/ui/avatar';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "../../../../components/ui/dialog";
@@ -229,29 +227,10 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     return () => { supabase.removeChannel(channel); };
   }, [ageGroup]);
 
-  const staticFeedPosts: any[] = []; // No mock fallback — only real user content
+  const staticFeedPosts: any[] = []; // No mock content — only real user posts
 
-  // Supabase realtime feed — fetch ALL posts, not just by age_group
-  // This ensures early user posts (before age_group was required) still show
+  // Supabase realtime feed — primary source, fetches all posts
   const { posts: supabasePosts, loading: feedLoading } = useRealtimeFeed(ageGroup);
-
-  // Firestore realtime feed (fallback)
-  const [firestorePosts, setFirestorePosts] = React.useState<Post[]>([]);
-  React.useEffect(() => {
-    if (!firestore) return;
-    const q = query(
-      collection(firestore, 'posts'),
-      where('ageGroup', '==', ageGroup),
-      where('isFlagged', '!=', true),
-      orderBy('isFlagged'),
-      orderBy('createdAt', 'desc'),
-      limit(20)
-    );
-    const unsub = onSnapshot(q, snap => {
-      setFirestorePosts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Post)));
-    }, () => {});
-    return () => unsub();
-  }, [firestore, ageGroup]);
 
   // Ads
   const [ads, setAds] = React.useState<Ad[]>([]);
@@ -259,19 +238,23 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     fetchAds(ageGroup).then(setAds);
   }, [ageGroup]);
 
-  // Always show content — newest user posts first, then static trending
+  // Map supabase posts directly — no Firestore fallback, no threshold
   const rawPosts = React.useMemo(() => {
-    const userPosts = supabasePosts.length > 0
-      ? supabasePosts
-          .slice()
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .map(p => ({ id: p.id, title: p.title || p.caption, caption: p.caption, mediaUrl: p.mediaUrl, url: p.url, userName: p.userName, userAvatar: p.userAvatar, category: p.category }))
-      : firestorePosts.length > 0
-      ? firestorePosts.map(p => ({ id: p.id, title: p.title || p.caption, caption: p.caption, mediaUrl: p.mediaUrl, url: p.url, userName: p.userName, userAvatar: p.userAvatar as string | undefined, category: p.category }))
-      : [];
-    const trending = staticFeedPosts.map(p => ({ ...p, _static: true }));
-    return userPosts.length >= 3 ? userPosts : [...userPosts, ...trending];
-  }, [supabasePosts, firestorePosts, staticFeedPosts]);
+    return supabasePosts
+      .slice()
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .map(p => ({
+        id: p.id,
+        title: p.title || p.caption,
+        caption: p.caption,
+        mediaUrl: p.mediaUrl,
+        url: p.url,
+        userName: p.userName,
+        userAvatar: p.userAvatar,
+        category: p.category,
+        likesCount: p.likesCount,
+      }));
+  }, [supabasePosts]);
 
   // Inject ads every 5 posts
   const feedPosts = React.useMemo(() => injectAds(rawPosts, ads, 5), [rawPosts, ads]);
