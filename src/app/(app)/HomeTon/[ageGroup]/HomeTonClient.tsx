@@ -233,7 +233,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
 
   // Supabase realtime feed — fetch ALL posts, not just by age_group
   // This ensures early user posts (before age_group was required) still show
-  const { posts: supabasePosts } = useRealtimeFeed(ageGroup);
+  const { posts: supabasePosts, loading: feedLoading } = useRealtimeFeed(ageGroup);
 
   // Firestore realtime feed (fallback)
   const [firestorePosts, setFirestorePosts] = React.useState<Post[]>([]);
@@ -582,13 +582,26 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
 
       {/* ── FEED POSTS — Instagram style ── */}
       <main className="divide-y divide-white/5">
-        {feedPosts.length === 0 && (
-          <div className="py-20 text-center opacity-30 space-y-3">
-            <div className="h-12 w-12 rounded-full border-2 border-white/20 mx-auto flex items-center justify-center">
-              <span className="text-xl">📸</span>
-            </div>
-            <p className="text-sm font-black uppercase tracking-widest">No posts yet</p>
-            <p className="text-xs">Be the first to post something!</p>
+        {/* Skeleton loaders while fetching — never show "no posts" */}
+        {feedLoading && feedPosts.length === 0 && (
+          <div className="space-y-0">
+            {[1,2,3].map(i => (
+              <div key={i} className="border-b border-white/5 animate-pulse">
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <div className="h-9 w-9 rounded-full bg-white/10" />
+                  <div className="space-y-1.5">
+                    <div className="h-3 w-24 bg-white/10 rounded-full" />
+                    <div className="h-2 w-16 bg-white/5 rounded-full" />
+                  </div>
+                </div>
+                <div className="aspect-square w-full bg-white/5" />
+                <div className="px-4 py-3 flex gap-5">
+                  <div className="h-6 w-6 rounded-full bg-white/10" />
+                  <div className="h-6 w-6 rounded-full bg-white/10" />
+                  <div className="h-6 w-6 rounded-full bg-white/10" />
+                </div>
+              </div>
+            ))}
           </div>
         )}
         {feedPosts.map((post, index) => {

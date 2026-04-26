@@ -4,14 +4,45 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, type SupabasePost } from '../lib/supabase';
 import type { Post } from '../lib/types';
 
-export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newCount, setNewCount] = useState(0);
-  const [pendingPosts, setPendingPosts] = useState<Post[]>([]);
-  const isFirstLoad = useRef(true);
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rhdfnxrbbzaqcedwgsfm.supabase.co';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJoZGZueHJiYnphcWNlZHdnc2ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTc3MzQsImV4cCI6MjA5MjM3MzczNH0.m4I6dkc9Jw6McuBFjQYbnLce9_7Lo0fJOphC3VEBhZw';
 
-  const mapSupabasePost = (p: SupabasePost): Post => ({
+// Ultra-fast direct REST fetch — bypasses SDK overhead entirely
+async function fastFetchPosts(ageGroup: string, category: string): Promise<SupabasePost[]> {
+  try {
+    // Build query params
+    const params = new URLSearchParams({
+      is_flagged: 'eq.false',
+      order: 'created_at.desc',
+      limit: '50',
+    });
+    if (category !== 'all') params.append('category', `eq.${category}`);
+
+    // Fire age-filtered and all-posts requests simultaneously
+    const headers = {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+    };
+
+    const [ageRes, allRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/posts?age_group=eq.${ageGroup}&${params}`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/posts?${params}`, { headers }),
+    ]);
+
+    const [agePosts, allPosts]: [SupabasePost[], SupabasePost[]] = await Promise.all([
+      ageRes.ok ? ageRes.json() : [],
+      allRes.ok ? allRes.json() : [],
+    ]);
+
+    return agePosts.length > 0 ? agePosts : allPosts;
+  } catch {
+    return [];
+  }
+}
+
+function mapPost(p: SupabasePost): Post {
+  return {
     id: p.id,
     userId: p.user_id,
     userName: p.user_name,
@@ -27,7 +58,15 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
     commentsCount: p.comments_count,
     createdAt: new Date(p.created_at),
     isFlagged: p.is_flagged,
-  });
+  };
+}
+
+export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newCount, setNewCount] = useState(0);
+  const [pendingPosts, setPendingPosts] = useState<Post[]>([]);
+  const isFirstLoad = useRef(true);
 
   useEffect(() => {
     isFirstLoad.current = true;
@@ -36,93 +75,33 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
     setNewCount(0);
     setPendingPosts([]);
 
-    // Initial fetch — run age-filtered and all-posts queries in parallel
-    // Whichever returns data first wins; this eliminates the sequential 5-min wait
-    const fetchPosts = async () => {
-      try {
-        let ageQ = supabase
-          .from('posts')
-          .select('*')
-          .eq('age_group', ageGroup)
-          .eq('is_flagged', false)
-          .order('created_at', { ascending: false })
-          .limit(50);
-        if (category !== 'all') ageQ = ageQ.eq('category', category);
+    // Fast REST fetch — typically responds in 200-500ms
+    fastFetchPosts(ageGroup, category).then(data => {
+      if (data.length > 0) setPosts(data.map(mapPost));
+      setLoading(false);
+      isFirstLoad.current = false;
+    });
 
-        const allQ = supabase
-          .from('posts')
-          .select('*')
-          .eq('is_flagged', false)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        // Fire both queries simultaneously
-        const [ageResult, allResult] = await Promise.all([ageQ, allQ]);
-
-        const agePosts = ageResult.data ?? [];
-        const allPosts = allResult.data ?? [];
-
-        // Prefer age-filtered if it has results, otherwise fall back to all posts
-        const best = agePosts.length > 0 ? agePosts : allPosts;
-        if (best.length > 0) {
-          setPosts(best.map(mapSupabasePost));
-        }
-      } catch (e) {
-        console.warn('Supabase fetch failed:', e);
-      } finally {
-        setLoading(false);
-        isFirstLoad.current = false;
-      }
-    };
-
-    fetchPosts();
-
-    // Realtime subscription for new inserts
-    const channelName = `posts-${ageGroup}-${category}-${Date.now()}`;
+    // Realtime subscription for live new posts
+    const channelName = `posts-feed-${ageGroup}-${category}-${Date.now()}`;
     const channel = supabase
       .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'posts',
-          filter: `age_group=eq.${ageGroup}`,
-        },
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts', filter: `age_group=eq.${ageGroup}` },
         (payload) => {
-          const newPost = mapSupabasePost(payload.new as SupabasePost);
+          const newPost = mapPost(payload.new as SupabasePost);
           if (category !== 'all' && newPost.category !== category) return;
           if (isFirstLoad.current) return;
-          // New posts go to the TOP immediately
           setPosts(prev => [newPost, ...prev]);
           setNewCount(prev => prev + 1);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'posts',
-          filter: `age_group=eq.${ageGroup}`,
-        },
+        })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts', filter: `age_group=eq.${ageGroup}` },
         (payload) => {
-          const updated = mapSupabasePost(payload.new as SupabasePost);
+          const updated = mapPost(payload.new as SupabasePost);
           setPosts(prev => prev.map(p => p.id === updated.id ? updated : p));
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Realtime subscribed:', channelName);
-        }
-        if (status === 'CHANNEL_ERROR') {
-          console.warn('Realtime channel error:', channelName);
-        }
-      });
+        })
+      .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [ageGroup, category]);
 
   const loadNewPosts = useCallback(() => {
@@ -146,26 +125,28 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
       user_avatar: post.userAvatar || '',
       title: post.title || post.caption,
       caption: post.caption,
-      media_url: post.mediaUrl,
-      video_url: post.url || post.mediaUrl,
+      media_url: post.mediaUrl || post.url || '',
+      video_url: post.url || post.mediaUrl || '',
       category: post.category || 'general',
       age_group: post.ageGroup || '10-16',
       likes_count: 0,
       comments_count: 0,
       is_flagged: false,
     }).select().single();
+
     if (data) {
       results.push(data.id);
-      // Broadcast notification to all users about new post
-      const { broadcastNotification } = await import('../lib/ads');
-      broadcastNotification({
-        type: 'system',
-        actorId: post.userId,
-        actorName: post.userName,
-        actorAvatar: post.userAvatar || '',
-        message: `${post.userName} posted something new — check it out!`,
-        postId: data.id,
-      });
+      try {
+        const { broadcastNotification } = await import('../lib/ads');
+        broadcastNotification({
+          type: 'system',
+          actorId: post.userId,
+          actorName: post.userName,
+          actorAvatar: post.userAvatar || '',
+          message: `${post.userName} posted something new — check it out!`,
+          postId: data.id,
+        });
+      } catch {}
     }
     if (error) console.warn('Supabase insert error:', error.message);
   } catch (e) {

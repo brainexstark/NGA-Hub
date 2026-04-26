@@ -324,10 +324,19 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
 
       {/* Full-screen snap scroll */}
       <div ref={containerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory no-scrollbar">
+        {/* Skeleton while loading — never show "no reels" */}
         {reels.length === 0 && (
-          <div className="h-screen flex items-center justify-center opacity-30 flex-col gap-4">
-            <Globe className="h-12 w-12" />
-            <p className="font-black uppercase tracking-widest text-sm">No reels yet</p>
+          <div className="h-screen w-full flex flex-col items-center justify-center gap-6 animate-pulse">
+            <div className="h-20 w-20 rounded-full bg-white/10" />
+            <div className="space-y-3 w-48">
+              <div className="h-3 bg-white/10 rounded-full" />
+              <div className="h-3 bg-white/10 rounded-full w-3/4 mx-auto" />
+            </div>
+            <div className="flex gap-4">
+              {[1,2,3].map(i => (
+                <div key={i} className="h-8 w-8 rounded-full bg-white/10" />
+              ))}
+            </div>
           </div>
         )}
         {reels.map((reel: any, i: number) => (

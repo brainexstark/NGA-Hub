@@ -5,10 +5,39 @@ import { useRouter } from "next/navigation";
 import { Logo } from "../../components/logo";
 import { Loader2, Eye, EyeOff, ArrowRight, Mail, Lock } from "lucide-react";
 import Link from "next/link";
-import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword } from "firebase/auth";
+import {
+  GoogleAuthProvider, signInWithPopup, signInWithRedirect,
+  getRedirectResult, signInWithEmailAndPassword, sendPasswordResetEmail
+} from "firebase/auth";
 import { useAuth } from "../../firebase";
 import { useToast } from "../../hooks/use-toast";
 import { AnimatedBg } from "../../components/animated-bg";
+
+// Map Firebase error codes to friendly messages — never show raw Firebase errors
+function friendlyAuthError(code: string): string {
+  switch (code) {
+    case 'auth/user-not-found':
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+      return 'Email or password is incorrect. Please try again.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Contact support.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Please wait a moment and try again.';
+    case 'auth/network-request-failed':
+      return 'Network error. Check your connection and try again.';
+    case 'auth/popup-closed-by-user':
+      return 'Sign-in popup was closed. Please try again.';
+    case 'auth/popup-blocked':
+      return 'Popup was blocked by your browser. Trying redirect...';
+    case 'auth/email-already-in-use':
+      return 'This email is already registered. Try signing in instead.';
+    default:
+      return 'Sign in failed. Please check your details and try again.';
+  }
+}
 
 export default function SignInPage() {
   const [email, setEmail] = useState('');
@@ -16,6 +45,7 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const auth = useAuth();
@@ -24,9 +54,13 @@ export default function SignInPage() {
   useEffect(() => {
     setMounted(true);
     if (auth) {
-      setIsGoogleLoading(true);
       getRedirectResult(auth)
-        .then((result) => { if (result?.user) { toast({ title: "Welcome back!" }); router.push('/'); } })
+        .then((result) => {
+          if (result?.user) {
+            toast({ title: 'Welcome back!' });
+            router.push('/');
+          }
+        })
         .catch(() => {})
         .finally(() => setIsGoogleLoading(false));
     }
@@ -34,14 +68,29 @@ export default function SignInPage() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth) {
+      toast({ variant: 'destructive', title: 'App not ready', description: 'Please wait a moment and try again.' });
+      return;
+    }
+    if (!email.trim() || !password.trim()) {
+      toast({ variant: 'destructive', title: 'Fill in all fields' });
+      return;
+    }
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      // Success — router will redirect via layout auth check
       router.push('/');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: "Sign in failed", description: error.message });
-    } finally { setIsLoading(false); }
+      const code = error?.code || '';
+      toast({
+        variant: 'destructive',
+        title: 'Sign in failed',
+        description: friendlyAuthError(code),
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGoogle = async () => {
@@ -52,12 +101,33 @@ export default function SignInPage() {
       await signInWithPopup(auth, provider);
       router.push('/');
     } catch (err: any) {
-      if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/popup-closed-by-user') {
-        try { await signInWithRedirect(auth, provider); } catch {}
+      const code = err?.code || '';
+      if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
+        try {
+          await signInWithRedirect(auth, provider);
+        } catch {}
       } else {
-        toast({ variant: "destructive", title: "Google sign in failed", description: err.message });
+        toast({
+          variant: 'destructive',
+          title: 'Google sign in failed',
+          description: friendlyAuthError(code),
+        });
         setIsGoogleLoading(false);
       }
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!auth || !email.trim()) {
+      toast({ variant: 'destructive', title: 'Enter your email first' });
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setResetSent(true);
+      toast({ title: 'Reset email sent', description: 'Check your inbox for a password reset link.' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Could not send reset email', description: friendlyAuthError(err?.code || '') });
     }
   };
 
@@ -75,10 +145,14 @@ export default function SignInPage() {
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm space-y-7 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center space-y-2">
+            <div className="mx-auto h-14 w-14 rounded-2xl overflow-hidden border border-white/10 mb-3">
+              <img src="/icons/icon-192.png" alt="NGA Hub" className="w-full h-full object-cover" />
+            </div>
             <h1 className="text-3xl font-bold text-white">Welcome back</h1>
             <p className="text-sm text-white/40">Sign in to your NGA Hub account</p>
           </div>
 
+          {/* Google */}
           <button onClick={handleGoogle} disabled={isGoogleLoading || isLoading}
             className="w-full flex items-center justify-center gap-3 h-12 bg-white text-black rounded-2xl font-semibold text-sm hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50">
             {isGoogleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
@@ -103,24 +177,40 @@ export default function SignInPage() {
               <label className="text-xs font-medium text-white/50">Email</label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
-                <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                <input
+                  type="email" required value={email}
+                  onChange={e => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20" />
+                  autoComplete="email"
+                  className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20"
+                />
               </div>
             </div>
+
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-white/50">Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
-                <input type={showPassword ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)}
+                <input
+                  type={showPassword ? 'text' : 'password'} required value={password}
+                  onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full h-12 pl-11 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20" />
+                  autoComplete="current-password"
+                  className="w-full h-12 pl-11 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20"
+                />
                 <button type="button" onClick={() => setShowPassword(p => !p)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60 transition-colors">
                   {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 </button>
               </div>
+              <div className="flex justify-end">
+                <button type="button" onClick={handleForgotPassword}
+                  className="text-[11px] text-primary/60 hover:text-primary transition-colors">
+                  {resetSent ? '✓ Reset email sent' : 'Forgot password?'}
+                </button>
+              </div>
             </div>
+
             <button type="submit" disabled={isLoading || isGoogleLoading}
               className="w-full h-12 bg-primary rounded-2xl font-semibold text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl shadow-primary/20">
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Sign in <ArrowRight className="h-4 w-4" /></>}
