@@ -13,9 +13,10 @@ const FEED_COLUMNS = 'id,user_id,user_name,user_avatar,title,caption,media_url,v
 
 async function fastFetchPosts(ageGroup: string, category: string): Promise<SupabasePost[]> {
   try {
+    // Use neq instead of eq so NULL rows are also included
     const params = new URLSearchParams({
       select: FEED_COLUMNS,
-      is_flagged: 'eq.false',
+      is_flagged: 'neq.true',
       order: 'created_at.desc',
       limit: '30',
     });
@@ -25,7 +26,6 @@ async function fastFetchPosts(ageGroup: string, category: string): Promise<Supab
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
       'Content-Type': 'application/json',
-      'Accept-Profile': 'public',
     };
 
     const [ageRes, allRes] = await Promise.all([
