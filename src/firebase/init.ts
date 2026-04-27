@@ -2,7 +2,7 @@
 
 import { firebaseConfig } from './config';
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import { getAuth, Auth, browserLocalPersistence, setPersistence } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 
 interface FirebaseServices {
@@ -20,7 +20,6 @@ export function initializeFirebase(): FirebaseServices | null {
   if (win[STARK_B_KEY]) return win[STARK_B_KEY];
 
   try {
-    // Validate config before initializing
     if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
       console.error('Firebase config missing required fields');
       return null;
@@ -31,6 +30,9 @@ export function initializeFirebase(): FirebaseServices | null {
 
     const auth = getAuth(app);
     const firestore = getFirestore(app);
+
+    // Persist login across browser restarts — user never needs to sign in again
+    setPersistence(auth, browserLocalPersistence).catch(() => {});
 
     const services = { firebaseApp: app, auth, firestore };
     win[STARK_B_KEY] = services;
