@@ -73,12 +73,35 @@ export default function SignUpPage() {
     }
   }, [auth, firestore]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [uploadingPic, setUploadingPic] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => setProfilePic(ev.target?.result as string);
-    reader.readAsDataURL(file);
+
+    // Show local preview immediately
+    const localUrl = URL.createObjectURL(file);
+    setProfilePic(localUrl);
+    setUploadingPic(true);
+
+    try {
+      // Upload to Supabase Storage — get a real short URL
+      const { supabase } = await import('../../lib/supabase');
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `avatars/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { data, error } = await supabase.storage.from('media').upload(path, file, {
+        cacheControl: '31536000',
+        upsert: false,
+      });
+      if (data && !error) {
+        const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
+        if (urlData?.publicUrl) {
+          setProfilePic(urlData.publicUrl); // replace blob with real URL
+        }
+      }
+      // If upload fails, keep blob URL for preview but clear it before saving
+    } catch {}
+    setUploadingPic(false);
   };
 
   const handleGoogle = async () => {
@@ -120,18 +143,47 @@ export default function SignUpPage() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const u = cred.user;
-      const finalPic = profilePic || picUrl || '';
-      await updateProfile(u, { displayName: username, photoURL: finalPic });
-      await setDoc(doc(firestore, "users", u.uid), {
-        uid: u.uid, displayName: username, email: u.email,
-        ageGroup, profilePicture: finalPic, lastLogin: serverTimestamp(),
+
+      // Only use real HTTP URLs for Firebase Auth — never base64 or blob URLs
+      const rawPic = profilePic || picUrl || '';
+      const isRealUrl = rawPic.startsWith('http://') || rawPic.startsWith('https://');
+      const safePhotoURL = isRealUrl ? rawPic : '';
+
+      // Update Firebase Auth profile — photoURL must be a real URL or empty
+      await updateProfile(u, {
+        displayName: username,
+        ...(safePhotoURL ? { photoURL: safePhotoURL } : {}),
+      });
+
+      // Store full picture in Firestore (can hold longer strings, but keep it a real URL)
+      await setDoc(doc(firestore, 'users', u.uid), {
+        uid: u.uid,
+        displayName: username,
+        email: u.email,
+        ageGroup,
+        profilePicture: safePhotoURL,
+        lastLogin: serverTimestamp(),
       }, { merge: true });
-      // Register in Supabase app_users
-      await upsertAppUser({ id: u.uid, display_name: username, email: u.email || '', avatar: finalPic, age_group: ageGroup, is_online: true });
+
+      // Register in Supabase
+      await upsertAppUser({
+        id: u.uid,
+        display_name: username,
+        email: u.email || '',
+        avatar: safePhotoURL,
+        age_group: ageGroup,
+        is_online: true,
+      });
+
       toast({ title: 'Account created!', description: 'Welcome to NGA Hub.' });
       router.push(`/HomeTon/${ageGroup}`);
     } catch (err: any) {
-      toast({ variant: 'destructive', title: "Sign up failed", description: err.message });
+      const code = err?.code || '';
+      let msg = err?.message || 'Something went wrong';
+      if (code === 'auth/email-already-in-use') msg = 'This email is already registered. Try signing in.';
+      if (code === 'auth/weak-password') msg = 'Password must be at least 6 characters.';
+      if (code === 'auth/invalid-email') msg = 'Please enter a valid email address.';
+      toast({ variant: 'destructive', title: 'Sign up failed', description: msg });
     } finally {
       setIsLoading(false);
     }
@@ -262,11 +314,12 @@ export default function SignUpPage() {
                   </div>
                   <button onClick={() => fileRef.current?.click()}
                     className="absolute bottom-0 right-0 h-9 w-9 bg-primary rounded-full flex items-center justify-center border-2 border-background shadow-lg">
-                    <Camera className="h-4 w-4 text-white" />
+                    {uploadingPic ? <Loader2 className="h-4 w-4 text-white animate-spin" /> : <Camera className="h-4 w-4 text-white" />}
                   </button>
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                 </div>
               </div>
+              {uploadingPic && <p className="text-center text-[10px] text-primary/60 font-bold">Uploading photo...</p>}
 
               {/* Mode toggle */}
               <div className="flex gap-2 bg-white/5 p-1 rounded-2xl">
@@ -300,9 +353,9 @@ export default function SignUpPage() {
                   className="flex-1 h-12 bg-white/5 border border-white/10 rounded-2xl font-black text-white/60 text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
                   <ArrowLeft className="h-4 w-4" /> Back
                 </button>
-                <button onClick={() => setStep('age')}
-                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all shadow-xl shadow-primary/20">
-                  Next <ArrowRight className="h-4 w-4" />
+                <button onClick={() => setStep('age')} disabled={uploadingPic}
+                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
+                  {uploadingPic ? <><Loader2 className="h-4 w-4 animate-spin" /> Uploading...</> : <>Next <ArrowRight className="h-4 w-4" /></>}
                 </button>
               </div>
               <button onClick={() => setStep('age')} className="w-full text-center text-xs text-white/20 hover:text-white/40 transition-colors">
