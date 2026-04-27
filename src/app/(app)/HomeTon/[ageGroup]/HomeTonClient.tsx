@@ -1,8 +1,8 @@
-'use client';
-
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '../../../../firebase';
+import { doc } from 'firebase/firestore';
+import type { UserProfile } from '../../../../lib/types';
 import Link from 'next/link';
 import Image from 'next/image';
 import { 
@@ -10,13 +10,10 @@ import {
   Rocket, BookOpen, MessageCircle, Repeat2, Send,
   Bookmark, Volume2, VolumeX, Bell
 } from 'lucide-react';
-import { ContentCard } from '../../../../components/content-card';
-import { doc } from 'firebase/firestore';
-import type { Post, UserProfile } from '../../../../lib/types';
+import { cn, getEmbedUrl } from '../../../../lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../../components/ui/avatar';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "../../../../components/ui/dialog";
 import { useToast } from '../../../../hooks/use-toast';
-import { cn, getEmbedUrl } from '../../../../lib/utils';
 import { SocialStatsPopover } from '../../../../components/social-stats-popover';
 import { fetchAds, injectAds, isAd, type Ad } from '../../../../lib/ads';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
@@ -98,7 +95,63 @@ function NotificationBellInline({ userId, userName, userAvatar }: { userId: stri
   );
 }
 
-// ─── Post Action Buttons — lightweight, no per-post Supabase subscriptions ─────
+// ─── Direct media renderer — no wrapper components, fills space perfectly ──────
+function FeedMedia({ url }: { url: string }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [playing, setPlaying] = React.useState(false);
+
+  const isVideo = React.useMemo(() => {
+    if (!url) return false;
+    const l = url.toLowerCase();
+    return l.includes('youtube') || l.includes('youtu.be') || l.includes('tiktok') ||
+      l.includes('instagram') || l.endsWith('.mp4') || l.endsWith('.webm') ||
+      l.endsWith('.mov') || l.startsWith('data:video') || l.includes('blob:');
+  }, [url]);
+
+  const isExternal = url?.includes('youtube') || url?.includes('youtu.be') ||
+    url?.includes('tiktok') || url?.includes('instagram');
+
+  React.useEffect(() => {
+    if (!isVideo || isExternal) return;
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => setPlaying(e.isIntersecting && e.intersectionRatio >= 0.5),
+      { threshold: 0.5 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [isVideo, isExternal]);
+
+  const embedUrl = React.useMemo(() => {
+    if (!isExternal || !url) return url;
+    const base = getEmbedUrl(url);
+    if (!playing) return base;
+    return base.includes('?') ? `${base}&autoplay=1&mute=1&playsinline=1` : `${base}?autoplay=1&mute=1&playsinline=1`;
+  }, [url, isExternal, playing]);
+
+  if (!url) return <div className="w-full aspect-square bg-black" />;
+
+  return (
+    <div ref={ref} className="w-full aspect-square bg-black overflow-hidden">
+      {!isVideo ? (
+        // Image
+        <img src={url} alt="post" className="w-full h-full object-cover" loading="lazy" />
+      ) : isExternal ? (
+        // YouTube / TikTok / Instagram embed
+        <iframe src={embedUrl} className="w-full h-full border-none"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen />
+      ) : (
+        // Direct video file
+        <video src={url} className="w-full h-full object-cover"
+          autoPlay={playing} muted loop playsInline />
+      )}
+    </div>
+  );
+}
+
+// ─── Post Action Buttons ────────────────────────────────────────────────────
 function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid, initialLikes = 0 }: {
   postId: string; userId: string; postUrl: string; postTitle: string;
   firestore: any; userUid?: string; initialLikes?: number;
@@ -563,21 +616,21 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
         </div>
       </div>
 
-      {/* ── FEED POSTS — Instagram style ── */}
+      {/* ── FEED POSTS ── */}
       <main className="divide-y divide-white/5">
-        {/* Skeleton loaders while fetching — never show "no posts" */}
+        {/* Skeleton while loading */}
         {feedLoading && feedPosts.length === 0 && (
-          <div className="space-y-0">
+          <div>
             {[1,2,3].map(i => (
               <div key={i} className="border-b border-white/5 animate-pulse">
                 <div className="flex items-center gap-3 px-4 py-3">
-                  <div className="h-9 w-9 rounded-full bg-white/10" />
-                  <div className="space-y-1.5">
+                  <div className="h-9 w-9 rounded-full bg-white/10 shrink-0" />
+                  <div className="space-y-1.5 flex-1">
                     <div className="h-3 w-24 bg-white/10 rounded-full" />
                     <div className="h-2 w-16 bg-white/5 rounded-full" />
                   </div>
                 </div>
-                <div className="aspect-square w-full bg-white/5" />
+                <div className="w-full aspect-square bg-white/5" />
                 <div className="px-4 py-3 flex gap-5">
                   <div className="h-6 w-6 rounded-full bg-white/10" />
                   <div className="h-6 w-6 rounded-full bg-white/10" />
@@ -587,110 +640,85 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
             ))}
           </div>
         )}
+
         {feedPosts.map((post, index) => {
-          const postElement = (() => {
-            if (isAd(post)) {
-              return (
-                <div key={post.id} className="space-y-0">
-                  <div className="flex items-center justify-between px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9 border border-white/10">
-                        <AvatarImage src={post.media_url} />
-                        <AvatarFallback className="bg-yellow-400/20 text-yellow-400 font-black text-xs">Ad</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-black text-sm">{post.partner_name}</p>
-                        <p className="text-[9px] text-yellow-400 font-black uppercase tracking-widest">Sponsored</p>
-                      </div>
-                    </div>
-                    <span className="text-white/20">···</span>
-                  </div>
-                  <div className="aspect-square w-full bg-black overflow-hidden">
-                    <ContentCard id={post.id} title={post.title} creator={post.partner_name} hideActions
-                      image={{ imageUrl: post.media_url, description: post.caption, id: post.id, url: post.video_url || post.media_url, category: post.category } as any} />
-                  </div>
-                </div>
-              );
-            }
-            const p = post as any;
+          // ── Ad post ──
+          if (isAd(post)) {
             return (
-              <div key={p.id} data-post-id={p.id} className="border-b border-white/5">
-                {/* Post header */}
+              <div key={post.id} className="border-b border-white/5">
                 <div className="flex items-center justify-between px-4 py-2.5">
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9 border border-white/10 ring-2 ring-primary/20">
-                      <AvatarImage src={p.userAvatar || ''} className="object-cover" />
-                      <AvatarFallback className="bg-primary/20 text-primary font-black text-xs">
-                        {p.userName?.[0]?.toUpperCase() || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="h-9 w-9 rounded-full bg-yellow-400/20 flex items-center justify-center text-yellow-400 font-black text-xs border border-yellow-400/20">Ad</div>
                     <div>
-                      <p className="font-black text-sm">@{p.userName?.replace(/\s/g,'_').toLowerCase()}</p>
-                      {p.category && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-[9px]">🎵</span>
-                          <span className="text-[9px] text-white/40 font-medium">{p.category}</span>
-                        </div>
-                      )}
+                      <p className="font-black text-sm">{post.partner_name}</p>
+                      <p className="text-[9px] text-yellow-400 font-black uppercase tracking-widest">Sponsored</p>
                     </div>
                   </div>
-                  <span className="text-white/20 text-lg cursor-pointer">···</span>
+                </div>
+                <FeedMedia url={post.video_url || post.media_url} />
+              </div>
+            );
+          }
+
+          // ── Real post ──
+          const p = post as any;
+          const showSuggested = (index + 1) % 10 === 0 && supabasePosts.length > 0;
+
+          return (
+            <React.Fragment key={p.id}>
+              <div data-post-id={p.id} className="border-b border-white/5">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full overflow-hidden border border-white/10 ring-2 ring-primary/20 shrink-0 bg-primary/20">
+                      {p.userAvatar
+                        ? <img src={p.userAvatar} alt="" className="w-full h-full object-cover" />
+                        : <span className="w-full h-full flex items-center justify-center text-primary font-black text-xs">{p.userName?.[0]?.toUpperCase() || 'U'}</span>
+                      }
+                    </div>
+                    <div>
+                      <p className="font-black text-sm">@{(p.userName || 'user').replace(/\s/g,'_').toLowerCase()}</p>
+                      {p.category && <p className="text-[9px] text-white/40">{p.category}</p>}
+                    </div>
+                  </div>
+                  <span className="text-white/20 text-lg">···</span>
                 </div>
 
-                {/* Media — fills full width, square aspect, zero gap */}
-                <div className="w-full aspect-square bg-black overflow-hidden">
-                  <ContentCard id={p.id} title={p.title || ''} creator={p.userName || ''} hideActions
-                    image={{ imageUrl: p.mediaUrl || '', description: p.caption, id: p.id, url: p.url || p.mediaUrl, category: p.category, userAvatar: p.userAvatar } as any} />
-                </div>
+                {/* Media — direct render, no wrapper components */}
+                <FeedMedia url={p.url || p.mediaUrl} />
 
-                {/* Action buttons — only these, no others */}
-                <PostActions postId={p.id} userId={user?.uid || ''} postUrl={p.url || p.mediaUrl} postTitle={p.title || p.caption} firestore={firestore} userUid={user?.uid} />
+                {/* Actions */}
+                <PostActions
+                  postId={p.id} userId={user?.uid || ''}
+                  postUrl={p.url || p.mediaUrl} postTitle={p.title || p.caption}
+                  firestore={firestore} initialLikes={p.likesCount || 0}
+                />
 
                 {/* Caption */}
                 {p.caption && (
                   <div className="px-4 pb-3">
-                    <span className="font-black text-xs mr-2">@{p.userName?.replace(/\s/g,'_').toLowerCase()}</span>
+                    <span className="font-black text-xs mr-2">@{(p.userName || 'user').replace(/\s/g,'_').toLowerCase()}</span>
                     <span className="text-xs text-white/70">{p.caption}</span>
                   </div>
                 )}
               </div>
-            );
-          })();
 
-          // Insert "Suggested Reels" after every 10 posts
-          const showSuggested = (index + 1) % 10 === 0 && supabasePosts.length > 0;
-
-          return (
-            <React.Fragment key={isAd(post) ? post.id : (post as any).id}>
-              {postElement}
+              {/* Suggested Reels strip every 10 posts */}
               {showSuggested && (
                 <div className="px-4 py-4 bg-background/50 border-y border-white/5">
                   <div className="flex items-center justify-between mb-3">
                     <p className="font-black text-sm uppercase tracking-tight">Suggested Reels</p>
-                    <Link href={`/reels/${ageGroup}`} className="text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80 transition-colors">
-                      See all →
-                    </Link>
+                    <Link href={`/reels/${ageGroup}`} className="text-[10px] font-black uppercase tracking-widest text-primary">See all →</Link>
                   </div>
                   <div className="flex gap-2 overflow-x-auto no-scrollbar">
                     {supabasePosts.slice(0, 6).map(reel => (
                       <Link key={reel.id} href={`/reels/${ageGroup}`}
-                        className="shrink-0 w-28 rounded-2xl overflow-hidden relative bg-black border border-white/10 active:scale-95 transition-all">
-                        <div className="aspect-[9/16] relative">
-                          {reel.mediaUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={reel.mediaUrl} alt={reel.title || ''} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full bg-white/5 flex items-center justify-center">
-                              <span className="text-2xl">🎬</span>
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                          <div className="absolute bottom-2 left-2 right-2">
-                            <p className="text-[9px] font-black text-white truncate">@{reel.userName?.replace(/\s/g,'_').toLowerCase()}</p>
-                          </div>
-                          {/* Three dots */}
-                          <button className="absolute top-1.5 right-1.5 text-white/60 text-xs">···</button>
-                        </div>
+                        className="shrink-0 w-28 aspect-[9/16] rounded-2xl overflow-hidden relative bg-black border border-white/10 block">
+                        {reel.mediaUrl && <img src={reel.mediaUrl} alt="" className="w-full h-full object-cover" />}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                        <p className="absolute bottom-2 left-2 right-2 text-[9px] font-black text-white truncate">
+                          @{(reel.userName || 'user').replace(/\s/g,'_').toLowerCase()}
+                        </p>
                       </Link>
                     ))}
                   </div>
