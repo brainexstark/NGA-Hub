@@ -7,7 +7,7 @@ import { SidebarProvider, SidebarInset, useSidebar } from '../../components/ui/s
 import { useUser, useFirestore } from '../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { UserProfile } from '../../lib/types';
-import { Loader2, Heart, Bell, Plus, Home, Search, GraduationCap, Instagram, Facebook, MessageSquareText, Zap, Power, Video, BookImage, Clapperboard, Radio, Camera } from 'lucide-react';
+import { Loader2, Heart, Bell, Plus, Home, Search, GraduationCap, Instagram, Facebook, MessageSquareText, Zap, Power, Video, BookImage, Clapperboard, Radio, Camera, ArrowLeft } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { LockdownOverlay } from '../../components/lockdown-overlay';
 import { TimesUp } from '../../components/times-up';
@@ -421,6 +421,20 @@ function MobileSwipeHandler({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ─── Back Button — navigates to previous page in history ─────────────────────
+function BackButton() {
+  const router = useRouter();
+  return (
+    <button
+      onClick={() => router.back()}
+      aria-label="Go back"
+      className="h-8 w-8 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 active:scale-95 transition-all border border-white/10 shrink-0"
+    >
+      <ArrowLeft className="h-4 w-4 text-white/70" />
+    </button>
+  );
+}
+
 export default function AppLayout({ 
   children,
 }: { 
@@ -628,7 +642,10 @@ export default function AppLayout({
               // Hide on HomeTon — it has its own header
               pathname.startsWith('/HomeTon') ? "hidden" : "flex"
             )}>
-              <Logo className="scale-75 origin-left" />
+              <div className="flex items-center gap-2">
+                <BackButton />
+                <Logo className="scale-75 origin-left" />
+              </div>
               <div className="flex items-center gap-4">
                   {activeTimer !== null && (
                       <div className={`px-3 py-1 rounded-full border text-[10px] font-black tabular-nums shadow-lg ${protocolStatus === 'ENTERTANING' ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-orange-500/10 border-orange-500/20 text-orange-400'}`}>

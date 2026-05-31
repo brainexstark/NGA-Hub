@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Film,
   Flame,
@@ -40,7 +40,8 @@ import {
   Linkedin,
   MessageSquare,
   Phone,
-  FileText
+  FileText,
+  ArrowLeft
 } from 'lucide-react';
 import { Logo } from './logo';
 import {
@@ -89,6 +90,7 @@ const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remainingSeconds?: number, ageGroup?: string, protocolStatus?: string }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { setOpenMobile } = useSidebar();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -208,7 +210,17 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
     )}>
       <SidebarHeader className="py-10 px-6">
         <div className="flex items-center justify-between">
-          <Logo className="scale-110" />
+          <div className="flex items-center gap-3">
+            {/* Back arrow — navigates to previous page */}
+            <button
+              onClick={() => router.back()}
+              aria-label="Go back"
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all active:scale-90 border border-white/5"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <Logo className="scale-110" />
+          </div>
           {/* Close button — mobile only */}
           <button
             onClick={() => setOpenMobile(false)}
