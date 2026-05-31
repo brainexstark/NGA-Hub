@@ -47,6 +47,7 @@ import {
 import { updateDocumentNonBlocking } from '../../../firebase/non-blocking-updates';
 import { useRealtimeFeed } from '../../../hooks/use-realtime-feed';
 import { containsInappropriateWords } from '../../../lib/inappropriate-words';
+import { MultilingualEngine } from '../../../components/multilingual-engine';
 
 // LOCAL HIGH-PERFORMANCE BADGE REPLACEMENT
 const LocalBadge = ({ children, variant = 'default', className = '' }: { children: React.ReactNode, variant?: string, className?: string }) => {
@@ -457,6 +458,9 @@ export default function LearningHubPage() {
           </div>
         </section>
       )}
+
+      {/* ── Multilingual Education Engine — additive, no existing code modified ── */}
+      <MultilingualEngine />
     </div>
   );
 }
