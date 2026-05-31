@@ -306,30 +306,40 @@ export interface AppUser {
   created_at: string;
 }
 
-export function useAppUsers() {
+export function useAppUsers(ageGroup?: string) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from('app_users').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => { if (data) setUsers(data); setLoading(false); });
+    // Strictly filter by age group — users only see others in their own group
+    let query = supabase.from('app_users').select('*').order('created_at', { ascending: false });
+    if (ageGroup) query = query.eq('age_group', ageGroup);
 
-    const channel = supabase.channel('app-users-all')
+    query.then(({ data }) => { if (data) setUsers(data); setLoading(false); });
+
+    const channelName = ageGroup ? `app-users-${ageGroup}` : 'app-users-all';
+    const channel = supabase.channel(channelName)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'app_users' },
-        (payload) => setUsers(prev => [payload.new as AppUser, ...prev]))
+        (payload) => {
+          const newUser = payload.new as AppUser;
+          // Only add if same age group
+          if (!ageGroup || newUser.age_group === ageGroup) {
+            setUsers(prev => [newUser, ...prev]);
+          }
+        })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_users' },
         (payload) => setUsers(prev => prev.map(u => u.id === (payload.new as AppUser).id ? payload.new as AppUser : u)))
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [ageGroup]);
 
   return { users, loading };
 }
 
 export async function upsertAppUser(user: Partial<AppUser> & { id: string }) {
   const result = await supabase.from('app_users').upsert(user, { onConflict: 'id' });
-  // If this is a new user (has display_name), broadcast a join notification
+  // Broadcast join notification only to users in the same age group
   if (user.display_name && user.is_online) {
     const { broadcastNotification } = await import('../lib/ads');
     broadcastNotification({
@@ -338,6 +348,7 @@ export async function upsertAppUser(user: Partial<AppUser> & { id: string }) {
       actorName: user.display_name,
       actorAvatar: user.avatar || '',
       message: `${user.display_name} just joined NGA Hub! 👋`,
+      ageGroup: user.age_group, // restrict to same age group
     }).catch(() => {});
   }
   return result;
@@ -412,29 +423,37 @@ export interface GroupMessage {
   created_at: string;
 }
 
-export function useGroupChats(userId: string) {
+export function useGroupChats(userId: string, ageGroup?: string) {
   const [groups, setGroups] = useState<GroupChat[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!userId) return;
-    // Get groups user is a member of
+    // Get groups user is a member of, strictly filtered by age group
     supabase.from('group_members').select('group_id').eq('user_id', userId)
       .then(async ({ data: memberData }) => {
         if (!memberData?.length) { setLoading(false); return; }
         const ids = memberData.map(m => m.group_id);
-        const { data } = await supabase.from('group_chats').select('*').in('id', ids).order('created_at', { ascending: false });
+        let query = supabase.from('group_chats').select('*').in('id', ids).order('created_at', { ascending: false });
+        if (ageGroup) query = query.eq('age_group', ageGroup);
+        const { data } = await query;
         if (data) setGroups(data);
         setLoading(false);
       });
 
     const channel = supabase.channel(`groups-${userId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_chats' },
-        (payload) => setGroups(prev => [payload.new as GroupChat, ...prev]))
+        (payload) => {
+          const g = payload.new as GroupChat;
+          // Only add if same age group
+          if (!ageGroup || g.age_group === ageGroup) {
+            setGroups(prev => [g, ...prev]);
+          }
+        })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [userId]);
+  }, [userId, ageGroup]);
 
   const createGroup = useCallback(async (name: string, description: string, createdBy: string, creatorName: string, creatorAvatar: string, memberIds: string[], memberNames: Record<string, string>, memberAvatars: Record<string, string>) => {
     const { data: group, error } = await supabase.from('group_chats').insert({

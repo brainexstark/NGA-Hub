@@ -288,8 +288,8 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
   // Realtime follower/following counts from Supabase
   const { followersCount, followingCount } = useRealtimeFollowers(user?.uid || '');
 
-  // All registered users — newest first for the "New Members" row
-  const { users: allAppUsers } = useAppUsers();
+  // All registered users — newest first for the "New Members" row, same age group only
+  const { users: allAppUsers } = useAppUsers(ageGroup);
   const newMembers = allAppUsers.filter(u => u.id !== user?.uid).slice(0, 20);
 
   React.useEffect(() => {

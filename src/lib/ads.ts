@@ -20,21 +20,21 @@ const STATIC_ADS: Ad[] = [
     media_url: 'https://picsum.photos/seed/ad1/800/600',
     video_url: 'https://www.youtube.com/watch?v=9JdeZ3I8xw8',
     title: 'The Future of Innovation 🚀', caption: 'Discover what\'s next in tech and engineering.',
-    target_age_group: 'all', category: 'tech', click_url: 'https://example.com',
+    target_age_group: '16-plus', category: 'tech', click_url: 'https://example.com',
   },
   {
     id: 'ad-2', partner_name: 'SportsBrand', is_ad: true,
     media_url: 'https://picsum.photos/seed/ad2/800/600',
     video_url: 'https://www.youtube.com/watch?v=ZnuyfHMNMiQ',
     title: 'Champions Never Stop ⚽', caption: 'Train like a pro. Play like a champion.',
-    target_age_group: 'all', category: 'sports', click_url: 'https://example.com',
+    target_age_group: '10-16', category: 'sports', click_url: 'https://example.com',
   },
   {
-    id: 'ad-3', partner_name: 'MusicBrand', is_ad: true,
+    id: 'ad-3', partner_name: 'KidsBrand', is_ad: true,
     media_url: 'https://picsum.photos/seed/ad3/800/600',
     video_url: 'https://www.youtube.com/watch?v=JGwWNGJdvx8',
-    title: 'Feel the Beat 🎵', caption: 'New sounds, new vibes. Stream now.',
-    target_age_group: 'all', category: 'music', click_url: 'https://example.com',
+    title: 'Learn & Play! 🎨', caption: 'Fun educational games for curious kids.',
+    target_age_group: 'under-10', category: 'education', click_url: 'https://example.com',
   },
 ];
 
@@ -44,18 +44,21 @@ export async function fetchAds(ageGroup: string): Promise<Ad[]> {
       .from('ads')
       .select('*')
       .eq('is_active', true)
-      .or(`target_age_group.eq.all,target_age_group.eq.${ageGroup}`)
+      // Strictly match the age group — no cross-group 'all' fallback
+      .eq('target_age_group', ageGroup)
       .order('impressions', { ascending: false })
       .limit(5);
-    if (error) { console.warn('Ads fetch error:', error.message); return STATIC_ADS; }
-    if (!data || data.length === 0) return STATIC_ADS;
-    // Track impression
-    const ids = data.map((d: any) => d.id);
-    supabase.from('ads').update({ impressions: data[0].impressions + 1 }).in('id', ids).then(() => {});
-    return data.map((d: any) => ({ ...d, is_ad: true as const }));
+    if (error) { console.warn('Ads fetch error:', error.message); }
+    if (data && data.length > 0) {
+      const ids = data.map((d: any) => d.id);
+      supabase.from('ads').update({ impressions: data[0].impressions + 1 }).in('id', ids).then(() => {});
+      return data.map((d: any) => ({ ...d, is_ad: true as const }));
+    }
+    // Fall back to static ads for this specific age group only
+    return STATIC_ADS.filter(ad => ad.target_age_group === ageGroup);
   } catch (e) {
     console.warn('Ads fetch failed:', e);
-    return STATIC_ADS;
+    return STATIC_ADS.filter(ad => ad.target_age_group === ageGroup);
   }
 }
 
@@ -103,7 +106,7 @@ export async function sendNotification(params: {
   }
 }
 
-// Broadcast a system notification to all users
+// Broadcast a system notification only to users in the same age group
 export async function broadcastNotification(params: {
   type: string;
   actorId: string;
@@ -111,9 +114,13 @@ export async function broadcastNotification(params: {
   actorAvatar: string;
   message: string;
   postId?: string;
+  ageGroup?: string; // restrict to this age group — required for content notifications
 }) {
   try {
-    const { data: users } = await supabase.from('app_users').select('id').neq('id', params.actorId);
+    let query = supabase.from('app_users').select('id').neq('id', params.actorId);
+    // Strictly filter by age group so cross-group notifications never happen
+    if (params.ageGroup) query = query.eq('age_group', params.ageGroup);
+    const { data: users } = await query;
     if (!users?.length) return;
     await supabase.from('notifications').insert(
       users.map((u: any) => ({

@@ -94,8 +94,8 @@ export default function ChatPage() {
     const [contacts, setContacts] = useState(isUnder10 ? kidsContacts : []);
     const [loadingUsers, setLoadingUsers] = useState(true);
 
-    // Fetch real app users from Supabase in realtime
-    const { users: appUsers, loading: usersLoading } = useAppUsers();
+    // Fetch real app users from Supabase in realtime — same age group only
+    const { users: appUsers, loading: usersLoading } = useAppUsers(profile?.ageGroup);
 
     useEffect(() => {
         if (isUnder10) { setLoadingUsers(false); return; }

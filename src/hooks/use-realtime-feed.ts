@@ -148,6 +148,7 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
           actorAvatar: post.userAvatar || '',
           message: `${post.userName} posted something new — check it out!`,
           postId: data.id,
+          ageGroup: post.ageGroup, // only notify users in the same age group
         });
       } catch {}
     }
