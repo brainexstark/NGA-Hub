@@ -20,7 +20,7 @@ type AgeGroup = 'under-10' | '10-16' | '16-plus';
 const AGE_GROUPS = [
   { id: 'under-10' as AgeGroup, label: 'Under 10', emoji: '🧒', desc: 'Kids content & learning' },
   { id: '10-16' as AgeGroup, label: '10 – 16', emoji: '🎓', desc: 'Teen content & education' },
-  { id: '16-plus' as AgeGroup, label: '16+', emoji: '🚀', desc: 'Full access & community' },
+  { id: '16-plus' as AgeGroup, label: '17+', emoji: '🚀', desc: 'Full access & community' },
 ];
 
 export default function SignUpPage() {

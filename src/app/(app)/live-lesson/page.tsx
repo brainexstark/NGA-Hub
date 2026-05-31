@@ -148,7 +148,7 @@ export default function LiveLessonPage() {
                   <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
                     <SelectItem value="under 10" className="font-bold">Under 10</SelectItem>
                     <SelectItem value="10-16" className="font-bold">10–16</SelectItem>
-                    <SelectItem value="16+" className="font-bold">16+</SelectItem>
+                    <SelectItem value="16+" className="font-bold">17+</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

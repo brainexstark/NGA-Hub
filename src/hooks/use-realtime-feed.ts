@@ -13,7 +13,6 @@ const FEED_COLUMNS = 'id,user_id,user_name,user_avatar,title,caption,media_url,v
 
 async function fastFetchPosts(ageGroup: string, category: string): Promise<SupabasePost[]> {
   try {
-    // Use neq instead of eq so NULL rows are also included
     const params = new URLSearchParams({
       select: FEED_COLUMNS,
       is_flagged: 'neq.true',
@@ -28,17 +27,10 @@ async function fastFetchPosts(ageGroup: string, category: string): Promise<Supab
       'Content-Type': 'application/json',
     };
 
-    const [ageRes, allRes] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/posts?age_group=eq.${ageGroup}&${params}`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/posts?${params}`, { headers }),
-    ]);
-
-    const [agePosts, allPosts]: [SupabasePost[], SupabasePost[]] = await Promise.all([
-      ageRes.ok ? ageRes.json() : [],
-      allRes.ok ? allRes.json() : [],
-    ]);
-
-    return agePosts.length > 0 ? agePosts : allPosts;
+    // Strictly fetch only posts for this age group — no cross-group fallback
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/posts?age_group=eq.${ageGroup}&${params}`, { headers });
+    if (!res.ok) return [];
+    return res.json();
   } catch {
     return [];
   }
@@ -64,23 +56,31 @@ function mapPost(p: SupabasePost): Post {
   };
 }
 
+// Simple in-memory cache so posts appear instantly on revisit
+const postsCache = new Map<string, Post[]>();
+
 export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = `${ageGroup}-${category}`;
+  const [posts, setPosts] = useState<Post[]>(() => postsCache.get(cacheKey) || []);
+  const [loading, setLoading] = useState(!postsCache.has(cacheKey));
   const [newCount, setNewCount] = useState(0);
   const [pendingPosts, setPendingPosts] = useState<Post[]>([]);
   const isFirstLoad = useRef(true);
 
   useEffect(() => {
     isFirstLoad.current = true;
-    setLoading(true);
-    setPosts([]);
+    // Only show loading spinner if we have no cached data
+    if (!postsCache.has(cacheKey)) setLoading(true);
     setNewCount(0);
     setPendingPosts([]);
 
     // Fast REST fetch — typically responds in 200-500ms
     fastFetchPosts(ageGroup, category).then(data => {
-      if (data.length > 0) setPosts(data.map(mapPost));
+      const mapped = data.map(mapPost);
+      if (mapped.length > 0) {
+        setPosts(mapped);
+        postsCache.set(cacheKey, mapped); // cache for instant re-render
+      }
       setLoading(false);
       isFirstLoad.current = false;
     });

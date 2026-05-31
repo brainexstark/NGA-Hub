@@ -97,10 +97,11 @@ function NotificationBellInline({ userId, userName, userAvatar }: { userId: stri
   );
 }
 
-// ─── Direct media renderer — no wrapper components, fills space perfectly ──────
+// ─── Direct media renderer — plays only when scrolled into view ──────────────
 function FeedMedia({ url }: { url: string }) {
   const ref = React.useRef<HTMLDivElement>(null);
-  const [playing, setPlaying] = React.useState(false);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const [inView, setInView] = React.useState(false);
 
   const isVideo = React.useMemo(() => {
     if (!url) return false;
@@ -110,44 +111,75 @@ function FeedMedia({ url }: { url: string }) {
       l.endsWith('.mov') || l.startsWith('data:video') || l.includes('blob:');
   }, [url]);
 
-  const isExternal = url?.includes('youtube') || url?.includes('youtu.be') ||
-    url?.includes('tiktok') || url?.includes('instagram');
+  const isExternal = !!(url?.includes('youtube') || url?.includes('youtu.be') ||
+    url?.includes('tiktok') || url?.includes('instagram'));
 
+  // Observe visibility for both native and external videos
   React.useEffect(() => {
-    if (!isVideo || isExternal) return;
+    if (!isVideo) return;
     const el = ref.current;
     if (!el) return;
     const obs = new IntersectionObserver(
-      ([e]) => setPlaying(e.isIntersecting && e.intersectionRatio >= 0.5),
+      ([e]) => setInView(e.isIntersecting && e.intersectionRatio >= 0.5),
       { threshold: 0.5 }
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [isVideo, isExternal]);
+  }, [isVideo]);
+
+  // Play/pause native video based on visibility
+  React.useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (inView) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [inView]);
 
   const embedUrl = React.useMemo(() => {
     if (!isExternal || !url) return url;
     const base = getEmbedUrl(url);
-    if (!playing) return base;
+    // Only add autoplay when actually in view
+    if (!inView) return base;
     return base.includes('?') ? `${base}&autoplay=1&mute=1&playsinline=1` : `${base}?autoplay=1&mute=1&playsinline=1`;
-  }, [url, isExternal, playing]);
+  }, [url, isExternal, inView]);
 
   if (!url) return <div className="w-full aspect-square bg-black" />;
 
   return (
     <div ref={ref} className="w-full aspect-square bg-black overflow-hidden">
       {!isVideo ? (
-        // Image
+        // Image — never autoplay
         <img src={url} alt="post" className="w-full h-full object-cover" loading="lazy" />
       ) : isExternal ? (
-        // YouTube / TikTok / Instagram embed
-        <iframe src={embedUrl} className="w-full h-full border-none"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen />
+        // External embed — only mount iframe when in view to prevent all playing at once
+        inView ? (
+          <iframe
+            key={`playing-${url}`}
+            src={embedUrl}
+            className="w-full h-full border-none"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        ) : (
+          // Placeholder shown when out of view
+          <div className="w-full h-full bg-black flex items-center justify-center">
+            <PlayCircle className="h-14 w-14 text-white/30" />
+          </div>
+        )
       ) : (
-        // Direct video file
-        <video src={url} className="w-full h-full object-cover"
-          autoPlay={playing} muted loop playsInline />
+        // Native video — play/pause via ref
+        <video
+          ref={videoRef}
+          src={url}
+          className="w-full h-full object-cover"
+          muted
+          loop
+          playsInline
+          preload="metadata"
+        />
       )}
     </div>
   );
@@ -354,9 +386,9 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
 
   if (isUnder10) {
     return (
-      <div className="min-h-screen bg-[#0a052a] text-white relative overflow-x-hidden animate-in fade-in duration-1000">
+      <div className="min-h-screen bg-[#0d0620] text-white relative overflow-x-hidden animate-in fade-in duration-1000">
         <div className="fixed inset-0 pointer-events-none z-0">
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-purple-900/40 to-blue-900/40" />
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-900/50 via-indigo-900/40 to-blue-900/50" />
             <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-cyan-500/20 rounded-full blur-[100px] animate-pulse" />
             <div className="absolute bottom-1/4 right-1/4 w-[450px] h-[450px] bg-fuchsia-500/20 rounded-full blur-[100px] animate-pulse" />
         </div>
