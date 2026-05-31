@@ -1,15 +1,11 @@
 'use client';
 
 /**
- * MultilingualEngine
- * ------------------
- * Additive section for the Learning Hub.
- * - Language selector (from public.languages)
- * - Syllabus picker (from public.syllabus_definitions)
- * - Concept browser → content translations in chosen language
- * - Nearest school finder via find_nearest_schools() RPC
- *
- * Does NOT modify any existing Learning Hub code.
+ * MultilingualEngine — REALTIME
+ * ─────────────────────────────
+ * Every data source uses Supabase Postgres Changes subscriptions.
+ * New languages, syllabi, concepts, translations, and schools
+ * appear instantly without any page refresh.
  */
 
 import * as React from 'react';
@@ -22,10 +18,10 @@ import {
   PlayCircle,
   Loader2,
   Navigation,
-  School,
   ChevronDown,
   Languages,
   Layers,
+  Wifi,
 } from 'lucide-react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
@@ -38,26 +34,27 @@ import type {
   NearestSchool,
 } from '../lib/database.types';
 
-// ─── Small helpers ────────────────────────────────────────────────────────────
+// ─── Live indicator dot ───────────────────────────────────────────────────────
+function LiveDot() {
+  return (
+    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-green-400">
+      <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+      Live
+    </span>
+  );
+}
 
-function SectionHeading({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
+function SectionHeading({ icon: Icon, label, live = false }: { icon: React.ElementType; label: string; live?: boolean }) {
   return (
     <h3 className="font-headline text-xl font-black uppercase tracking-tight text-white flex items-center gap-3">
       <Icon className="h-5 w-5 text-primary" />
       {label}
+      {live && <LiveDot />}
     </h3>
   );
 }
 
-function Pill({
-  active,
-  onClick,
-  children,
-}: {
-  active?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function Pill({ active, onClick, children }: { active?: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
@@ -73,65 +70,239 @@ function Pill({
   );
 }
 
-// ─── Nearest Schools Panel ────────────────────────────────────────────────────
+// ─── Hook: realtime languages ─────────────────────────────────────────────────
+function useRealtimeLanguages() {
+  const [languages, setLanguages] = React.useState<Language[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
+  React.useEffect(() => {
+    // Initial fetch
+    supabase.from('languages').select('*').order('name').then(({ data }) => {
+      if (data) setLanguages(data as Language[]);
+      setLoading(false);
+    });
+
+    // Realtime: new language added
+    const ch = supabase.channel('rt-languages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'languages' },
+        (payload) => setLanguages(prev => [...prev, payload.new as Language].sort((a, b) => a.name.localeCompare(b.name))))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'languages' },
+        (payload) => setLanguages(prev => prev.map(l => l.code === (payload.new as Language).code ? payload.new as Language : l)))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'languages' },
+        (payload) => setLanguages(prev => prev.filter(l => l.code !== (payload.old as Language).code)))
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  return { languages, loading };
+}
+
+// ─── Hook: realtime syllabi ───────────────────────────────────────────────────
+function useRealtimeSyllabi() {
+  const [syllabi, setSyllabi] = React.useState<SyllabusDefinition[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    supabase.from('syllabus_definitions').select('*').order('country').then(({ data }) => {
+      if (data) setSyllabi(data as SyllabusDefinition[]);
+      setLoading(false);
+    });
+
+    const ch = supabase.channel('rt-syllabi')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'syllabus_definitions' },
+        (payload) => setSyllabi(prev => [...prev, payload.new as SyllabusDefinition]))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'syllabus_definitions' },
+        (payload) => setSyllabi(prev => prev.map(s => s.id === (payload.new as SyllabusDefinition).id ? payload.new as SyllabusDefinition : s)))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'syllabus_definitions' },
+        (payload) => setSyllabi(prev => prev.filter(s => s.id !== (payload.old as SyllabusDefinition).id)))
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  return { syllabi, loading };
+}
+
+// ─── Hook: realtime concepts for a syllabus ───────────────────────────────────
+function useRealtimeConcepts(syllabusId: string | null) {
+  const [concepts, setConcepts] = React.useState<UniversalConcept[]>([]);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!syllabusId) { setConcepts([]); return; }
+    setLoading(true);
+    setConcepts([]);
+
+    supabase
+      .from('syllabus_topics_mapping')
+      .select('concept_id, topic_name, universal_concepts(id, name, subject_area)')
+      .eq('syllabus_id', syllabusId)
+      .limit(30)
+      .then(({ data }) => {
+        if (data) {
+          const unique = new Map<string, UniversalConcept>();
+          data.forEach((row: any) => {
+            const c = row.universal_concepts;
+            if (c && !unique.has(c.id)) unique.set(c.id, c);
+          });
+          setConcepts(Array.from(unique.values()));
+        }
+        setLoading(false);
+      });
+
+    // When a new topic mapping is added for this syllabus, fetch the concept and append
+    const ch = supabase.channel(`rt-concepts-${syllabusId}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'syllabus_topics_mapping',
+        filter: `syllabus_id=eq.${syllabusId}`,
+      }, async (payload: any) => {
+        const conceptId = payload.new?.concept_id;
+        if (!conceptId) return;
+        const { data } = await supabase.from('universal_concepts').select('*').eq('id', conceptId).single();
+        if (data) setConcepts(prev => prev.some(c => c.id === data.id) ? prev : [...prev, data as UniversalConcept]);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'universal_concepts' },
+        (payload) => {
+          // Only add if it's already mapped to this syllabus (optimistic — will appear on next concept load)
+          const c = payload.new as UniversalConcept;
+          setConcepts(prev => prev.some(x => x.id === c.id) ? prev : prev);
+        })
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
+  }, [syllabusId]);
+
+  return { concepts, loading };
+}
+
+// ─── Hook: realtime translations for a concept + language ─────────────────────
+function useRealtimeTranslations(conceptId: string | null, languageCode: string) {
+  const [translations, setTranslations] = React.useState<ContentTranslation[]>([]);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!conceptId || !languageCode) { setTranslations([]); return; }
+    setLoading(true);
+    setTranslations([]);
+
+    supabase
+      .from('content_translations')
+      .select('*, learning_content!inner(concept_id)')
+      .eq('language_code', languageCode)
+      .eq('learning_content.concept_id', conceptId)
+      .limit(10)
+      .then(({ data }) => {
+        if (data) setTranslations(data as ContentTranslation[]);
+        setLoading(false);
+      });
+
+    // New translation added for this language — check if it belongs to our concept
+    const ch = supabase.channel(`rt-translations-${conceptId}-${languageCode}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'content_translations',
+        filter: `language_code=eq.${languageCode}`,
+      }, async (payload: any) => {
+        const contentId = payload.new?.content_id;
+        if (!contentId) return;
+        // Verify this content belongs to the active concept
+        const { data: lc } = await supabase
+          .from('learning_content').select('concept_id').eq('id', contentId).single();
+        if (lc?.concept_id === conceptId) {
+          setTranslations(prev => [payload.new as ContentTranslation, ...prev]);
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'content_translations',
+        filter: `language_code=eq.${languageCode}`,
+      }, (payload) => {
+        setTranslations(prev => prev.map(t => t.id === (payload.new as ContentTranslation).id ? payload.new as ContentTranslation : t));
+      })
+      .on('postgres_changes', {
+        event: 'DELETE', schema: 'public', table: 'content_translations',
+      }, (payload) => {
+        setTranslations(prev => prev.filter(t => t.id !== (payload.old as ContentTranslation).id));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
+  }, [conceptId, languageCode]);
+
+  return { translations, loading };
+}
+
+// ─── Nearest Schools Panel (realtime school list + GPS lookup) ────────────────
 function NearestSchoolsPanel() {
   const { toast } = useToast();
-  const [loading, setLoading] = React.useState(false);
+  const [locating, setLocating] = React.useState(false);
   const [schools, setSchools] = React.useState<NearestSchool[]>([]);
   const [located, setLocated] = React.useState(false);
+  const [userCoords, setUserCoords] = React.useState<{ lat: number; lng: number } | null>(null);
+
+  // Realtime: when a new school is added to the DB, re-run the nearest query if we have coords
+  React.useEffect(() => {
+    const ch = supabase.channel('rt-schools-watch')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'schools' }, async () => {
+        if (!userCoords) return;
+        const { data } = await supabase.rpc('find_nearest_schools', {
+          user_lat: userCoords.lat, user_long: userCoords.lng, result_limit: 5,
+        });
+        if (data) setSchools(data as NearestSchool[]);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'schools' }, async () => {
+        if (!userCoords) return;
+        const { data } = await supabase.rpc('find_nearest_schools', {
+          user_lat: userCoords.lat, user_long: userCoords.lng, result_limit: 5,
+        });
+        if (data) setSchools(data as NearestSchool[]);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [userCoords]);
+
+  const runLookup = async (lat: number, lng: number) => {
+    const { data, error } = await supabase.rpc('find_nearest_schools', {
+      user_lat: lat, user_long: lng, result_limit: 5,
+    });
+    if (error) throw error;
+    setSchools((data as NearestSchool[]) || []);
+    setUserCoords({ lat, lng });
+    setLocated(true);
+  };
 
   const handleLocate = () => {
     if (!navigator.geolocation) {
-      toast({ title: 'Geolocation not supported', description: 'Your browser does not support GPS.' });
+      toast({ title: 'Geolocation not supported' });
       return;
     }
-    setLoading(true);
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const { latitude, longitude } = pos.coords;
         try {
-          const { data, error } = await supabase.rpc('find_nearest_schools', {
-            user_lat: latitude,
-            user_long: longitude,
-            result_limit: 5,
-          });
-          if (error) throw error;
-          setSchools((data as NearestSchool[]) || []);
-          setLocated(true);
+          await runLookup(pos.coords.latitude, pos.coords.longitude);
         } catch (err: any) {
-          toast({ title: 'School lookup failed', description: err?.message || 'Could not fetch nearest schools.' });
+          toast({ title: 'School lookup failed', description: err?.message });
         } finally {
-          setLoading(false);
+          setLocating(false);
         }
       },
-      (err) => {
-        setLoading(false);
-        toast({ title: 'Location denied', description: err.message });
-      },
+      (err) => { setLocating(false); toast({ title: 'Location denied', description: err.message }); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
   return (
     <div className="space-y-4">
-      <SectionHeading icon={MapPin} label="Nearest Schools" />
+      <SectionHeading icon={MapPin} label="Nearest Schools" live={located} />
       <p className="text-[11px] text-white/40 font-medium">
-        Uses PostGIS KNN to find the closest schools to your GPS location.
+        PostGIS KNN lookup · updates live when new schools are added.
       </p>
 
       {!located && (
-        <Button
-          onClick={handleLocate}
-          disabled={loading}
-          className="h-11 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl"
-        >
-          {loading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Navigation className="mr-2 h-4 w-4" />
-          )}
-          {loading ? 'Locating...' : 'Find Nearest Schools'}
+        <Button onClick={handleLocate} disabled={locating}
+          className="h-11 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl">
+          {locating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Navigation className="mr-2 h-4 w-4" />}
+          {locating ? 'Locating...' : 'Find Nearest Schools'}
         </Button>
       )}
 
@@ -141,18 +312,13 @@ function NearestSchoolsPanel() {
 
       <div className="space-y-3">
         {schools.map((s, i) => (
-          <Card
-            key={s.school_id}
-            className="border border-white/5 bg-black/20 rounded-2xl p-4 flex items-start gap-4"
-          >
+          <Card key={s.school_id} className="border border-white/5 bg-black/20 rounded-2xl p-4 flex items-start gap-4">
             <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 font-black text-sm">
               {i + 1}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-black text-sm text-white truncate">{s.school_name}</p>
-              {s.address && (
-                <p className="text-[10px] text-white/40 truncate mt-0.5">{s.address}</p>
-              )}
+              {s.address && <p className="text-[10px] text-white/40 truncate mt-0.5">{s.address}</p>}
               <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                 {s.syllabus_name && (
                   <span className="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-full">
@@ -160,9 +326,7 @@ function NearestSchoolsPanel() {
                   </span>
                 )}
                 {s.country && (
-                  <span className="text-[9px] font-black uppercase tracking-widest text-white/40">
-                    {s.country}
-                  </span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-white/40">{s.country}</span>
                 )}
               </div>
             </div>
@@ -180,7 +344,7 @@ function NearestSchoolsPanel() {
 
       {located && (
         <button
-          onClick={() => { setLocated(false); setSchools([]); handleLocate(); }}
+          onClick={() => { setLocated(false); setSchools([]); setUserCoords(null); handleLocate(); }}
           className="text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors"
         >
           Refresh Location
@@ -190,69 +354,21 @@ function NearestSchoolsPanel() {
   );
 }
 
-// ─── Content Browser ──────────────────────────────────────────────────────────
-
-function ContentBrowser({
-  languageCode,
-  syllabusId,
-}: {
-  languageCode: string;
-  syllabusId: string | null;
-}) {
-  const [concepts, setConcepts] = React.useState<UniversalConcept[]>([]);
+// ─── Content Browser (realtime concepts + translations) ───────────────────────
+function ContentBrowser({ languageCode, syllabusId }: { languageCode: string; syllabusId: string | null }) {
   const [activeConcept, setActiveConcept] = React.useState<string | null>(null);
-  const [translations, setTranslations] = React.useState<ContentTranslation[]>([]);
-  const [loadingConcepts, setLoadingConcepts] = React.useState(false);
-  const [loadingContent, setLoadingContent] = React.useState(false);
   const [playingUrl, setPlayingUrl] = React.useState<string | null>(null);
 
-  // Load concepts for the selected syllabus
-  React.useEffect(() => {
-    if (!syllabusId) return;
-    setLoadingConcepts(true);
-    setActiveConcept(null);
-    setTranslations([]);
+  const { concepts, loading: loadingConcepts } = useRealtimeConcepts(syllabusId);
+  const { translations, loading: loadingContent } = useRealtimeTranslations(activeConcept, languageCode);
 
-    supabase
-      .from('syllabus_topics_mapping')
-      .select('concept_id, topic_name, universal_concepts(id, name, subject_area)')
-      .eq('syllabus_id', syllabusId)
-      .limit(20)
-      .then(({ data }) => {
-        if (data) {
-          const unique = new Map<string, UniversalConcept>();
-          data.forEach((row: any) => {
-            const c = row.universal_concepts;
-            if (c && !unique.has(c.id)) unique.set(c.id, c);
-          });
-          setConcepts(Array.from(unique.values()));
-        }
-        setLoadingConcepts(false);
-      });
-  }, [syllabusId]);
-
-  // Load translations when concept + language selected
-  React.useEffect(() => {
-    if (!activeConcept || !languageCode) return;
-    setLoadingContent(true);
-    setTranslations([]);
-
-    supabase
-      .from('content_translations')
-      .select('*, learning_content!inner(concept_id)')
-      .eq('language_code', languageCode)
-      .eq('learning_content.concept_id', activeConcept)
-      .limit(10)
-      .then(({ data }) => {
-        if (data) setTranslations(data as ContentTranslation[]);
-        setLoadingContent(false);
-      });
-  }, [activeConcept, languageCode]);
+  // Reset active concept when syllabus changes
+  React.useEffect(() => { setActiveConcept(null); setPlayingUrl(null); }, [syllabusId]);
+  // Reset player when language changes
+  React.useEffect(() => { setPlayingUrl(null); }, [languageCode]);
 
   if (!syllabusId) {
-    return (
-      <p className="text-xs text-white/30 italic">Select a syllabus above to browse content.</p>
-    );
+    return <p className="text-xs text-white/30 italic">Select a syllabus above to browse content.</p>;
   }
 
   return (
@@ -266,11 +382,7 @@ function ContentBrowser({
       ) : (
         <div className="flex flex-wrap gap-2">
           {concepts.map((c) => (
-            <Pill
-              key={c.id}
-              active={activeConcept === c.id}
-              onClick={() => setActiveConcept(c.id)}
-            >
+            <Pill key={c.id} active={activeConcept === c.id} onClick={() => setActiveConcept(c.id)}>
               {c.name}
             </Pill>
           ))}
@@ -285,7 +397,7 @@ function ContentBrowser({
             </div>
           ) : translations.length === 0 ? (
             <p className="text-xs text-white/30 italic">
-              No content available in this language for the selected concept yet.
+              No content in this language for the selected concept yet.
             </p>
           ) : (
             translations.map((t) => (
@@ -316,7 +428,6 @@ function ContentBrowser({
         </div>
       )}
 
-      {/* Inline player */}
       {playingUrl && (
         <div className="mt-4 rounded-2xl overflow-hidden border border-primary/20 bg-black aspect-video relative">
           <button
@@ -338,39 +449,12 @@ function ContentBrowser({
 }
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
-
 export function MultilingualEngine() {
-  const [languages, setLanguages] = React.useState<Language[]>([]);
-  const [syllabi, setSyllabi] = React.useState<SyllabusDefinition[]>([]);
+  const { languages, loading: loadingLangs } = useRealtimeLanguages();
+  const { syllabi, loading: loadingSyllabi } = useRealtimeSyllabi();
   const [selectedLang, setSelectedLang] = React.useState<string>('en');
   const [selectedSyllabus, setSelectedSyllabus] = React.useState<string | null>(null);
-  const [loadingLangs, setLoadingLangs] = React.useState(true);
-  const [loadingSyllabi, setLoadingSyllabi] = React.useState(true);
   const [showLangPicker, setShowLangPicker] = React.useState(false);
-
-  // Load languages
-  React.useEffect(() => {
-    supabase
-      .from('languages')
-      .select('*')
-      .order('name')
-      .then(({ data }) => {
-        if (data) setLanguages(data as Language[]);
-        setLoadingLangs(false);
-      });
-  }, []);
-
-  // Load syllabi
-  React.useEffect(() => {
-    supabase
-      .from('syllabus_definitions')
-      .select('*')
-      .order('country')
-      .then(({ data }) => {
-        if (data) setSyllabi(data as SyllabusDefinition[]);
-        setLoadingSyllabi(false);
-      });
-  }, []);
 
   const activeLang = languages.find((l) => l.code === selectedLang);
 
@@ -382,6 +466,10 @@ export function MultilingualEngine() {
           <h2 className="font-headline text-2xl font-black uppercase tracking-tight text-white flex items-center gap-3">
             <Languages className="h-6 w-6 text-primary" />
             Multilingual Education Engine
+            <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-green-400">
+              <Wifi className="h-3 w-3" />
+              Realtime
+            </span>
           </h2>
           <p className="text-[11px] text-white/40 font-medium uppercase tracking-widest">
             Hyper-localized syllabi · PostGIS school finder · Multi-language content
@@ -401,6 +489,12 @@ export function MultilingualEngine() {
 
           {showLangPicker && (
             <div className="absolute right-0 top-12 z-50 w-56 bg-slate-900/98 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200">
+              <div className="p-1 border-b border-white/5">
+                <p className="text-[9px] font-black uppercase tracking-widest text-white/30 px-2 py-1 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+                  {languages.length} languages · live
+                </p>
+              </div>
               <div className="p-2 max-h-64 overflow-y-auto no-scrollbar divide-y divide-white/5">
                 {languages.map((lang) => (
                   <button
@@ -424,25 +518,20 @@ export function MultilingualEngine() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         {/* Left: Syllabus + Content */}
         <div className="space-y-8">
-          {/* Syllabus picker */}
           <div className="space-y-4">
-            <SectionHeading icon={Layers} label="Regional Syllabus" />
+            <SectionHeading icon={Layers} label="Regional Syllabus" live />
             {loadingSyllabi ? (
               <div className="flex items-center gap-2 text-white/40 text-xs">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading syllabi...
               </div>
             ) : syllabi.length === 0 ? (
               <p className="text-xs text-white/30 italic">
-                No syllabi loaded yet. Run the migration SQL in Supabase to seed data.
+                No syllabi yet — run the migration SQL in Supabase to seed data.
               </p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {syllabi.map((s) => (
-                  <Pill
-                    key={s.id}
-                    active={selectedSyllabus === s.id}
-                    onClick={() => setSelectedSyllabus(s.id)}
-                  >
+                  <Pill key={s.id} active={selectedSyllabus === s.id} onClick={() => setSelectedSyllabus(s.id)}>
                     {s.name} · {s.country}
                   </Pill>
                 ))}
@@ -450,9 +539,8 @@ export function MultilingualEngine() {
             )}
           </div>
 
-          {/* Content browser */}
           <div className="space-y-4">
-            <SectionHeading icon={BookOpen} label="Learning Content" />
+            <SectionHeading icon={BookOpen} label="Learning Content" live={!!selectedSyllabus} />
             <ContentBrowser languageCode={selectedLang} syllabusId={selectedSyllabus} />
           </div>
         </div>
