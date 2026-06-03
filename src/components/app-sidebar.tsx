@@ -96,7 +96,7 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
   const firestore = useFirestore();
   const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
   
-  const isUnder10 = ageGroup === 'under-10';
+  const isUnder13 = ageGroup === 'under-10';
   const isAdmin = user?.uid === ADMIN_UID;
 
   React.useEffect(() => {
@@ -108,21 +108,21 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
   }, [user, firestore]);
 
   const mainMenuItems = [
-    { href: `/HomeTon/${ageGroup}`, label: 'HomeTon', icon: isUnder10 ? Rocket : LayoutGrid },
-    { href: '/stark-b-intelligence', label: 'Intelligence Hub', icon: isUnder10 ? Sparkles : Zap },
-    { href: `/feed/${ageGroup}`, label: 'Super Feed', icon: isUnder10 ? Box : Rss },
-    { href: '/search', label: 'Intelligence Node', icon: isUnder10 ? Atom : Search },
+    { href: `/HomeTon/${ageGroup}`, label: 'HomeTon', icon: isUnder13 ? Rocket : LayoutGrid },
+    { href: '/stark-b-intelligence', label: 'Intelligence Hub', icon: isUnder13 ? Sparkles : Zap },
+    { href: `/feed/${ageGroup}`, label: 'Super Feed', icon: isUnder13 ? Box : Rss },
+    { href: '/search', label: 'Intelligence Node', icon: isUnder13 ? Atom : Search },
     { href: '/documents', label: 'Document Sync', icon: FileText },
-    { href: '/favorites', label: 'Legacy Vault', icon: isUnder10 ? Heart : Heart },
-    { href: '/network', label: 'Network Lineage', icon: isUnder10 ? Users : Users },
-    { href: `/stories/${ageGroup}`, label: 'Legacy Stories', icon: isUnder10 ? BookOpen : BookOpen },
-    { href: `/reels/${ageGroup}`, label: 'Reels Gallery', icon: isUnder10 ? Clapperboard : Clapperboard },
-    { href: '/discover', label: 'Discovery Node', icon: isUnder10 ? Satellite : Satellite },
-    { href: '/chat', label: 'Secure Chat', icon: isUnder10 ? MessagesSquare : MessagesSquare },
-    { href: '/live-stream', label: 'Live Broadcast', icon: isUnder10 ? Radio : Radio },
+    { href: '/favorites', label: 'Legacy Vault', icon: isUnder13 ? Heart : Heart },
+    { href: '/network', label: 'Network Lineage', icon: isUnder13 ? Users : Users },
+    { href: `/stories/${ageGroup}`, label: 'Legacy Stories', icon: isUnder13 ? BookOpen : BookOpen },
+    { href: `/reels/${ageGroup}`, label: 'Reels Gallery', icon: isUnder13 ? Clapperboard : Clapperboard },
+    { href: '/discover', label: 'Discovery Node', icon: isUnder13 ? Satellite : Satellite },
+    { href: '/chat', label: 'Secure Chat', icon: isUnder13 ? MessagesSquare : MessagesSquare },
+    { href: '/live-stream', label: 'Live Broadcast', icon: isUnder13 ? Radio : Radio },
   ];
 
-  if (!isUnder10) {
+  if (!isUnder13) {
     mainMenuItems.push({ href: '/other-sm-platforms', label: 'Other Platforms', icon: Share2 });
   }
 
@@ -177,13 +177,13 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
               tooltip={item.label} 
               className={cn(
                 "py-6 px-4 group overflow-hidden transition-all duration-300",
-                isUnder10 && "hover:bg-white/10 rounded-2xl",
+                isUnder13 && "hover:bg-white/10 rounded-2xl",
                 isActive ? "bg-primary/20 border-r-4 border-primary" : "hover:bg-primary/10"
               )}
             >
               <item.icon className={cn(
                   "h-5 w-5 transition-colors duration-300 shrink-0",
-                  isUnder10 
+                  isUnder13 
                     ? (isEdu ? "text-orange-400 group-hover:text-orange-300" : "text-cyan-400 group-hover:text-cyan-300") 
                     : (isActive ? 'text-primary' : 'text-foreground/60 group-hover:text-primary')
               )} />
@@ -206,7 +206,7 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
   return (
     <Sidebar collapsible="offcanvas" side="left" className={cn(
         "border-r border-white/5 backdrop-blur-3xl transition-all duration-500",
-        isUnder10 ? "bg-[#05051a]/95" : "bg-background/80"
+        isUnder13 ? "bg-[#05051a]/95" : "bg-background/80"
     )}>
       <SidebarHeader className="py-10 px-6">
         <div className="flex items-center justify-between">
@@ -261,7 +261,7 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
       </SidebarContent>
       <SidebarFooter className="py-10 bg-black/40 mt-auto border-t border-white/5">
         <div className="flex flex-col items-center gap-6 px-6">
-            {!isUnder10 && (
+            {!isUnder13 && (
                 <div className="grid grid-cols-4 gap-4 py-4 border-b border-white/5 w-full">
                     <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-primary transition-all hover:scale-110 flex justify-center" title="X"><XIcon className="h-4 w-4" /></a>
                     <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-primary transition-all hover:scale-110 flex justify-center" title="Instagram"><Instagram className="h-4 w-4" /></a>

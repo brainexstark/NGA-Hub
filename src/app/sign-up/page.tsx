@@ -15,12 +15,12 @@ import { cn } from "../../lib/utils";
 import { AnimatedBg } from "../../components/animated-bg";
 
 type Step = 'account' | 'profile' | 'age';
-type AgeGroup = 'under-10' | '10-16' | '16-plus';
+type AgeGroup = 'under-13' | '14-17' | '18+';
 
 const AGE_GROUPS = [
-  { id: 'under-10' as AgeGroup, label: 'Under 10', emoji: '🧒', desc: 'Kids content & learning' },
-  { id: '10-16' as AgeGroup, label: '10 – 16', emoji: '🎓', desc: 'Teen content & education' },
-  { id: '16-plus' as AgeGroup, label: '17+', emoji: '🚀', desc: 'Full access & community' },
+  { id: 'under-13' as AgeGroup, label: 'Under 13', emoji: '🧒', desc: 'Kids content & learning' },
+  { id: '14-17' as AgeGroup, label: '14 – 17', emoji: '🎓', desc: 'Teen content & education' },
+  { id: '18+' as AgeGroup, label: '18+', emoji: '🚀', desc: 'Full access & community' },
 ];
 
 export default function SignUpPage() {

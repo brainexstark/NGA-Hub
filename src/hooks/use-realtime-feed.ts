@@ -118,8 +118,33 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
 }
 
 // Publish a post to Supabase
+// Stories go to the `stories` table; everything else goes to `posts`
 export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestore: any) {
   const results: string[] = [];
+
+  const isStory = post.type === 'story';
+
+  if (isStory) {
+    // Stories live in a separate table with a 24-hour TTL
+    try {
+      const { data, error } = await supabase.from('stories').insert({
+        user_id: post.userId || 'anonymous',
+        user_name: post.userName || 'User',
+        user_avatar: post.userAvatar || '',
+        media_url: post.mediaUrl || post.url || '',
+        caption: post.caption || '',
+        age_group: post.ageGroup || '14-17',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        views_count: 0,
+      }).select().single();
+
+      if (data) results.push(data.id);
+      if (error) console.warn('Story insert error:', error.message);
+    } catch (e) {
+      console.warn('Story publish failed:', e);
+    }
+    return results[0] || null;
+  }
 
   try {
     const { data, error } = await supabase.from('posts').insert({
@@ -131,7 +156,7 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
       media_url: post.mediaUrl || post.url || '',
       video_url: post.url || post.mediaUrl || '',
       category: post.category || 'general',
-      age_group: post.ageGroup || '10-16',
+      age_group: post.ageGroup || '14-17',
       likes_count: 0,
       comments_count: 0,
       is_flagged: false,
@@ -148,7 +173,7 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
           actorAvatar: post.userAvatar || '',
           message: `${post.userName} posted something new — check it out!`,
           postId: data.id,
-          ageGroup: post.ageGroup, // only notify users in the same age group
+          ageGroup: post.ageGroup,
         });
       } catch {}
     }
@@ -157,7 +182,7 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
     console.warn('Supabase publish failed:', e);
   }
 
-  // Firestore backup
+  // Firestore backup (posts only)
   if (firestore) {
     try {
       const { collection: col, addDoc, serverTimestamp } = await import('firebase/firestore');
@@ -166,7 +191,7 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
         isFlagged: false,
         createdAt: serverTimestamp(),
       });
-      results.push(ref.id);
+      if (!results.length) results.push(ref.id);
     } catch (e) {
       console.warn('Firestore publish failed:', e);
     }

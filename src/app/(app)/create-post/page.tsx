@@ -287,7 +287,7 @@ function CreatePostContent() {
 
       if (postId) {
         toast({ title: 'Published!', description: 'Your content is now live.' });
-        router.push(`/HomeTon/${profile?.ageGroup || '10-16'}`);
+        router.push(`/HomeTon/${profile?.ageGroup || '14-17'}`);
       } else {
         toast({ variant: 'destructive', title: 'Publish failed', description: 'Could not save. Try again.' });
         setIsSubmitting(false);
@@ -479,7 +479,7 @@ function CreatePostContent() {
 
       <div className="flex-1 p-5 space-y-5 max-w-lg mx-auto w-full">
         {/* Preview thumbnail */}
-        <div className="relative aspect-square rounded-3xl overflow-hidden bg-black max-w-xs mx-auto w-full">
+        <div className="relative aspect-[9/16] rounded-3xl overflow-hidden bg-black max-w-xs mx-auto w-full">
           <MediaPreview url={mediaUrl} fileType={fileType} filter={fullFilter}
             textOverlay={textOverlay} textColor={textColor} muted />
           {musicName && (

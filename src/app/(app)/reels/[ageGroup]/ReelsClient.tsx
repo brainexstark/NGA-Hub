@@ -3,11 +3,12 @@
 import * as React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "../../../../components/ui/avatar";
 import { Button } from "../../../../components/ui/button";
-import { Heart, MessageCircle, Share2, Zap, Globe, Newspaper, Music, Trophy, Tv, Download } from "lucide-react";
+import { Heart, MessageCircle, Share2, Zap, Globe, Newspaper, Music, Trophy, Tv, Download, ArrowLeft } from "lucide-react";
 import { useToast } from "../../../../hooks/use-toast";
 import { ShareDialog } from '../../../../components/share-dialog';
 import { cn, getEmbedUrl } from '../../../../lib/utils';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from "../../../../firebase";
 import { collection, serverTimestamp, doc, addDoc } from "firebase/firestore";
 import type { UserProfile } from '../../../../lib/types';
@@ -62,7 +63,7 @@ function AutoPlayReel({ url, isActive }: { url: string; isActive: boolean }) {
       <video
         ref={videoRef}
         src={url}
-        className="w-full h-full object-cover"
+        className="w-full h-full object-contain bg-black"
         muted
         loop
         playsInline
@@ -237,7 +238,9 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
   const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
-  const isUnder10 = ageGroup === 'under-10';
+  const router = useRouter();
+  const isUnder13 = ageGroup === 'under-13';
+  const is18Plus = ageGroup === '18+';
 
   const profileRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -268,34 +271,42 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
         userAvatar: p.userAvatar,
       }));
 
-    if (!isUnder10) return userReels;
+    if (!isUnder13) return userReels;
     return userReels.filter(r => !containsInappropriateWords(`${r.description || ''}`));
-  }, [supabasePosts, isUnder10]);
+  }, [supabasePosts, isUnder13]);
 
   const reels = React.useMemo(() => {
     if (activeCategory === 'all') return allReels;
     return allReels.filter((r: any) => r.category === activeCategory);
   }, [allReels, activeCategory]);
 
-  // Track active reel via IntersectionObserver
+  // Track active reel via IntersectionObserver — re-runs whenever reels list changes
   React.useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
-    const items = container.querySelectorAll('[data-reel-item]');
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            const idx = Number((entry.target as HTMLElement).dataset.reelIndex);
-            setActiveIndex(idx);
-            window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
-          }
-        });
-      },
-      { root: container, threshold: 0.7 }
-    );
-    items.forEach(item => observer.observe(item));
-    return () => observer.disconnect();
+    if (!container || reels.length === 0) return;
+
+    // Small delay to let DOM settle after reels render
+    const timeoutId = setTimeout(() => {
+      const items = container.querySelectorAll('[data-reel-item]');
+      if (!items.length) return;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+              const idx = Number((entry.target as HTMLElement).dataset.reelIndex);
+              setActiveIndex(idx);
+              window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
+            }
+          });
+        },
+        { root: container, threshold: 0.6 }
+      );
+      items.forEach(item => observer.observe(item));
+      return () => observer.disconnect();
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
   }, [reels]);
 
   const handleSave = (reel: any) => {
@@ -308,25 +319,37 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen fixed inset-0 overflow-hidden">
-      {/* Category bar */}
-      <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 py-3 bg-black/60 backdrop-blur-xl border-b border-white/5 shrink-0 z-10 absolute top-0 left-0 right-0">
-        {CATEGORIES.map(cat => (
-          <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setActiveIndex(0); }}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest whitespace-nowrap transition-all border shrink-0",
-              activeCategory === cat.id ? "bg-primary text-white border-primary shadow-lg" : "bg-white/10 text-white/60 border-white/10"
-            )}>
-            <cat.icon className="h-3 w-3" />{cat.label}
-          </button>
-        ))}
+    <div className="flex flex-col h-[100dvh] w-full fixed inset-0 overflow-hidden bg-black">
+      {/* Top bar: back button + category filter */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-black/70 backdrop-blur-xl border-b border-white/5 shrink-0 z-20 absolute top-0 left-0 right-0">
+        {/* Back button */}
+        <button
+          onClick={() => router.back()}
+          className="shrink-0 h-8 w-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors active:scale-90"
+          aria-label="Go back"
+        >
+          <ArrowLeft className="h-4 w-4 text-white" />
+        </button>
+
+        {/* Category pills */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1">
+          {CATEGORIES.map(cat => (
+            <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setActiveIndex(0); }}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full font-black text-[9px] uppercase tracking-widest whitespace-nowrap transition-all border shrink-0",
+                activeCategory === cat.id ? "bg-primary text-white border-primary shadow-lg" : "bg-white/10 text-white/60 border-white/10"
+              )}>
+              <cat.icon className="h-3 w-3" />{cat.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Full-screen snap scroll */}
-      <div ref={containerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory no-scrollbar">
-        {/* Skeleton while loading — never show "no reels" */}
+      {/* Full-screen snap scroll — sits below the top bar */}
+      <div ref={containerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory no-scrollbar pt-12">
+        {/* Skeleton while loading */}
         {reels.length === 0 && (
-          <div className="h-screen w-full flex flex-col items-center justify-center gap-6 animate-pulse">
+          <div className="h-[100dvh] w-full flex flex-col items-center justify-center gap-6 animate-pulse">
             <div className="h-20 w-20 rounded-full bg-white/10" />
             <div className="space-y-3 w-48">
               <div className="h-3 bg-white/10 rounded-full" />
@@ -341,7 +364,7 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
         )}
         {reels.map((reel: any, i: number) => (
           <div key={reel.id} data-reel-item data-reel-index={i}
-            className="h-screen w-full snap-center relative overflow-hidden bg-black flex-shrink-0">
+            className="h-[calc(100dvh-3rem)] w-full snap-center relative overflow-hidden bg-black flex-shrink-0">
             <ReelItem
               reel={reel} index={i} activeIndex={activeIndex} ageGroup={ageGroup}
               onSave={handleSave}

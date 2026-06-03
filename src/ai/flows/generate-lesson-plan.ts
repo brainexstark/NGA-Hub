@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { containsInappropriateWords } from '../../lib/inappropriate-words';
 
-export type LessonPlanInput = { topic: string; ageGroup: 'under 10' | '10-16' | '16+' };
+export type LessonPlanInput = { topic: string; ageGroup: 'under-13' | '14-17' | '18+' };
 export type LessonPlanOutput = { lessonPlan: string };
 
 export async function generateLessonPlan(input: LessonPlanInput): Promise<LessonPlanOutput> {

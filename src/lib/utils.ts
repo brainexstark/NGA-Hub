@@ -88,6 +88,7 @@ export function isVideoUrl(url: string, fileType?: string): boolean {
     lower.endsWith('.m4v') ||
     lower.endsWith('.ogv') ||
     lower.startsWith('data:video') ||
+    lower.startsWith('blob:') ||
     lower.includes('/video/') ||
     lower.includes('video_url') ||
     lower.includes('shorts/')

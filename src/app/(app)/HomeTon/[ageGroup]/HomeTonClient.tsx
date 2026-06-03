@@ -15,6 +15,7 @@ import {
 import { cn, getEmbedUrl } from '../../../../lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../../components/ui/avatar';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "../../../../components/ui/dialog";
+import { Card } from '../../../../components/ui/card';
 import { useToast } from '../../../../hooks/use-toast';
 import { SocialStatsPopover } from '../../../../components/social-stats-popover';
 import { fetchAds, injectAds, isAd, type Ad } from '../../../../lib/ads';
@@ -24,8 +25,23 @@ import { filterForUnder10 } from '../../../../lib/inappropriate-words';
 import { supabase } from '../../../../lib/supabase';
 
 const InternalPlayer = ({ url }: { url: string }) => {
+  if (!url) return null;
+  const lower = url.toLowerCase();
+  const isExternal = lower.includes('youtube') || lower.includes('youtu.be') ||
+    lower.includes('tiktok') || lower.includes('instagram') || lower.includes('vimeo');
+  const isDirectVideo = lower.endsWith('.mp4') || lower.endsWith('.webm') ||
+    lower.endsWith('.mov') || lower.startsWith('blob:') || lower.startsWith('data:video') ||
+    lower.includes('/storage/v1/object/') || lower.includes('/object/public/');
+
+  if (isExternal) {
     const embedUrl = getEmbedUrl(url);
     return <iframe src={embedUrl} className="w-full h-full border-none" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
+  }
+  if (isDirectVideo) {
+    return <video src={url} className="w-full h-full object-contain bg-black" autoPlay muted controls playsInline />;
+  }
+  // Fallback: try iframe (covers misc embeds)
+  return <iframe src={url} className="w-full h-full border-none" allowFullScreen />;
 };
 
 // Inline notification bell for HomeTon header
@@ -108,7 +124,8 @@ function FeedMedia({ url }: { url: string }) {
     const l = url.toLowerCase();
     return l.includes('youtube') || l.includes('youtu.be') || l.includes('tiktok') ||
       l.includes('instagram') || l.endsWith('.mp4') || l.endsWith('.webm') ||
-      l.endsWith('.mov') || l.startsWith('data:video') || l.includes('blob:');
+      l.endsWith('.mov') || l.startsWith('data:video') || l.includes('blob:') ||
+      l.includes('/storage/v1/object/') || l.includes('/object/public/');
   }, [url]);
 
   const isExternal = !!(url?.includes('youtube') || url?.includes('youtu.be') ||
@@ -146,10 +163,10 @@ function FeedMedia({ url }: { url: string }) {
     return base.includes('?') ? `${base}&autoplay=1&mute=1&playsinline=1` : `${base}?autoplay=1&mute=1&playsinline=1`;
   }, [url, isExternal, inView]);
 
-  if (!url) return <div className="w-full aspect-square bg-black" />;
+  if (!url) return <div className="w-full aspect-[9/16] bg-black" />;
 
   return (
-    <div ref={ref} className="w-full aspect-square bg-black overflow-hidden">
+    <div ref={ref} className="w-full aspect-[9/16] bg-black overflow-hidden">
       {!isVideo ? (
         // Image — never autoplay
         <img src={url} alt="post" className="w-full h-full object-cover" loading="lazy" />
@@ -170,11 +187,11 @@ function FeedMedia({ url }: { url: string }) {
           </div>
         )
       ) : (
-        // Native video — play/pause via ref
+        // Native video — play/pause via ref, object-contain so it's never cropped
         <video
           ref={videoRef}
           src={url}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain bg-black"
           muted
           loop
           playsInline
@@ -270,8 +287,114 @@ function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid, i
   );
 }
 
+// Captures the first frame of a video as a thumbnail.
+// For direct videos: loads metadata, seeks to frame 0, draws to canvas.
+// For YouTube: uses img.youtube.com thumbnail API.
+// For TikTok/Instagram: shows a play icon placeholder (no API access).
+function VideoThumbnail({ url }: { url: string }) {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const [thumb, setThumb] = React.useState<string | null>(null);
+  const [ready, setReady] = React.useState(false);
+
+  const lower = url?.toLowerCase() || '';
+
+  const isYouTube = lower.includes('youtube.com') || lower.includes('youtu.be');
+  const isTikTok  = lower.includes('tiktok.com');
+  const isInsta   = lower.includes('instagram.com');
+  const isDirectVideo =
+    lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.mov') ||
+    lower.endsWith('.m4v') || lower.endsWith('.avi') ||
+    lower.startsWith('blob:') || lower.startsWith('data:video') ||
+    lower.includes('/storage/v1/object/') || lower.includes('/object/public/');
+
+  // YouTube — free CDN thumbnail, no CORS issues
+  React.useEffect(() => {
+    if (!isYouTube) return;
+    const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+    if (m) setThumb(`https://img.youtube.com/vi/${m[1]}/mqdefault.jpg`);
+    setReady(true);
+  }, [url, isYouTube]);
+
+  // Direct video — seek to first frame and capture via canvas
+  React.useEffect(() => {
+    if (!isDirectVideo || !url) return;
+
+    const vid = document.createElement('video');
+    vid.crossOrigin = 'anonymous';
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.preload = 'metadata';
+
+    // Step 1: once metadata loaded, seek to just past start
+    const onMetadata = () => { vid.currentTime = 0.01; };
+
+    // Step 2: once seeked, draw frame to canvas
+    const onSeeked = () => {
+      try {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        canvas.width  = vid.videoWidth  || 160;
+        canvas.height = vid.videoHeight || 284;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+          setThumb(canvas.toDataURL('image/jpeg', 0.75));
+        }
+      } catch { /* cross-origin may block — that's fine */ }
+      setReady(true);
+      vid.src = '';
+    };
+
+    const onError = () => { setReady(true); vid.src = ''; };
+
+    vid.addEventListener('loadedmetadata', onMetadata);
+    vid.addEventListener('seeked', onSeeked);
+    vid.addEventListener('error', onError);
+    vid.src = url;
+    vid.load();
+
+    return () => {
+      vid.removeEventListener('loadedmetadata', onMetadata);
+      vid.removeEventListener('seeked', onSeeked);
+      vid.removeEventListener('error', onError);
+      vid.src = '';
+    };
+  }, [url, isDirectVideo]);
+
+  // TikTok / Instagram — no embeddable thumbnail, show icon
+  if (isTikTok || isInsta) {
+    return (
+      <div className="w-full h-full bg-gradient-to-br from-pink-900/40 to-purple-900/40 flex items-center justify-center">
+        <PlayCircle className="h-8 w-8 text-white/40" />
+      </div>
+    );
+  }
+
+  // YouTube — show fetched thumbnail
+  if (isYouTube) {
+    return thumb
+      ? <img src={thumb} alt="" className="w-full h-full object-cover" />
+      : <div className="w-full h-full bg-white/5 flex items-center justify-center"><PlayCircle className="h-8 w-8 text-white/30" /></div>;
+  }
+
+  // Direct video — canvas capture + loading shimmer
+  return (
+    <>
+      <canvas ref={canvasRef} className="hidden" />
+      {thumb
+        ? <img src={thumb} alt="" className="w-full h-full object-cover" />
+        : !ready
+          ? <div className="w-full h-full bg-white/10 animate-pulse" />
+          : <div className="w-full h-full bg-white/5 flex items-center justify-center">
+              <PlayCircle className="h-8 w-8 text-white/30" />
+            </div>
+      }
+    </>
+  );
+}
+
 export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
-  const isUnder10 = ageGroup === 'under-10';
+  const isUnder13 = ageGroup === 'under-13';
   
   const router = useRouter();
   const { toast } = useToast();
@@ -384,7 +507,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
 
   if (!mounted) return null;
 
-  if (isUnder10) {
+  if (isUnder13) {
     return (
       <div className="min-h-screen bg-[#0d0620] text-white relative overflow-x-hidden animate-in fade-in duration-1000">
         <div className="fixed inset-0 pointer-events-none z-0">
@@ -458,7 +581,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                                 <div className={cn("relative p-1.5 rounded-full shadow-xl group-hover:scale-110 transition-transform", i % 2 === 0 ? "bg-gradient-to-tr from-blue-400 to-cyan-500" : "bg-gradient-to-tr from-purple-400 to-pink-500")}>
                                     <div className="h-20 w-20 rounded-full border-4 border-[#0a052a] overflow-hidden">
                                         <Avatar className="h-full w-full">
-                                          <AvatarImage src={story.user_avatar || story.media_url} className="object-cover" />
+                                          <AvatarImage src={story.user_avatar || ''} className="object-cover" />
                                           <AvatarFallback className="bg-cyan-900 text-white font-black">
                                             {story.user_name?.[0]?.toUpperCase() || 'U'}
                                           </AvatarFallback>
@@ -470,9 +593,9 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                                 </span>
                             </div>
                         </DialogTrigger>
-                        <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-4 border-cyan-400 bg-black rounded-[3rem] shadow-2xl flex items-center justify-center">
+                        <DialogContent className="max-w-[min(420px,96vw)] h-[90vh] p-0 overflow-hidden border-none bg-black rounded-[2rem] shadow-2xl flex items-center justify-center">
                             <DialogTitle className="sr-only">Story</DialogTitle>
-                            <div className="w-full h-full relative aspect-[9/16]">
+                            <div className="w-full h-full">
                                 <InternalPlayer url={story.media_url} />
                             </div>
                         </DialogContent>
@@ -526,7 +649,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                     {kidsVideos.slice(0, 6).map((v: any) => (
                         <Dialog key={v.id}>
                             <DialogTrigger asChild>
-                                <div className="relative overflow-hidden cursor-pointer group aspect-video" onClick={handleTriggerCycle}>
+                                <div className="relative overflow-hidden cursor-pointer group aspect-[9/16]" onClick={handleTriggerCycle}>
                                     <Image src={v.mediaUrl || v.imageUrl || ''} alt={v.title || v.caption || 'video'} fill className="object-cover opacity-70 group-hover:opacity-90 transition-opacity rounded-[1.5rem]" unoptimized />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent rounded-[1.5rem]" />
                                     <div className="absolute bottom-3 left-4 right-4">
@@ -630,7 +753,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                 <div className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group" onClick={handleTriggerCycle}>
                   <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-background ring-2 ring-primary group-hover:scale-105 transition-all">
                     <Avatar className="h-full w-full">
-                      <AvatarImage src={story.user_avatar || story.media_url} className="object-cover" />
+                      <AvatarImage src={story.user_avatar || ''} className="object-cover" />
                       <AvatarFallback className="bg-primary/20 text-primary font-black">
                         {story.user_name?.[0]?.toUpperCase() || 'U'}
                       </AvatarFallback>
@@ -641,7 +764,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                   </span>
                 </div>
               </DialogTrigger>
-              <DialogContent className="max-w-[96vw] h-[96vh] p-0 overflow-hidden border-2 border-primary/20 bg-black rounded-[3rem] shadow-2xl">
+              <DialogContent className="max-w-[min(420px,96vw)] h-[90vh] p-0 overflow-hidden border-none bg-black rounded-[2rem] shadow-2xl">
                 <DialogTitle className="sr-only">Story</DialogTitle>
                 <div className="w-full h-full"><InternalPlayer url={story.media_url} /></div>
               </DialogContent>
@@ -664,7 +787,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                     <div className="h-2 w-16 bg-white/5 rounded-full" />
                   </div>
                 </div>
-                <div className="w-full aspect-square bg-white/5" />
+                <div className="w-full aspect-[9/16] bg-white/5" />
                 <div className="px-4 py-3 flex gap-5">
                   <div className="h-6 w-6 rounded-full bg-white/10" />
                   <div className="h-6 w-6 rounded-full bg-white/10" />
@@ -748,11 +871,18 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                     {supabasePosts.slice(0, 6).map(reel => (
                       <Link key={reel.id} href={`/reels/${ageGroup}`}
                         className="shrink-0 w-28 aspect-[9/16] rounded-2xl overflow-hidden relative bg-black border border-white/10 block">
-                        {reel.mediaUrl && <img src={reel.mediaUrl} alt="" className="w-full h-full object-cover" />}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                        <p className="absolute bottom-2 left-2 right-2 text-[9px] font-black text-white truncate">
-                          @{(reel.userName || 'user').replace(/\s/g,'_').toLowerCase()}
-                        </p>
+                        <VideoThumbnail url={reel.url || reel.mediaUrl} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                        <div className="absolute bottom-0 left-0 right-0 p-2">
+                          <p className="text-[9px] font-black text-white truncate">
+                            @{(reel.userName || 'user').replace(/\s/g,'_').toLowerCase()}
+                          </p>
+                        </div>
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                          <div className="h-8 w-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20">
+                            <PlayCircle className="h-4 w-4 text-white" />
+                          </div>
+                        </div>
                       </Link>
                     ))}
                   </div>

@@ -56,7 +56,7 @@ export default function SocialPlatformsPage() {
   const { data: profile } = useDoc<UserProfile>(profileRef);
 
   React.useEffect(() => {
-    if (profile && profile.ageGroup === 'under-10') {
+    if (profile && profile.ageGroup === 'under-13') {
         router.replace(`/HomeTon/${profile.ageGroup}`);
     }
   }, [profile, router]);

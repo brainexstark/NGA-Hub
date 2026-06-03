@@ -56,7 +56,7 @@ export default function ShareTargetPage() {
           url: mediaUrl,
           caption,
           title: title || caption,
-          ageGroup: profile.ageGroup || '10-16',
+          ageGroup: profile.ageGroup || '14-17',
           likesCount: 0,
           commentsCount: 0,
           isFlagged: false,
@@ -67,7 +67,7 @@ export default function ShareTargetPage() {
         toast({ title: 'Posted to NGA Hub!', description: 'Your shared content is now live.' });
 
         setTimeout(() => {
-          router.push(`/feed/${profile.ageGroup || '10-16'}`);
+          router.push(`/feed/${profile.ageGroup || '14-17'}`);
         }, 2000);
       } catch (err: any) {
         setStatus('error');

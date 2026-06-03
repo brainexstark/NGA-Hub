@@ -51,7 +51,7 @@ export function TimesUp({ mode = 'entertainment' }: TimesUpProps) {
           <div className="flex flex-col gap-4">
             {isEdu ? (
               <>
-                <Link href={`/HomeTon/${profile?.ageGroup || '10-16'}`} className="w-full">
+                <Link href={`/HomeTon/${profile?.ageGroup || '14-17'}`} className="w-full">
                   <Button size="lg" className="w-full h-16 rounded-[1.5rem] font-black uppercase tracking-widest shadow-2xl shadow-primary/30 text-sm group"
                     onClick={() => window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'))}>
                     <PlayCircle className="mr-3 h-6 w-6 group-hover:scale-110 transition-transform" />
@@ -74,7 +74,7 @@ export function TimesUp({ mode = 'entertainment' }: TimesUpProps) {
                     Enter Educational Portal
                   </Button>
                 </Link>
-                {profile?.ageGroup === '16-plus' && (
+                {profile?.ageGroup === '18+' && (
                   <Link href="/adult-guidance" className="w-full">
                     <Button size="lg" variant="secondary" className="w-full h-16 rounded-[1.5rem] font-black uppercase tracking-widest shadow-2xl shadow-accent/20 text-sm group border-2 border-accent/20">
                       <ShieldCheck className="mr-3 h-6 w-6 text-accent group-hover:scale-110 transition-transform" />

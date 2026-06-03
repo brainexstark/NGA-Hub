@@ -2,9 +2,9 @@ import { redirect } from 'next/navigation';
 
 export function generateStaticParams() {
   return [
-    { ageGroup: 'under-10' },
-    { ageGroup: '10-16' },
-    { ageGroup: '16-plus' },
+    { ageGroup: 'under-13' },
+    { ageGroup: '14-17' },
+    { ageGroup: '18+' },
   ];
 }
 

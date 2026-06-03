@@ -123,7 +123,7 @@ function StreamBroadcaster({ profile, user, onEnd }: { profile: UserProfile | nu
     const id = await startLiveStream(
       user.uid, profile?.displayName || user.displayName || 'Host',
       profile?.profilePicture || user.photoURL || '',
-      title, profile?.ageGroup || '10-16'
+      title, profile?.ageGroup || '14-17'
     );
     if (id) { setStreamId(id); setIsStreaming(true); }
     else toast({ variant: 'destructive', title: 'Could not start stream. Check Supabase connection.' });
@@ -232,7 +232,7 @@ export default function LiveStreamPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [view, setView] = useState<'lobby' | 'broadcast' | 'watch'>('lobby');
   const [watchingId, setWatchingId] = useState<string | null>(null);
-  const activeStreams = useActiveStreams(profile?.ageGroup || '10-16');
+  const activeStreams = useActiveStreams(profile?.ageGroup || '14-17');
 
   useEffect(() => {
     if (user && firestore) {

@@ -620,9 +620,9 @@ export default function AppLayout({
     );
   }
 
-  if (isAuthFlow || pathname === '/') return <div className={`theme-${userProfile?.ageGroup || '10-16'}-v${themeVariant}`}>{children}</div>;
+  if (isAuthFlow || pathname === '/') return <div className={`theme-${userProfile?.ageGroup || '14-17'}-v${themeVariant}`}>{children}</div>;
 
-  const ageGroup = userProfile?.ageGroup || '10-16';
+  const ageGroup = userProfile?.ageGroup || '14-17';
   const isEducationalNode = educationalPaths.some(path => pathname.startsWith(path));
   const shouldShowLockdown = (protocolStatus === 'MISSION_REQUIRED' && !isEducationalNode) || (protocolStatus === 'EDU_LIMIT' && isEducationalNode);
   // Active timer to show in header

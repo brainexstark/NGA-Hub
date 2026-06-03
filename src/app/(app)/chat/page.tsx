@@ -59,7 +59,7 @@ export default function ChatPage() {
         return doc(firestore, 'users', user.uid);
     }, [user, firestore]);
     const { data: profile } = useDoc<UserProfile>(profileRef);
-    const isUnder10 = profile?.ageGroup === 'under-10';
+    const isUnder13 = profile?.ageGroup === 'under-13';
 
     const [view, setView] = useState<'hub' | 'thread'>('hub');
     const [activeChat, setActiveChat] = useState<any>(null);
@@ -90,15 +90,15 @@ export default function ChatPage() {
         { id: 'kc3', name: 'Story Teller 📖', avatar: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b', email: 'stories@stark-b.kids' },
     ];
 
-    const [chats, setChats] = useState(isUnder10 ? kidsChats : []);
-    const [contacts, setContacts] = useState(isUnder10 ? kidsContacts : []);
+    const [chats, setChats] = useState(isUnder13 ? kidsChats : []);
+    const [contacts, setContacts] = useState(isUnder13 ? kidsContacts : []);
     const [loadingUsers, setLoadingUsers] = useState(true);
 
     // Fetch real app users from Supabase in realtime — same age group only
     const { users: appUsers, loading: usersLoading } = useAppUsers(profile?.ageGroup);
 
     useEffect(() => {
-        if (isUnder10) { setLoadingUsers(false); return; }
+        if (isUnder13) { setLoadingUsers(false); return; }
         if (!usersLoading) {
             const others = appUsers.filter((u: any) => u.id !== user?.uid && u.display_name);
             if (others.length > 0) {
@@ -119,11 +119,11 @@ export default function ChatPage() {
             }
             setLoadingUsers(false);
         }
-    }, [appUsers, usersLoading, user?.uid, isUnder10]);
+    }, [appUsers, usersLoading, user?.uid, isUnder13]);
 
     useEffect(() => {
-        if (isUnder10) { setChats(kidsChats); setContacts(kidsContacts); }
-    }, [isUnder10]);
+        if (isUnder13) { setChats(kidsChats); setContacts(kidsContacts); }
+    }, [isUnder13]);
 
     const activeChatUnsubRef = React.useRef<(() => void) | null>(null);
 
@@ -209,7 +209,7 @@ export default function ChatPage() {
             const newChatNode = {
                 id: contact.id || `new-${Date.now()}`,
                 name: contact.name,
-                lastMessage: isUnder10 ? "Say hello! 👋" : "Initializing secure link... 👋",
+                lastMessage: isUnder13 ? "Say hello! 👋" : "Initializing secure link... 👋",
                 time: "Just Now",
                 unread: 0,
                 avatar: contact.avatar,
@@ -284,17 +284,17 @@ export default function ChatPage() {
             <div className="flex flex-col h-full bg-background max-w-2xl mx-auto w-full border-x border-white/5 animate-in fade-in duration-500 overflow-hidden">
                 <header className={cn(
                     "px-6 pt-12 pb-6 relative overflow-hidden text-white",
-                    isUnder10 ? "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500" : "bg-gradient-to-br from-primary via-primary to-accent"
+                    isUnder13 ? "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500" : "bg-gradient-to-br from-primary via-primary to-accent"
                 )}>
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32 animate-pulse" />
                     
                     <div className="flex items-center justify-between mb-8 relative z-10">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-white/20 backdrop-blur-md rounded-2xl border border-white/20">
-                                {isUnder10 ? <ToyBrick className="h-6 w-6 text-white" /> : <Sparkles className="h-6 w-6 text-white" />}
+                                {isUnder13 ? <ToyBrick className="h-6 w-6 text-white" /> : <Sparkles className="h-6 w-6 text-white" />}
                             </div>
                             <h1 className="text-3xl font-black uppercase tracking-tighter font-headline">
-                                {isUnder10 ? "My Friends" : "Chating"}
+                                {isUnder13 ? "My Friends" : "Chating"}
                             </h1>
                         </div>
                         <div className="flex items-center gap-4">
@@ -307,7 +307,7 @@ export default function ChatPage() {
                         <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-[2rem] p-2 focus-within:bg-white/20 transition-all">
                             <Search className="ml-4 h-5 w-5 opacity-60" />
                             <Input 
-                                placeholder={isUnder10 ? "Find a friend..." : "Search transmissions..."}
+                                placeholder={isUnder13 ? "Find a friend..." : "Search transmissions..."}
                                 className="bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-white/40 font-medium h-10"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
@@ -318,13 +318,13 @@ export default function ChatPage() {
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full relative z-10">
                         <TabsList className="bg-transparent w-full h-12 p-0 rounded-none justify-between border-b border-white/10">
                             <TabsTrigger value="chats" className="flex-1 bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-4 data-[state=active]:border-white text-white/60 data-[state=active]:text-white rounded-none uppercase text-[10px] font-black tracking-widest py-3 flex items-center justify-center gap-2">
-                                {isUnder10 ? "Fun Hub" : "Node Clusters"} <span className="bg-white text-primary text-[10px] font-black h-4 w-4 rounded-full flex items-center justify-center">1</span>
+                                {isUnder13 ? "Fun Hub" : "Node Clusters"} <span className="bg-white text-primary text-[10px] font-black h-4 w-4 rounded-full flex items-center justify-center">1</span>
                             </TabsTrigger>
                             <TabsTrigger value="status" className="flex-1 bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-4 data-[state=active]:border-white text-white/60 data-[state=active]:text-white rounded-none uppercase text-[10px] font-black tracking-widest py-3">
-                                {isUnder10 ? "My Moments" : "Status Nodes"}
+                                {isUnder13 ? "My Moments" : "Status Nodes"}
                             </TabsTrigger>
                             <TabsTrigger value="calls" className="flex-1 bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-4 data-[state=active]:border-white text-white/60 data-[state=active]:text-white rounded-none uppercase text-[10px] font-black tracking-widest py-3">
-                                {isUnder10 ? "Fun Calls" : "Live Links"}
+                                {isUnder13 ? "Fun Calls" : "Live Links"}
                             </TabsTrigger>
                         </TabsList>
                     </Tabs>
@@ -339,12 +339,12 @@ export default function ChatPage() {
                                         <div className="h-16 w-16 rounded-full border-2 border-dashed border-primary/40 flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-all">
                                             <Plus className="h-6 w-6 text-primary" />
                                         </div>
-                                        <span className="text-[9px] font-black uppercase opacity-40">{isUnder10 ? "New Friend" : "New Link"}</span>
+                                        <span className="text-[9px] font-black uppercase opacity-40">{isUnder13 ? "New Friend" : "New Link"}</span>
                                     </div>
                                     {contacts.map((contact) => (
                                         <div key={contact.id} className="flex flex-col items-center gap-2 flex-shrink-0 cursor-pointer" onClick={() => handleStartNewChat(contact)}>
                                             <div className="relative">
-                                                <div className={cn("p-1 rounded-full bg-gradient-to-tr", isUnder10 ? "from-indigo-400 to-cyan-400" : "from-primary to-accent")}>
+                                                <div className={cn("p-1 rounded-full bg-gradient-to-tr", isUnder13 ? "from-indigo-400 to-cyan-400" : "from-primary to-accent")}>
                                                     <Avatar className="h-14 w-14 border-2 border-background">
                                                         <AvatarImage src={contact.avatar} className="object-cover" />
                                                         <AvatarFallback>{contact.name[0]}</AvatarFallback>
@@ -357,13 +357,13 @@ export default function ChatPage() {
                                     ))}
                                 </div>
 
-                                {loadingUsers && !isUnder10 && (
+                                {loadingUsers && !isUnder13 && (
                                     <div className="flex items-center justify-center gap-2 py-4 opacity-40">
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Loading app users...</span>
                                     </div>
                                 )}
-                                {!loadingUsers && !isUnder10 && filteredChats.length === 0 && (
+                                {!loadingUsers && !isUnder13 && filteredChats.length === 0 && (
                                     <div className="flex flex-col items-center justify-center gap-3 py-10 opacity-30">
                                         <Ghost className="h-10 w-10" />
                                         <p className="text-[10px] font-black uppercase tracking-widest">No users found yet</p>
@@ -379,7 +379,7 @@ export default function ChatPage() {
                                             <div className="relative shrink-0">
                                                 <div className={cn(
                                                     "p-0.5 rounded-full transition-all",
-                                                    chat.unread > 0 ? (isUnder10 ? "bg-gradient-to-tr from-cyan-400 to-blue-400" : "bg-gradient-to-tr from-primary to-accent") : "bg-transparent"
+                                                    chat.unread > 0 ? (isUnder13 ? "bg-gradient-to-tr from-cyan-400 to-blue-400" : "bg-gradient-to-tr from-primary to-accent") : "bg-transparent"
                                                 )}>
                                                     <Avatar className="h-16 w-16 border-2 border-background">
                                                         <AvatarImage src={chat.avatar} className="object-cover" />
@@ -406,7 +406,7 @@ export default function ChatPage() {
                                                     <div className="flex items-center gap-1.5 text-sm truncate pr-4 text-muted-foreground font-medium italic">
                                                         {chat.type === 'voice' && <Mic className="h-3 w-3 text-primary" />}
                                                         {chat.status === 'typing' ? (
-                                                            <span className="text-primary font-black not-italic animate-pulse">{isUnder10 ? "Thinking..." : "Synchronizing node..."}</span>
+                                                            <span className="text-primary font-black not-italic animate-pulse">{isUnder13 ? "Thinking..." : "Synchronizing node..."}</span>
                                                         ) : (
                                                             <span className="truncate">{chat.lastMessage}</span>
                                                         )}
@@ -435,7 +435,7 @@ export default function ChatPage() {
                                         </div>
                                     </div>
                                     <div>
-                                        <h3 className="font-black text-lg tracking-tight uppercase">{isUnder10 ? "Share Fun" : "My Status"}</h3>
+                                        <h3 className="font-black text-lg tracking-tight uppercase">{isUnder13 ? "Share Fun" : "My Status"}</h3>
                                         <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">Tap to add status node</p>
                                     </div>
                                 </div>
@@ -514,7 +514,7 @@ export default function ChatPage() {
                         onClick={() => setIsNewChatOpen(true)}
                         className={cn(
                             "fixed bottom-24 right-8 h-16 w-16 rounded-3xl flex items-center justify-center text-white shadow-2xl hover:scale-110 active:scale-95 transition-all z-50 border-4 border-background/20",
-                            isUnder10 ? "bg-gradient-to-tr from-indigo-400 to-cyan-400" : "bg-gradient-to-tr from-primary to-accent"
+                            isUnder13 ? "bg-gradient-to-tr from-indigo-400 to-cyan-400" : "bg-gradient-to-tr from-primary to-accent"
                         )}
                     >
                         <MessageCircle className="h-8 w-8 fill-current" />
@@ -523,11 +523,11 @@ export default function ChatPage() {
 
                 <footer className="h-20 border-t border-white/5 bg-background/80 backdrop-blur-xl flex items-center justify-around px-6">
                     {[
-                        { icon: MessageSquare, label: isUnder10 ? 'Fun' : 'Chats', active: activeTab === 'chats', tab: 'chats' },
-                        { icon: CircleDashed, label: isUnder10 ? 'Moments' : 'Status', active: activeTab === 'status', tab: 'status' },
-                        { icon: Sparkles, label: isUnder10 ? 'AI' : 'Node AI', active: false, tab: 'chats', action: () => { setActiveTab('chats'); setIsNewChatOpen(true); } },
-                        { icon: Phone, label: isUnder10 ? 'Calls' : 'Live Links', active: activeTab === 'calls', tab: 'calls' },
-                        { icon: Users, label: isUnder10 ? 'Friends' : 'Contacts', active: false, tab: 'chats', action: () => setIsNewChatOpen(true) }
+                        { icon: MessageSquare, label: isUnder13 ? 'Fun' : 'Chats', active: activeTab === 'chats', tab: 'chats' },
+                        { icon: CircleDashed, label: isUnder13 ? 'Moments' : 'Status', active: activeTab === 'status', tab: 'status' },
+                        { icon: Sparkles, label: isUnder13 ? 'AI' : 'Node AI', active: false, tab: 'chats', action: () => { setActiveTab('chats'); setIsNewChatOpen(true); } },
+                        { icon: Phone, label: isUnder13 ? 'Calls' : 'Live Links', active: activeTab === 'calls', tab: 'calls' },
+                        { icon: Users, label: isUnder13 ? 'Friends' : 'Contacts', active: false, tab: 'chats', action: () => setIsNewChatOpen(true) }
                     ].map((item, i) => (
                         <button 
                             key={i} 
@@ -551,7 +551,7 @@ export default function ChatPage() {
                         <DialogHeader>
                             <div className="flex items-center justify-between">
                                 <DialogTitle className="text-2xl font-black uppercase tracking-tighter text-white flex items-center gap-3">
-                                    <UserPlus className="h-6 w-6 text-primary" /> {isUnder10 ? "New Friend" : "New Transmission"}
+                                    <UserPlus className="h-6 w-6 text-primary" /> {isUnder13 ? "New Friend" : "New Transmission"}
                                 </DialogTitle>
                                 <Button variant="ghost" size="icon" onClick={() => setIsAddUserOpen(true)} className="text-primary hover:bg-primary/10">
                                     <UserPlus2 className="h-5 w-5" />
@@ -562,7 +562,7 @@ export default function ChatPage() {
                             <div className="px-2 mb-4">
                                 <div className="flex items-center gap-3 bg-white/5 rounded-2xl p-2 border border-white/10">
                                     <Search className="ml-3 h-4 w-4 opacity-40" />
-                                    <Input placeholder={isUnder10 ? "Find someone fun..." : "Query contact matrix..."} className="border-none bg-transparent focus-visible:ring-0 text-sm" />
+                                    <Input placeholder={isUnder13 ? "Find someone fun..." : "Query contact matrix..."} className="border-none bg-transparent focus-visible:ring-0 text-sm" />
                                 </div>
                             </div>
                             {contacts.map((contact) => (
@@ -647,7 +647,7 @@ export default function ChatPage() {
         <div className="flex flex-col h-full bg-background max-w-2xl mx-auto w-full border-x border-white/5 animate-in slide-in-from-right duration-500">
             <header className={cn(
                 "text-white p-6 flex items-center justify-between sticky top-0 z-20 shadow-2xl overflow-hidden",
-                isUnder10 ? "bg-gradient-to-r from-indigo-500 to-cyan-500" : "bg-gradient-to-r from-primary to-accent"
+                isUnder13 ? "bg-gradient-to-r from-indigo-500 to-cyan-500" : "bg-gradient-to-r from-primary to-accent"
             )}>
                 <div className="absolute inset-0 bg-white/5 pointer-events-none" />
                 <div className="flex items-center gap-4 relative z-10">
@@ -664,7 +664,7 @@ export default function ChatPage() {
                         </div>
                         <div>
                             <h2 className="font-black text-xl tracking-tighter leading-none">{activeChat?.name}</h2>
-                            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mt-1">{isUnder10 ? "Friend Online" : "Node Synchronized"}</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mt-1">{isUnder13 ? "Friend Online" : "Node Synchronized"}</p>
                         </div>
                     </div>
                 </div>
@@ -686,7 +686,7 @@ export default function ChatPage() {
                             <div className={cn(
                                 "px-5 py-4 rounded-[2rem] shadow-2xl relative text-sm font-medium leading-relaxed border border-white/5",
                                 isMe 
-                                    ? (isUnder10 ? "bg-cyan-500 text-white rounded-tr-none" : "bg-primary text-primary-foreground rounded-tr-none shadow-primary/20")
+                                    ? (isUnder13 ? "bg-cyan-500 text-white rounded-tr-none" : "bg-primary text-primary-foreground rounded-tr-none shadow-primary/20")
                                     : "bg-white/10 backdrop-blur-md text-foreground rounded-tl-none"
                             )}>
                                 <p>{msg.text}</p>
@@ -721,7 +721,7 @@ export default function ChatPage() {
                 <div className="flex-1 flex items-center gap-3 bg-white/5 rounded-[2rem] px-5 py-2 border border-white/5 focus-within:border-primary/40 transition-all shadow-inner">
                     <button className="text-muted-foreground/40 hover:text-primary transition-colors" onClick={() => toast({ title: "Attach File", description: "File attachment coming soon." })}><Plus className="h-5 w-5" /></button>
                     <Input 
-                        placeholder={isUnder10 ? "Type something fun..." : "Message..."}
+                        placeholder={isUnder13 ? "Type something fun..." : "Message..."}
                         className="border-none bg-transparent focus-visible:ring-0 shadow-none h-10 placeholder:opacity-30 text-base font-medium p-0"
                         value={inputValue}
                         onChange={e => {
@@ -738,7 +738,7 @@ export default function ChatPage() {
                     disabled={!inputValue.trim() || isTyping}
                     className={cn(
                         "rounded-3xl h-14 w-14 p-0 shadow-2xl shrink-0 group active:scale-90 transition-all border-none",
-                        isUnder10 ? "bg-cyan-500 shadow-cyan-500/30" : "bg-primary shadow-primary/30"
+                        isUnder13 ? "bg-cyan-500 shadow-cyan-500/30" : "bg-primary shadow-primary/30"
                     )}
                 >
                     {inputValue.trim() ? <Send className="h-6 w-6 text-white group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" /> : <Mic className="h-6 w-6 text-white" />}

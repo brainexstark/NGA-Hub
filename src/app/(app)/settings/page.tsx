@@ -61,7 +61,7 @@ export default function SettingsPage() {
 
   const [displayName, setDisplayName] = useState('');
   const [profilePicture, setProfilePicture] = useState('');
-  const [ageGroup, setAgeGroup] = useState<'under-10' | '10-16' | '16-plus'>('10-16');
+  const [ageGroup, setAgeGroup] = useState<'under-13' | '14-17' | '18+'>('14-17');
   const [timerNotifications, setTimerNotifications] = useState(false);
   const [darkTheme, setDarkTheme] = useState(true);
   const [language, setLanguage] = useState('en');

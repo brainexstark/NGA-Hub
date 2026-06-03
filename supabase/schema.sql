@@ -22,7 +22,7 @@ create table if not exists app_users (
   display_name text not null default '',
   email text default '',
   avatar text default '',
-  age_group text default '10-16',
+  age_group text default '14-17',
   is_online boolean default false,
   last_seen timestamptz default now(),
   created_at timestamptz default now()
@@ -179,7 +179,7 @@ create table if not exists group_chats (
   description text default '',
   avatar text default '',
   created_by text references app_users(id) on delete cascade,
-  age_group text default '10-16',
+  age_group text default '14-17',
   created_at timestamptz default now()
 );
 select safe_add_to_realtime('group_chats');

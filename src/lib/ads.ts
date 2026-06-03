@@ -20,21 +20,21 @@ const STATIC_ADS: Ad[] = [
     media_url: 'https://picsum.photos/seed/ad1/800/600',
     video_url: 'https://www.youtube.com/watch?v=9JdeZ3I8xw8',
     title: 'The Future of Innovation 🚀', caption: 'Discover what\'s next in tech and engineering.',
-    target_age_group: '16-plus', category: 'tech', click_url: 'https://example.com',
+    target_age_group: '18+', category: 'tech', click_url: 'https://example.com',
   },
   {
     id: 'ad-2', partner_name: 'SportsBrand', is_ad: true,
     media_url: 'https://picsum.photos/seed/ad2/800/600',
     video_url: 'https://www.youtube.com/watch?v=ZnuyfHMNMiQ',
     title: 'Champions Never Stop ⚽', caption: 'Train like a pro. Play like a champion.',
-    target_age_group: '10-16', category: 'sports', click_url: 'https://example.com',
+    target_age_group: '14-17', category: 'sports', click_url: 'https://example.com',
   },
   {
     id: 'ad-3', partner_name: 'KidsBrand', is_ad: true,
     media_url: 'https://picsum.photos/seed/ad3/800/600',
     video_url: 'https://www.youtube.com/watch?v=JGwWNGJdvx8',
     title: 'Learn & Play! 🎨', caption: 'Fun educational games for curious kids.',
-    target_age_group: 'under-10', category: 'education', click_url: 'https://example.com',
+    target_age_group: 'under-13', category: 'education', click_url: 'https://example.com',
   },
 ];
 

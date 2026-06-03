@@ -10,7 +10,7 @@ export const inappropriateWords = [
   "freak","hate","racist","abuse","bully","harass",
 ];
 
-// Extra strict list for under-10
+// Extra strict list for under-13
 const UNDER_10_EXTRA = [
   "fight","violence","scary","horror","ghost","demon","devil","witch","war",
   "alcohol","beer","wine","smoke","cigarette","vape","dating","kiss","romance",

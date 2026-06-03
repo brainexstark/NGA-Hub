@@ -25,7 +25,7 @@ interface SavedLesson {
 export default function LiveLessonPage() {
   const { user } = useUser();
   const [topic, setTopic] = useState('');
-  const [ageGroup, setAgeGroup] = useState<'under 10' | '10-16' | '16+'>('10-16');
+  const [ageGroup, setAgeGroup] = useState<'under-13' | '14-17' | '18+'>('14-17');
   const [lessonPlan, setLessonPlan] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
@@ -146,9 +146,9 @@ export default function LiveLessonPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
-                    <SelectItem value="under 10" className="font-bold">Under 10</SelectItem>
-                    <SelectItem value="10-16" className="font-bold">10–16</SelectItem>
-                    <SelectItem value="16+" className="font-bold">17+</SelectItem>
+                    <SelectItem value="under-13" className="font-bold">Under 13</SelectItem>
+                    <SelectItem value="14-17" className="font-bold">14–17</SelectItem>
+                    <SelectItem value="18+" className="font-bold">18+</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

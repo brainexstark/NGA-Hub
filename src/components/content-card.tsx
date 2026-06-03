@@ -30,7 +30,10 @@ function isVideoUrl(url: string): boolean {
     lower.includes('tiktok') || lower.includes('instagram') ||
     lower.endsWith('.mp4') || lower.endsWith('.webm') ||
     lower.endsWith('.mov') || lower.endsWith('.avi') ||
-    lower.endsWith('.mkv') || lower.startsWith('data:video');
+    lower.endsWith('.mkv') || lower.startsWith('data:video') ||
+    lower.startsWith('blob:') ||
+    lower.includes('/storage/v1/object/') ||
+    lower.includes('/object/public/');
 }
 
 function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
@@ -129,7 +132,7 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
 
       <CardContent className={cn(
         "p-0 overflow-hidden relative bg-black border-none shadow-2xl",
-        hideActions ? "w-full h-full" : "aspect-square rounded-[2.5rem]"
+        hideActions ? "w-full h-full" : "aspect-[9/16] rounded-[2.5rem]"
       )}>
         <InlinePlayer url={image?.url || image?.imageUrl} thumbnail={image?.imageUrl} />
       </CardContent>

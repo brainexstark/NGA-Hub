@@ -32,7 +32,7 @@ export function ShareDialog({ title, url, children }: ShareDialogProps) {
     return doc(firestore, 'users', user.uid);
   }, [user, firestore]);
   const { data: profile } = useDoc<UserProfile>(profileRef);
-  const isUnder10 = profile?.ageGroup === 'under-10';
+  const isUnder13 = profile?.ageGroup === 'under-13';
 
   React.useEffect(() => {
     setMounted(true);
@@ -88,7 +88,7 @@ export function ShareDialog({ title, url, children }: ShareDialogProps) {
           </DialogTitle>
         </DialogHeader>
         
-        {isUnder10 && (
+        {isUnder13 && (
             <div className="bg-blue-500/10 p-4 rounded-2xl border border-blue-500/20 mb-4">
                 <p className="text-[10px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
                     <Info className="h-3 w-3" /> Safety Protocol: Share via link only

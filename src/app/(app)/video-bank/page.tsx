@@ -45,6 +45,7 @@ import type { VideoEntry, UserProfile } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection } from '@/firebase';
 import { UsageTimer } from "@/components/usage-timer";
+import { supabase } from "@/lib/supabase";
 
 const InternalPlayer = ({ url }: { url: string }) => {
   if (!url) return null;
@@ -61,12 +62,35 @@ const InternalPlayer = ({ url }: { url: string }) => {
       />
     );
   }
-  
-  const isDirectVideo = (u: string) => u.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i) || u.startsWith('blob:');
-  
+
+  // Direct video: file extension, blob URL, or Supabase/CDN storage path
+  const isDirectVideo = (u: string) =>
+    /\.(mp4|webm|ogg|mov|m4v|avi|mkv)(\?.*)?$/i.test(u) ||
+    u.startsWith('blob:') ||
+    u.startsWith('data:video') ||
+    u.includes('/storage/v1/object/') ||
+    u.includes('/object/public/');
+
   if (isDirectVideo(url)) {
-    return <video src={url} className="w-full h-full" controls autoPlay />;
+    return (
+      <video
+        src={url}
+        className="w-full h-full"
+        controls
+        autoPlay
+        playsInline
+        onError={(e) => {
+          // If blob URL is expired (session ended), show a friendly message
+          const target = e.currentTarget;
+          if (url.startsWith('blob:')) {
+            target.parentElement!.innerHTML =
+              '<div class="flex flex-col items-center justify-center h-full gap-3 text-white/40 p-8 text-center"><svg xmlns=\'http://www.w3.org/2000/svg\' class=\'h-12 w-12\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'><path stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z\' /></svg><p class=\'text-xs font-black uppercase tracking-widest\'>Local video expired</p><p class=\'text-[10px]\'>Re-upload the file to play it again</p></div>';
+          }
+        }}
+      />
+    );
   }
+
   return (
     <iframe
       src={url}
@@ -178,13 +202,36 @@ export default function VideoBankPage() {
     setIsDepositing(false);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const url = URL.createObjectURL(file);
-      setVideoUrl(url);
-      setVideoTitle(file.name.split('.')[0]);
+
+      // Show local preview immediately so the user sees something
+      const localBlob = URL.createObjectURL(file);
+      setVideoUrl(localBlob);
+      setVideoTitle(prev => prev || file.name.replace(/\.[^.]+$/, ''));
       setUploadSource('local');
+
+      // Upload to Supabase Storage in the background and replace blob with real URL
+      try {
+        const ext = file.name.split('.').pop() || 'mp4';
+        const path = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { data, error } = await supabase.storage.from('media').upload(path, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+        if (data && !error) {
+          const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
+          if (urlData?.publicUrl) {
+            setVideoUrl(urlData.publicUrl);
+            toast({ title: 'Video uploaded', description: 'Ready to deposit.' });
+          }
+        } else if (error) {
+          toast({ variant: 'destructive', title: 'Upload failed', description: 'Video saved locally for this session only.' });
+        }
+      } catch {
+        toast({ variant: 'destructive', title: 'Upload failed', description: 'Video saved locally for this session only.' });
+      }
   };
 
   const handleWithdraw = (videoId: string) => {

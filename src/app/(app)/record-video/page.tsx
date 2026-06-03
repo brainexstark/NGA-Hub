@@ -18,6 +18,7 @@ import { useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 // ─── Filter definitions ───────────────────────────────────────────────────────
 const FILTERS = [
@@ -174,9 +175,27 @@ export default function RecordVideoPage() {
   const handleSave = async () => {
     if (!videoTitle.trim()) { toast({ title: 'Add a title first.' }); return; }
     if (!user) { toast({ variant: 'destructive', title: 'Not logged in' }); return; }
+    if (!recordedBlob && !previewUrl) { toast({ variant: 'destructive', title: 'No video recorded' }); return; }
     setIsSaving(true);
     try {
-      const mediaUrl = previewUrl || `https://picsum.photos/seed/${Date.now()}/800/600`;
+      let mediaUrl = previewUrl || '';
+
+      // Upload blob to Supabase Storage so the URL persists beyond this session
+      if (recordedBlob) {
+        const ext = recordedBlob.type.includes('mp4') ? 'mp4' : 'webm';
+        const path = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { data, error } = await supabase.storage.from('media').upload(path, recordedBlob, {
+          cacheControl: '3600',
+          contentType: recordedBlob.type,
+          upsert: false,
+        });
+        if (data && !error) {
+          const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
+          if (urlData?.publicUrl) mediaUrl = urlData.publicUrl;
+        }
+        // If upload fails, fall back to blob URL — will work for the current session
+      }
+
       await publishPost({
         userId: user.uid,
         userName: profile?.displayName || user.displayName || 'User',
@@ -184,11 +203,11 @@ export default function RecordVideoPage() {
         type: 'video', category: 'general',
         mediaUrl, url: mediaUrl,
         caption: videoTitle, title: videoTitle,
-        ageGroup: profile?.ageGroup || '10-16',
+        ageGroup: profile?.ageGroup || '14-17',
         likesCount: 0, commentsCount: 0, isFlagged: false,
       }, firestore);
       toast({ title: 'Video Published!', description: 'Now live on the feed.' });
-      router.push(`/feed/${profile?.ageGroup || '10-16'}`);
+      router.push(`/feed/${profile?.ageGroup || '14-17'}`);
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Save Failed', description: err.message });
     } finally {

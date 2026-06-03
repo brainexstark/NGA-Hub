@@ -177,7 +177,7 @@ export default function Home() {
               {posts.slice(0, 9).map((post, i) => (
                 <div key={post.id} onClick={() => setActivePost(post)}
                   className={cn("relative rounded-2xl overflow-hidden cursor-pointer group border border-white/10 hover:border-primary/40 transition-all active:scale-95",
-                    i === 0 ? "col-span-2 row-span-2 aspect-square" : "aspect-square")}>
+                    i === 0 ? "col-span-2 row-span-2 aspect-[9/16]" : "aspect-[9/16]")}>
                   {post.media_url ? (
                     isVideoUrl(post.media_url) ? (
                       <div className="w-full h-full bg-black/60 flex items-center justify-center">

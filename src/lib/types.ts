@@ -3,7 +3,7 @@ export interface UserProfile {
     uid: string;
     displayName: string;
     email: string;
-    ageGroup: 'under-10' | '10-16' | '16-plus' | null;
+    ageGroup: 'under-13' | '14-17' | '18+' | null;
     phoneNumber?: string;
     dob?: string;
     profilePicture?: string;

@@ -247,7 +247,7 @@ export default function LearningHubPage() {
 
   const userRef = useMemoFirebase(() => (!user || !firestore) ? null : doc(firestore, 'users', user.uid), [user, firestore]);
   const { data: profile } = useDoc<UserProfile>(userRef);
-  const isUnder10 = profile?.ageGroup === 'under-10';
+  const isUnder13 = profile?.ageGroup === 'under-13';
 
   React.useEffect(() => {
     if (profile) {
@@ -294,19 +294,19 @@ export default function LearningHubPage() {
 
   const handleAuthorizeEntertainment = () => {
       setIsMissionComplete(false);
-      router.push(`/HomeTon/${profile?.ageGroup || '10-16'}`);
+      router.push(`/HomeTon/${profile?.ageGroup || '14-17'}`);
   };
 
-  const activeSubjects = isUnder10 ? KIDS_SUBJECTS : SUBJECTS;
+  const activeSubjects = isUnder13 ? KIDS_SUBJECTS : SUBJECTS;
 
   // Live feed posts that match educational content
   const { posts: livePosts } = useRealtimeFeed(profile?.ageGroup || '10-16');
   const educationalLivePosts = React.useMemo(() => {
     return livePosts
-      .filter(p => !containsInappropriateWords(`${p.caption} ${p.title || ''}`, isUnder10))
+      .filter(p => !containsInappropriateWords(`${p.caption} ${p.title || ''}`, isUnder13))
       .slice(0, 6)
       .map(p => ({ title: p.title || p.caption, url: p.url || p.mediaUrl }));
-  }, [livePosts, isUnder10]);
+  }, [livePosts, isUnder13]);
 
   return (
     <div className="container mx-auto space-y-12 pb-32 max-w-7xl animate-in fade-in duration-700 pt-6">
@@ -334,7 +334,7 @@ export default function LearningHubPage() {
         <h2 className="font-headline text-2xl font-black uppercase tracking-tight flex items-center gap-3 text-white">
             <BookOpen className="h-6 w-6 text-primary" /> Subject Nodes
         </h2>
-        <div className={cn("grid gap-4", isUnder10 ? "grid-cols-2 md:grid-cols-4" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-6")}>
+        <div className={cn("grid gap-4", isUnder13 ? "grid-cols-2 md:grid-cols-4" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-6")}>
             {activeSubjects.map((sub) => (
                 <DropdownMenu key={sub.id}>
                     <DropdownMenuTrigger asChild>
