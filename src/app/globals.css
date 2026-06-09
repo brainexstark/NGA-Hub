@@ -6,78 +6,55 @@
 
 @layer base {
   :root {
-    /* Permanent Deep Purple-Pink Aesthetic (Zero White) */
-    --background: 285 70% 5%; 
-    --foreground: 320 100% 95%;
-    --card: 285 70% 8%;
-    --card-foreground: 320 100% 95%;
-    --popover: 285 70% 8%;
-    --popover-foreground: 320 100% 95%;
-    --primary: 320 100% 60%; /* Vibrant Pink Core */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 285 50% 12%;
-    --secondary-foreground: 320 100% 70%;
-    --muted: 285 50% 12%;
-    --muted-foreground: 320 20% 65%;
-    --accent: 265 100% 65%; /* Radiant Purple Node */
+    /* Black/White Dark Theme (default) */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 5%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 80%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 50%;
+    --accent: 0 0% 15%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 285 50% 18%;
-    --input: 285 50% 18%;
-    --ring: 320 100% 60%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 80%;
     --radius: 1.5rem;
   }
 
-  /* LIGHT MODE — .light on <html> */
+  /* Light mode — .light on <html> */
   .light {
-    --background: 0 0% 98%;
-    --foreground: 0 0% 5%;
-    --card: 0 0% 95%;
-    --card-foreground: 0 0% 5%;
-    --popover: 0 0% 95%;
-    --popover-foreground: 0 0% 5%;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 96%;
+    --card-foreground: 0 0% 0%;
+    --popover: 0 0% 96%;
+    --popover-foreground: 0 0% 0%;
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 92%;
+    --secondary-foreground: 0 0% 10%;
     --muted: 0 0% 92%;
     --muted-foreground: 0 0% 40%;
-    --border: 0 0% 85%;
-    --input: 0 0% 85%;
-    --secondary: 0 0% 90%;
-    --secondary-foreground: 0 0% 10%;
-    /* Primary accent stays same */
+    --accent: 0 0% 88%;
+    --accent-foreground: 0 0% 0%;
+    --border: 0 0% 82%;
+    --input: 0 0% 82%;
+    --ring: 0 0% 20%;
   }
-
-  /* DYNAMIC PURPLE-PINK-BLUE VARIANTS */
-
-  /* Under-10: purple-blue background */
-  .theme-under-10-v0 { --background: 260 80% 6%; --card: 260 70% 9%; --border: 260 50% 18%; --primary: 325 100% 65%; --accent: 220 100% 65%; }
-  .theme-under-10-v1 { --background: 255 80% 6%; --card: 255 70% 9%; --border: 255 50% 18%; --primary: 345 100% 60%; --accent: 230 100% 60%; }
-  .theme-under-10-v2 { --background: 265 80% 6%; --card: 265 70% 9%; --border: 265 50% 18%; --primary: 305 100% 70%; --accent: 215 100% 65%; }
-  .theme-under-10-v3 { --background: 258 80% 6%; --card: 258 70% 9%; --border: 258 50% 18%; --primary: 355 100% 60%; --accent: 225 100% 65%; }
-  .theme-under-10-v4 { --background: 262 80% 6%; --card: 262 70% 9%; --border: 262 50% 18%; --primary: 315 100% 60%; --accent: 220 100% 60%; }
-  .theme-under-10-v5 { --background: 256 80% 6%; --card: 256 70% 9%; --border: 256 50% 18%; --primary: 295 100% 65%; --accent: 235 100% 60%; }
-
-  /* 10-16: blue-black background */
-  .theme-10-16-v0 { --background: 220 60% 4%; --card: 220 55% 7%; --border: 220 40% 14%; --primary: 210 100% 60%; --accent: 195 100% 55%; }
-  .theme-10-16-v1 { --background: 225 60% 4%; --card: 225 55% 7%; --border: 225 40% 14%; --primary: 215 100% 58%; --accent: 200 100% 52%; }
-  .theme-10-16-v2 { --background: 218 60% 4%; --card: 218 55% 7%; --border: 218 40% 14%; --primary: 205 100% 62%; --accent: 190 100% 55%; }
-  .theme-10-16-v3 { --background: 222 60% 4%; --card: 222 55% 7%; --border: 222 40% 14%; --primary: 212 100% 58%; --accent: 198 100% 50%; }
-  .theme-10-16-v4 { --background: 216 60% 4%; --card: 216 55% 7%; --border: 216 40% 14%; --primary: 208 100% 60%; --accent: 193 100% 53%; }
-  .theme-10-16-v5 { --background: 228 60% 4%; --card: 228 55% 7%; --border: 228 40% 14%; --primary: 218 100% 56%; --accent: 203 100% 50%; }
-
-  /* 16-plus: unchanged (inherits :root deep purple-pink) */
-  .theme-16-plus-v0 { --primary: 285 85% 45%; --accent: 325 95% 55%; }
-  .theme-16-plus-v1 { --primary: 305 95% 55%; --accent: 265 95% 50%; }
-  .theme-16-plus-v2 { --primary: 335 95% 50%; --accent: 295 85% 40%; }
-  .theme-16-plus-v3 { --primary: 315 85% 40%; --accent: 345 85% 45%; }
-  .theme-16-plus-v4 { --primary: 345 85% 50%; --accent: 285 85% 45%; }
-  .theme-16-plus-v5 { --primary: 295 85% 50%; --accent: 315 85% 50%; }
 
   * { @apply border-border; }
   body {
     @apply bg-background text-foreground;
-    background-image: radial-gradient(circle at 50% 0%, hsla(var(--primary), 0.2) 0%, transparent 85%);
     font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
-    transition: background-color 0.8s ease, color 0.8s ease;
+    transition: background-color 0.4s ease, color 0.4s ease;
     overflow-x: hidden;
   }
 
@@ -98,75 +75,37 @@
 
 @layer utilities {
   .glass-panel {
-    @apply bg-card/40 backdrop-blur-xl border border-white/5 shadow-2xl;
-  }
-  
-  .logo-dynamics {
-    @apply bg-clip-text text-transparent bg-[length:300%_300%];
-    background-image: linear-gradient(
-      -45deg, 
-      hsla(var(--primary), 1), 
-      hsla(var(--accent), 1),
-      #ff00ff,
-      hsla(var(--primary), 0.8)
-    );
-    animation: logoGradient 8s ease infinite;
+    @apply bg-card/60 backdrop-blur-xl border border-white/10 shadow-2xl;
   }
 
-  @keyframes logoGradient {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+  .logo-dynamics {
+    @apply text-foreground;
+    transition: opacity 0.4s ease;
   }
 
   .dynamic-text-mesh {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(-45deg, #ff007f, #9d00ff, #0044ff, #ff007f);
-    background-size: 400% 400%;
-    animation: meshGradient 10s ease infinite;
+    @apply text-foreground;
+    transition: opacity 0.4s ease;
   }
 
-  @keyframes meshGradient {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-
-  /* COLOR SYNC ANIMATION: PINK -> PURPLE -> BLUE */
-  @keyframes text-color-sync {
-    0%, 100% { color: #ff007f; } /* Deep Pink */
-    33% { color: #9d00ff; }      /* Purple */
-    66% { color: #0044ff; }      /* Deep Blue */
+  /* Simple opacity pulse — replaces colour-cycling animations */
+  @keyframes subtlePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
   }
 
   .animate-text-color-sync {
-    animation: text-color-sync 10s ease-in-out infinite;
-  }
-
-  @keyframes bg-color-sync {
-    0%, 100% { background-color: #ff007f; }
-    33% { background-color: #9d00ff; }
-    66% { background-color: #0044ff; }
+    animation: subtlePulse 4s ease-in-out infinite;
   }
 
   .animate-bg-color-sync {
-    animation: bg-color-sync 10s ease-in-out infinite;
-  }
-
-  /* DYNAMIC TOP BAR COLOR — cycles through attractive colours */
-  @keyframes topbar-color-cycle {
-    0%   { background: #ff007f; }
-    14%  { background: #9d00ff; }
-    28%  { background: #0044ff; }
-    42%  { background: #00c3ff; }
-    57%  { background: #00e676; }
-    71%  { background: #ff6d00; }
-    85%  { background: #ff007f; }
-    100% { background: #9d00ff; }
+    @apply bg-white;
+    animation: subtlePulse 4s ease-in-out infinite;
   }
 
   .animate-topbar-cycle {
-    animation: topbar-color-cycle 8s ease-in-out infinite;
+    @apply bg-white;
+    animation: subtlePulse 4s ease-in-out infinite;
   }
 
   .animate-float-logo {
