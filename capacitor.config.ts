@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     // Point to Railway deployment for live data
-    url: 'https://nga-hub-production.up.railway.app',
+    url: 'https://nga-hub.vercel.app',
     cleartext: true,
   },
   android: {

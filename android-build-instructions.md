@@ -26,6 +26,6 @@ npm run build:android
 ```
 
 ## The Android app
-- Loads the live NGA Hub web app from Railway
+- Loads the live NGA Hub web app from https://nga-hub.vercel.app
 - All features work: camera, notifications, offline storage
 - Install the APK on any Android device
