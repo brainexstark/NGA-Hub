@@ -38,7 +38,7 @@ const InternalPlayer = ({ url }: { url: string }) => {
     return <iframe src={embedUrl} className="w-full h-full border-none" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
   }
   if (isDirectVideo) {
-    return <video src={url} className="w-full h-full object-contain bg-black" autoPlay muted controls playsInline />;
+    return <video src={url} className="w-full h-full object-contain bg-black" autoPlay controls playsInline />;
   }
   // Fallback: try iframe (covers misc embeds)
   return <iframe src={url} className="w-full h-full border-none" allowFullScreen />;
@@ -160,7 +160,7 @@ function FeedMedia({ url }: { url: string }) {
     const base = getEmbedUrl(url);
     // Only add autoplay when actually in view
     if (!inView) return base;
-    return base.includes('?') ? `${base}&autoplay=1&mute=1&playsinline=1` : `${base}?autoplay=1&mute=1&playsinline=1`;
+    return base.includes('?') ? `${base}&autoplay=1&mute=0&playsinline=1` : `${base}?autoplay=1&mute=0&playsinline=1`;
   }, [url, isExternal, inView]);
 
   if (!url) return <div className="w-full aspect-[9/16] bg-black" />;
@@ -732,13 +732,16 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
           {/* Other users */}
           {newMembers.map((member, idx) => (
             <div key={member.id} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group">
-              <div className={`h-16 w-16 rounded-full overflow-hidden border-2 border-background ring-2 transition-all group-hover:scale-105 ${member.is_online ? 'ring-green-400' : 'ring-primary/60'}`}>
+              <div className={`relative h-16 w-16 rounded-full overflow-hidden border-2 border-background ring-2 transition-all group-hover:scale-105 ${member.is_online ? 'ring-green-400' : 'ring-primary/60'}`}>
                 <Avatar className="h-full w-full">
                   <AvatarImage src={member.avatar || ''} className="object-cover" />
                   <AvatarFallback className="bg-primary/20 text-primary font-black">
                     {member.display_name?.[0]?.toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
+                {member.is_online && (
+                  <span className="absolute bottom-0 right-0 h-3 w-3 bg-green-400 rounded-full border-2 border-background animate-pulse z-10" />
+                )}
               </div>
               <span className="text-[9px] font-medium text-white/50 truncate max-w-[60px] text-center">
                 {member.display_name?.split(' ')[0] || `user_${idx}`}

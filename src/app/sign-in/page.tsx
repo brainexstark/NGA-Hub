@@ -9,7 +9,8 @@ import {
   GoogleAuthProvider, signInWithPopup, signInWithRedirect,
   getRedirectResult, signInWithEmailAndPassword, sendPasswordResetEmail
 } from "firebase/auth";
-import { useAuth } from "../../firebase";
+import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
+import { useAuth, useFirestore } from "../../firebase";
 import { useToast } from "../../hooks/use-toast";
 import { AnimatedBg } from "../../components/animated-bg";
 
@@ -49,6 +50,7 @@ export default function SignInPage() {
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const auth = useAuth();
+  const firestore = useFirestore();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -78,7 +80,34 @@ export default function SignInPage() {
     }
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      const input = email.trim();
+      let emailToUse = input;
+
+      // If input doesn't contain @, treat it as a username — look up email in Firestore
+      if (!input.includes('@')) {
+        if (!firestore) {
+          toast({ variant: 'destructive', title: 'App not ready', description: 'Please wait a moment and try again.' });
+          setIsLoading(false);
+          return;
+        }
+        const usersRef = collection(firestore, 'users');
+        const q = query(usersRef, where('displayName', '==', input));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          toast({ variant: 'destructive', title: 'Sign in failed', description: 'No account found with that username.' });
+          setIsLoading(false);
+          return;
+        }
+        const userData = snap.docs[0].data();
+        emailToUse = userData.email || '';
+        if (!emailToUse) {
+          toast({ variant: 'destructive', title: 'Sign in failed', description: 'No email associated with that username.' });
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      await signInWithEmailAndPassword(auth, emailToUse, password);
       // Success — router will redirect via layout auth check
       router.push('/');
     } catch (error: any) {
@@ -174,13 +203,13 @@ export default function SignInPage() {
 
           <form onSubmit={handleSignIn} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-white/50">Email</label>
+              <label className="text-xs font-medium text-white/50">Email or Username</label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
                 <input
-                  type="email" required value={email}
+                  type="text" value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder="Email or username"
                   autoComplete="email"
                   className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20"
                 />

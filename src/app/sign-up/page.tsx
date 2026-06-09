@@ -14,7 +14,7 @@ import { upsertAppUser } from "../../hooks/use-realtime";
 import { cn } from "../../lib/utils";
 import { AnimatedBg } from "../../components/animated-bg";
 
-type Step = 'account' | 'profile' | 'age';
+type Step = 'account' | 'profile' | 'age' | 'details';
 type AgeGroup = 'under-13' | '14-17' | '18+';
 
 const AGE_GROUPS = [
@@ -37,6 +37,9 @@ export default function SignUpPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   // Step 3
   const [ageGroup, setAgeGroup] = useState<AgeGroup | ''>('');
+  // Step 4
+  const [dob, setDob] = useState('');
+  const [phone, setPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -162,6 +165,8 @@ export default function SignUpPage() {
         email: u.email,
         ageGroup,
         profilePicture: safePhotoURL,
+        ...(dob ? { dob } : {}),
+        ...(phone ? { phone } : {}),
         lastLogin: serverTimestamp(),
       }, { merge: true });
 
@@ -191,7 +196,7 @@ export default function SignUpPage() {
 
   if (!mounted) return <div className="min-h-screen bg-[#0a051a]" />;
 
-  const stepNum = step === 'account' ? 1 : step === 'profile' ? 2 : 3;
+  const stepNum = step === 'account' ? 1 : step === 'profile' ? 2 : step === 'age' ? 3 : 4;
 
   return (
     <main className="min-h-screen bg-[#0a051a] flex flex-col">
@@ -214,7 +219,7 @@ export default function SignUpPage() {
 
           {/* Step indicator */}
           <div className="flex items-center gap-2 justify-center">
-            {[1,2,3].map(n => (
+            {[1,2,3,4].map(n => (
               <div key={n} className={cn("h-1.5 rounded-full transition-all duration-300",
                 n === stepNum ? "w-8 bg-primary" : n < stepNum ? "w-4 bg-primary/40" : "w-4 bg-white/10")} />
             ))}
@@ -397,7 +402,67 @@ export default function SignUpPage() {
                   className="flex-1 h-12 bg-white/5 border border-white/10 rounded-2xl font-black text-white/60 text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
                   <ArrowLeft className="h-4 w-4" /> Back
                 </button>
-                <button onClick={handleFinish} disabled={!ageGroup || isLoading}
+                <button onClick={() => { if (!ageGroup) { toast({ variant: 'destructive', title: 'Select your age group' }); return; } setStep('details'); }} disabled={!ageGroup}
+                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
+                  Next <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 4: Date of Birth + Phone ── */}
+          {step === 'details' && (
+            <div className="space-y-6">
+              <div className="text-center space-y-1">
+                <h1 className="text-3xl font-black uppercase tracking-tight text-white">Your details</h1>
+                <p className="text-sm text-white/40">A little more info to finish setup</p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Date of birth — required for all */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Date of Birth <span className="text-primary">*</span></label>
+                  <input
+                    type="date"
+                    value={dob}
+                    onChange={e => setDob(e.target.value)}
+                    required
+                    max={new Date().toISOString().split('T')[0]}
+                    className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all"
+                  />
+                </div>
+
+                {/* Phone — required only for 18+ */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">
+                    Phone Number {ageGroup === '18+' && <span className="text-primary">*</span>}
+                  </label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    placeholder="+1 234 567 8900"
+                    required={ageGroup === '18+'}
+                    className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20"
+                  />
+                  <p className="text-[10px] text-amber-400/80 font-bold">
+                    {ageGroup === '18+' ? '⚠️ Phone number required for 18+ users' : 'Phone number required for 18+ users (optional for you)'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => setStep('age')}
+                  className="flex-1 h-12 bg-white/5 border border-white/10 rounded-2xl font-black text-white/60 text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </button>
+                <button
+                  onClick={() => {
+                    if (!dob) { toast({ variant: 'destructive', title: 'Date of birth required' }); return; }
+                    if (ageGroup === '18+' && !phone.trim()) { toast({ variant: 'destructive', title: 'Phone number required for 18+ users' }); return; }
+                    handleFinish();
+                  }}
+                  disabled={isLoading}
                   className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Create account <ArrowRight className="h-4 w-4" /></>}
                 </button>

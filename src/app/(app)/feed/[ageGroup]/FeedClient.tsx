@@ -63,7 +63,7 @@ function FeedVideo({ url, thumbnail }: { url: string; thumbnail: string }) {
     if (!isExternal) return url;
     const base = getEmbedUrl(url);
     if (inView && base.includes('youtube.com/embed')) {
-      return base.includes('?') ? `${base}&autoplay=1&mute=1&playsinline=1` : `${base}?autoplay=1&mute=1&playsinline=1`;
+      return base.includes('?') ? `${base}&autoplay=1&mute=0&playsinline=1` : `${base}?autoplay=1&mute=0&playsinline=1`;
     }
     return base;
   }, [url, inView, isExternal]);
@@ -146,7 +146,7 @@ function AdCard({ ad }: { ad: Ad }) {
     <div className="w-full snap-center relative bg-black overflow-hidden" style={{ height: '100svh' }}>
       <div className="absolute inset-0">
         {ad.video_url ? (
-          <video src={ad.video_url} className="w-full h-full object-cover" autoPlay muted loop playsInline />
+          <video src={ad.video_url} className="w-full h-full object-cover" autoPlay loop playsInline />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={ad.media_url} alt={ad.title} className="w-full h-full object-cover" />

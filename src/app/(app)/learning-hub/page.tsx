@@ -28,8 +28,7 @@ import {
   ShieldCheck,
   PartyPopper,
   Award
-} from 'lucide-react';
-import { cn, getEmbedUrl } from '../../../lib/utils';
+} from 'lucide-react';import { cn, getEmbedUrl } from '../../../lib/utils';
 import { Dialog, DialogContent, DialogTitle } from "../../../components/ui/dialog";
 import { useToast } from '../../../hooks/use-toast';
 import { useUser, useFirestore, useMemoFirebase, useDoc } from '../../../firebase';
@@ -45,7 +44,6 @@ import {
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
 import { updateDocumentNonBlocking } from '../../../firebase/non-blocking-updates';
-import { useRealtimeFeed } from '../../../hooks/use-realtime-feed';
 import { containsInappropriateWords } from '../../../lib/inappropriate-words';
 import { MultilingualEngine } from '../../../components/multilingual-engine';
 
@@ -299,15 +297,6 @@ export default function LearningHubPage() {
 
   const activeSubjects = isUnder13 ? KIDS_SUBJECTS : SUBJECTS;
 
-  // Live feed posts that match educational content
-  const { posts: livePosts } = useRealtimeFeed(profile?.ageGroup || '10-16');
-  const educationalLivePosts = React.useMemo(() => {
-    return livePosts
-      .filter(p => !containsInappropriateWords(`${p.caption} ${p.title || ''}`, isUnder13))
-      .slice(0, 6)
-      .map(p => ({ title: p.title || p.caption, url: p.url || p.mediaUrl }));
-  }, [livePosts, isUnder13]);
-
   return (
     <div className="container mx-auto space-y-12 pb-32 max-w-7xl animate-in fade-in duration-700 pt-6">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
@@ -432,32 +421,6 @@ export default function LearningHubPage() {
               {activeSearch && <GoogleViewer query={activeSearch} onClose={() => setActiveSearch(null)} />}
           </DialogContent>
       </Dialog>
-
-      {/* Live feed educational content */}
-      {educationalLivePosts.length > 0 && (
-        <section className="space-y-6">
-          <h2 className="font-headline text-2xl font-black uppercase tracking-tight text-white flex items-center gap-3">
-            <Flame className="h-6 w-6 text-orange-400" /> Live Community Lessons
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {educationalLivePosts.map((post, i) => (
-              <Card key={i} className="border border-white/5 bg-black/20 rounded-2xl p-4 flex items-center justify-between group hover:border-primary/40 transition-all cursor-pointer"
-                onClick={() => handleInitializeLesson(post)}>
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 bg-orange-500/10 rounded-lg flex items-center justify-center text-orange-400 shrink-0">
-                    <PlayCircle className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-sm text-white line-clamp-1">{post.title}</p>
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest mt-0.5">Community · Live</p>
-                  </div>
-                </div>
-                <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* ── Multilingual Education Engine — additive, no existing code modified ── */}
       <MultilingualEngine />

@@ -21,6 +21,8 @@ import { Button } from "../../components/ui/button";
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { useRealtimeNotifications, usePresence, upsertAppUser } from '../../hooks/use-realtime';
 import { showNativeNotification, setupPushNotifications } from '../../hooks/use-push-notifications';
+import { ThemeToggle } from '../../components/theme-toggle';
+import { InstallBanner } from '../../components/install-banner';
 
 // ─── Push Notification Helper ─────────────────────────────────────────────────
 async function requestPushPermission(): Promise<boolean> {
@@ -652,6 +654,7 @@ export default function AppLayout({
                           {Math.floor(activeTimer / 60)}:{String(activeTimer % 60).padStart(2, '0')}
                       </div>
                   )}
+                  <ThemeToggle />
                   {user && (
                     <NotificationBell
                       userId={user.uid}
@@ -729,6 +732,8 @@ export default function AppLayout({
                  <NewUserBanner />
                  {/* Top ad banner */}
                  <TopAdBanner />
+                 {/* PWA install banner */}
+                 <InstallBanner />
               </main>
           </MobileSwipeHandler>
         </SidebarInset>

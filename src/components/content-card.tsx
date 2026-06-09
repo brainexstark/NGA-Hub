@@ -60,8 +60,8 @@ function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
     if (!playing) return base;
     if (base.includes('youtube.com/embed')) {
       return base.includes('?')
-        ? `${base}&autoplay=1&mute=1&playsinline=1`
-        : `${base}?autoplay=1&mute=1&playsinline=1`;
+        ? `${base}&autoplay=1&mute=0&playsinline=1`
+        : `${base}?autoplay=1&mute=0&playsinline=1`;
     }
     return base;
   }, [url, playing]);
@@ -75,7 +75,7 @@ function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
           <iframe key="playing" src={embedUrl} className="w-full h-full border-none"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
         ) : (
-          <video src={url} className="w-full h-full object-cover" autoPlay muted loop playsInline />
+          <video src={url} className="w-full h-full object-cover" autoPlay loop playsInline />
         )
       ) : (
         <div className="absolute inset-0">

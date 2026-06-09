@@ -49,8 +49,8 @@ function AutoPlayReel({ url, isActive }: { url: string; isActive: boolean }) {
     const base = getEmbedUrl(url);
     if (isActive && base.includes('youtube.com/embed')) {
       return base.includes('?')
-        ? `${base}&autoplay=1&mute=1&playsinline=1`
-        : `${base}?autoplay=1&mute=1&playsinline=1`;
+        ? `${base}&autoplay=1&mute=0&playsinline=1`
+        : `${base}?autoplay=1&mute=0&playsinline=1`;
     }
     // When not active, use non-autoplay URL
     return base;
@@ -64,7 +64,6 @@ function AutoPlayReel({ url, isActive }: { url: string; isActive: boolean }) {
         ref={videoRef}
         src={url}
         className="w-full h-full object-contain bg-black"
-        muted
         loop
         playsInline
         preload="metadata"
