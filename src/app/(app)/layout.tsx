@@ -596,8 +596,24 @@ export default function AppLayout({
         return;
       }
       if (userProfile === null) {
-        const isContentPage = pathname.startsWith('/HomeTon') || pathname.startsWith('/feed') || pathname.startsWith('/reels');
-        if (pathname !== '/sign-up' && !isContentPage) router.replace('/sign-up');
+        // Profile doc doesn't exist yet — only redirect if genuinely not on any app page
+        // Don't kick users out of chat, settings, network, search etc.
+        const isAnyAppPage = pathname.startsWith('/HomeTon') || pathname.startsWith('/feed') ||
+          pathname.startsWith('/reels') || pathname.startsWith('/chat') ||
+          pathname.startsWith('/settings') || pathname.startsWith('/network') ||
+          pathname.startsWith('/search') || pathname.startsWith('/learning-hub') ||
+          pathname.startsWith('/create-post') || pathname.startsWith('/comments') ||
+          pathname.startsWith('/activity') || pathname.startsWith('/video-bank') ||
+          pathname.startsWith('/live') || pathname.startsWith('/record') ||
+          pathname.startsWith('/stories') || pathname.startsWith('/favorites') ||
+          pathname.startsWith('/discussions') || pathname.startsWith('/announcements') ||
+          pathname.startsWith('/leaderboard') || pathname.startsWith('/ai-tools') ||
+          pathname.startsWith('/discover') || pathname.startsWith('/moderation') ||
+          pathname.startsWith('/security') || pathname.startsWith('/install') ||
+          pathname.startsWith('/feature-requests') || pathname.startsWith('/other-sm') ||
+          pathname.startsWith('/share-target') || pathname.startsWith('/adult-guidance') ||
+          pathname.startsWith('/dashboard') || pathname.startsWith('/stark-b');
+        if (pathname !== '/sign-up' && !isAnyAppPage) router.replace('/sign-up');
         return;
       }
       if (userProfile?.ageGroup) {
@@ -699,10 +715,23 @@ export default function AppLayout({
                           <Link href="/learning-hub" className={cn("flex items-center justify-center h-10 w-10 rounded-2xl transition-all", pathname === '/learning-hub' ? "text-primary bg-primary/10" : "text-foreground/40")}>
                               <GraduationCap className="h-6 w-6" />
                           </Link>
-                          <Link href="/settings" className={cn("flex items-center justify-center transition-all", pathname === '/settings' ? "opacity-100" : "opacity-40")}>
-                              <Avatar className={cn("h-8 w-8 border-2 transition-all", pathname === '/settings' ? "border-primary" : "border-transparent")}>
-                                  <AvatarImage src={userProfile?.profilePicture || user?.photoURL || ''} />
-                              </Avatar>
+                          <Link href="/settings" className={cn("flex items-center justify-center transition-all", pathname === '/settings' ? "opacity-100" : "opacity-50")}>
+                              <div className={cn("h-9 w-9 rounded-full overflow-hidden border-2 transition-all", pathname === '/settings' ? "border-pink-500" : "border-white/20")}>
+                                {(userProfile?.profilePicture || user?.photoURL) ? (
+                                  <img
+                                    src={userProfile?.profilePicture || user?.photoURL || ''}
+                                    alt="Profile"
+                                    className="w-full h-full object-cover"
+                                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-pink-500 to-blue-500 flex items-center justify-center">
+                                    <span className="text-white font-black text-xs">
+                                      {(userProfile?.displayName || user?.displayName || 'U')[0].toUpperCase()}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                           </Link>
                       </div>
                  </footer>
@@ -756,12 +785,12 @@ export default function AppLayout({
               <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-4">Follow us</p>
               <div className="grid grid-cols-3 gap-3">
                 {([
-                  { label: 'Instagram', href: 'https://instagram.com/brainexstark',  bg: 'bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/132px-Instagram_logo_2016.svg.png' },
-                  { label: 'TikTok',    href: 'https://tiktok.com/@brainexstark',    bg: 'bg-black border border-white/20',                                logo: 'https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok/webapp/main/webapp-desktop-icons/icon-default.0.0.1.ico' },
-                  { label: 'Facebook',  href: 'https://facebook.com/brainexstark',   bg: 'bg-[#1877F2]',                                                   logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/2023_Facebook_icon.svg/267px-2023_Facebook_icon.svg.png' },
-                  { label: 'YouTube',   href: 'https://youtube.com/@brainexstark',   bg: 'bg-[#FF0000]',                                                   logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/320px-YouTube_full-color_icon_%282017%29.svg.png' },
-                  { label: 'WhatsApp',  href: 'https://wa.me/brainexstark',          bg: 'bg-[#25D366]',                                                   logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/WhatsApp.svg/240px-WhatsApp.svg.png' },
-                  { label: 'X',         href: 'https://x.com/brainexstark',          bg: 'bg-black border border-white/20',                                logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/X_logo_2023_original.svg/300px-X_logo_2023_original.svg.png' },
+                  { label: 'Instagram', href: 'https://instagram.com/brainexstark',  bg: 'bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400', logo: 'https://cdn-icons-png.flaticon.com/512/2111/2111463.png' },
+                  { label: 'TikTok',    href: 'https://tiktok.com/@brainexstark',    bg: 'bg-black border border-white/20',                                logo: 'https://cdn-icons-png.flaticon.com/512/3046/3046121.png' },
+                  { label: 'Facebook',  href: 'https://facebook.com/brainexstark',   bg: 'bg-[#1877F2]',                                                   logo: 'https://cdn-icons-png.flaticon.com/512/145/145802.png' },
+                  { label: 'YouTube',   href: 'https://youtube.com/@brainexstark',   bg: 'bg-[#FF0000]',                                                   logo: 'https://cdn-icons-png.flaticon.com/512/1384/1384060.png' },
+                  { label: 'WhatsApp',  href: 'https://wa.me/brainexstark',          bg: 'bg-[#25D366]',                                                   logo: 'https://cdn-icons-png.flaticon.com/512/733/733585.png' },
+                  { label: 'X',         href: 'https://x.com/brainexstark',          bg: 'bg-black border border-white/20',                                logo: 'https://cdn-icons-png.flaticon.com/512/5968/5968830.png' },
                 ] as const).map(s => (
                   <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
                     className={cn('flex flex-col items-center gap-1.5 p-3 rounded-2xl hover:scale-105 transition-transform', s.bg)}>

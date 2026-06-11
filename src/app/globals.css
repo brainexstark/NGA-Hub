@@ -75,11 +75,21 @@
     transition: filter 0.08s ease;
   }
 
-  /* Primary bg buttons specifically turn blue */
+  /* ── Primary bg buttons specifically turn blue on press ── */
   button.bg-primary:active:not([disabled]),
   button[class*="bg-primary"]:active:not([disabled]) {
     background-color: #3b82f6 !important;
     color: #ffffff !important;
+  }
+
+  /* ── Dashboard/card text turns dark blue when clicked ── */
+  .card-clickable:active *,
+  [role="button"]:active p,
+  [role="button"]:active span,
+  [role="button"]:active h1,
+  [role="button"]:active h2,
+  [role="button"]:active h3 {
+    color: #1d4ed8 !important;
   }
 
   /* ── Input text always clearly visible — never washed out ── */
