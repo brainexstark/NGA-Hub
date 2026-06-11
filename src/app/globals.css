@@ -110,10 +110,47 @@
       radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,0,0,0.03) 0%, transparent 60%);
   }
 
-  /* Ensure buttons with white bg always have black text in light mode */
-  .light button[class*="bg-white"],
-  .light [class*="bg-primary"] {
-    color: #000 !important;
+  /* ── White boxes must have black text — automatic contrast ── */
+  /* Covers bg-white, bg-gray-50/100, bg-zinc-50/100, bg-slate-50/100 etc. */
+  [class*="bg-white"],
+  [style*="background: white"],
+  [style*="background-color: white"],
+  [style*="background:#fff"],
+  [style*="background: #fff"] {
+    color: #000000 !important;
+  }
+
+  /* Tailwind white/light backgrounds → black text */
+  .bg-white,
+  .bg-gray-50, .bg-gray-100,
+  .bg-zinc-50, .bg-zinc-100,
+  .bg-slate-50, .bg-slate-100,
+  .bg-neutral-50, .bg-neutral-100 {
+    color: #000000 !important;
+  }
+
+  /* White bg with opacity variants — still needs black text */
+  .bg-white\/90, .bg-white\/95, .bg-white\/80, .bg-white\/70 {
+    color: #000000 !important;
+  }
+
+  /* Google sign-in button (white bg) */
+  button.bg-white,
+  a.bg-white {
+    color: #000000 !important;
+  }
+
+  /* Input fields on white backgrounds */
+  .bg-white input,
+  .bg-white textarea,
+  .bg-white select,
+  [class*="bg-white"] input,
+  [class*="bg-white"] textarea {
+    color: #000000 !important;
+  }
+  .bg-white input::placeholder,
+  [class*="bg-white"] input::placeholder {
+    color: rgba(0,0,0,0.45) !important;
   }
 
   /* Hide scrollbars while keeping scroll */
