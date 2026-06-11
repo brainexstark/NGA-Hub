@@ -291,7 +291,7 @@ export default function SignUpPage() {
                   if (!username.trim() || !email.trim() || !password.trim()) { toast({ variant: 'destructive', title: 'Fill all fields' }); return; }
                   setStep('profile');
                 }}
-                  className="w-full h-12 bg-primary rounded-2xl font-black text-white text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all shadow-xl shadow-primary/20">
+                  className="w-full h-12 bg-primary rounded-2xl font-black text-white text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-primary/90 active:bg-blue-600 active:scale-[0.98] transition-all shadow-xl shadow-primary/20">
                   Next <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -364,7 +364,7 @@ export default function SignUpPage() {
                   <ArrowLeft className="h-4 w-4" /> Back
                 </button>
                 <button onClick={() => setStep('age')} disabled={uploadingPic}
-                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
+                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:bg-blue-600 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
                   {uploadingPic ? <><Loader2 className="h-4 w-4 animate-spin" /> Uploading...</> : <>Next <ArrowRight className="h-4 w-4" /></>}
                 </button>
               </div>
@@ -408,7 +408,7 @@ export default function SignUpPage() {
                   <ArrowLeft className="h-4 w-4" /> Back
                 </button>
                 <button onClick={() => { if (!ageGroup) { toast({ variant: 'destructive', title: 'Select your age group' }); return; } setStep('details'); }} disabled={!ageGroup}
-                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
+                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:bg-blue-600 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
                   Next <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -468,7 +468,7 @@ export default function SignUpPage() {
                     handleFinish();
                   }}
                   disabled={isLoading}
-                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
+                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:bg-blue-600 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Create account <ArrowRight className="h-4 w-4" /></>}
                 </button>
               </div>

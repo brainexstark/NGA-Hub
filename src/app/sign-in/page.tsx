@@ -216,7 +216,7 @@ export default function SignInPage() {
             </div>
 
             <button type="submit" disabled={isLoading || isGoogleLoading}
-              className="w-full h-12 bg-primary text-primary-foreground rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl">
+              className="w-full h-12 bg-primary text-primary-foreground rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 active:bg-blue-600 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl">
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Sign in <ArrowRight className="h-4 w-4" /></>}
             </button>
           </form>

@@ -60,7 +60,6 @@
 
   body {
     @apply bg-background text-foreground;
-    /* Subtle texture instead of flat void */
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,255,255,0.04) 0%, transparent 60%),
       radial-gradient(ellipse 60% 40% at 80% 100%, rgba(255,255,255,0.025) 0%, transparent 50%);
@@ -69,24 +68,52 @@
     overflow-x: hidden;
   }
 
-  /* Light mode body — dark text on white */
+  /* ── All buttons: turn blue on press (provides clear tap feedback) ── */
+  button:active:not([disabled]):not([aria-label]):not(.no-press-effect),
+  [role="button"]:active:not([disabled]) {
+    filter: brightness(0.85) saturate(1.5) hue-rotate(210deg);
+    transition: filter 0.08s ease;
+  }
+
+  /* Primary bg buttons specifically turn blue */
+  button.bg-primary:active:not([disabled]),
+  button[class*="bg-primary"]:active:not([disabled]) {
+    background-color: #3b82f6 !important;
+    color: #ffffff !important;
+  }
+
+  /* ── Input text always clearly visible — never washed out ── */
+  input, textarea, select {
+    color: inherit;
+    background-color: transparent;
+  }
+  /* In dark mode inputs: white text on dark bg */
+  input::placeholder,
+  textarea::placeholder {
+    color: rgba(255,255,255,0.35);
+  }
+  /* In light mode: dark text */
+  .light input,
+  .light textarea,
+  .light select {
+    color: #111111;
+  }
+  .light input::placeholder,
+  .light textarea::placeholder {
+    color: rgba(0,0,0,0.35);
+  }
+
+  /* Light mode body */
   .light body,
   html.light {
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,0,0,0.03) 0%, transparent 60%);
   }
 
-  /* Ensure buttons with white bg always have black text */
-  .light .btn-primary,
+  /* Ensure buttons with white bg always have black text in light mode */
   .light button[class*="bg-white"],
   .light [class*="bg-primary"] {
     color: #000 !important;
-  }
-
-  /* Ensure inputs are readable in both modes */
-  input, textarea, select {
-    color: inherit;
-    background-color: transparent;
   }
 
   /* Hide scrollbars while keeping scroll */

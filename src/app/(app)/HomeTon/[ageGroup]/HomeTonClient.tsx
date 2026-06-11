@@ -113,11 +113,12 @@ function NotificationBellInline({ userId, userName, userAvatar }: { userId: stri
   );
 }
 
-// ─── Direct media renderer — plays only when scrolled into view ──────────────
+// ─── Direct media renderer — loads instantly, plays when visible ─────────────
 function FeedMedia({ url }: { url: string }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const [inView, setInView] = React.useState(false);
+  const [loaded, setLoaded] = React.useState(false);
 
   const isVideo = React.useMemo(() => {
     if (!url) return false;
@@ -131,20 +132,19 @@ function FeedMedia({ url }: { url: string }) {
   const isExternal = !!(url?.includes('youtube') || url?.includes('youtu.be') ||
     url?.includes('tiktok') || url?.includes('instagram'));
 
-  // Observe visibility for both native and external videos
+  // Observe visibility — low threshold so video plays as soon as it enters view
   React.useEffect(() => {
-    if (!isVideo) return;
     const el = ref.current;
     if (!el) return;
     const obs = new IntersectionObserver(
-      ([e]) => setInView(e.isIntersecting && e.intersectionRatio >= 0.5),
-      { threshold: 0.5 }
+      ([e]) => setInView(e.isIntersecting),
+      { threshold: 0.1 }  // play as soon as 10% visible
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [isVideo]);
+  }, []);
 
-  // Play/pause native video based on visibility
+  // Play/pause native video
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -158,43 +158,51 @@ function FeedMedia({ url }: { url: string }) {
   const embedUrl = React.useMemo(() => {
     if (!isExternal || !url) return url;
     const base = getEmbedUrl(url);
-    // Only add autoplay when actually in view
     if (!inView) return base;
     return base.includes('?') ? `${base}&autoplay=1&mute=0&playsinline=1` : `${base}?autoplay=1&mute=0&playsinline=1`;
   }, [url, isExternal, inView]);
 
-  if (!url) return <div className="w-full aspect-square bg-black" />;
+  if (!url) return <div className="w-full aspect-[9/16] bg-zinc-900" />;
 
   return (
-    <div ref={ref} className="w-full aspect-square bg-black overflow-hidden">
+    <div ref={ref} className="w-full aspect-[9/16] bg-black overflow-hidden relative">
       {!isVideo ? (
         // Image
-        <img src={url} alt="post" className="w-full h-full object-cover" loading="lazy" />
+        <img
+          src={url}
+          alt="post"
+          className="w-full h-full object-cover"
+          loading="eager"
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
       ) : isExternal ? (
-        // External embed — only mount iframe when in view
+        // External embed — load immediately when visible
         inView ? (
           <iframe
-            key={`playing-${url}`}
+            key={`active-${url}`}
             src={embedUrl}
             className="w-full h-full border-none"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           />
         ) : (
-          <div className="w-full h-full bg-black flex items-center justify-center">
-            <PlayCircle className="h-14 w-14 text-white/30" />
+          <div className="w-full h-full bg-zinc-900 flex items-center justify-center cursor-pointer" onClick={() => setInView(true)}>
+            <div className="h-14 w-14 rounded-full bg-white/10 flex items-center justify-center border border-white/20">
+              <PlayCircle className="h-8 w-8 text-white/60" />
+            </div>
           </div>
         )
       ) : (
-        // Native video — unmuted, plays when in view
+        // Native video — preload everything, play instantly
         <video
           ref={videoRef}
           src={url}
           className="w-full h-full object-contain bg-black"
           loop
           playsInline
-          preload="metadata"
+          preload="auto"
           controls
+          onLoadedData={() => setLoaded(true)}
         />
       )}
     </div>
