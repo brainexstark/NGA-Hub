@@ -120,48 +120,17 @@
       radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,0,0,0.03) 0%, transparent 60%);
   }
 
-  /* ── White boxes must have black text — automatic contrast ── */
-  /* Covers bg-white, bg-gray-50/100, bg-zinc-50/100, bg-slate-50/100 etc. */
-  [class*="bg-white"],
-  [style*="background: white"],
-  [style*="background-color: white"],
-  [style*="background:#fff"],
-  [style*="background: #fff"] {
-    color: #000000 !important;
-  }
+  /* ── WHITE boxes only: black text ── */
+  .bg-white { color: #000000 !important; }
+  .bg-white\/90, .bg-white\/95, .bg-white\/80, .bg-white\/70 { color: #000000 !important; }
+  button.bg-white, a.bg-white { color: #000000 !important; }
+  .bg-white input, .bg-white textarea { color: #000000 !important; }
+  .bg-white input::placeholder, .bg-white textarea::placeholder { color: rgba(0,0,0,0.45) !important; }
 
-  /* Tailwind white/light backgrounds → black text */
-  .bg-white,
-  .bg-gray-50, .bg-gray-100,
-  .bg-zinc-50, .bg-zinc-100,
-  .bg-slate-50, .bg-slate-100,
-  .bg-neutral-50, .bg-neutral-100 {
-    color: #000000 !important;
-  }
-
-  /* White bg with opacity variants — still needs black text */
-  .bg-white\/90, .bg-white\/95, .bg-white\/80, .bg-white\/70 {
-    color: #000000 !important;
-  }
-
-  /* Google sign-in button (white bg) */
-  button.bg-white,
-  a.bg-white {
-    color: #000000 !important;
-  }
-
-  /* Input fields on white backgrounds */
-  .bg-white input,
-  .bg-white textarea,
-  .bg-white select,
-  [class*="bg-white"] input,
-  [class*="bg-white"] textarea {
-    color: #000000 !important;
-  }
-  .bg-white input::placeholder,
-  [class*="bg-white"] input::placeholder {
-    color: rgba(0,0,0,0.45) !important;
-  }
+  /* ── Text on white boxes turns blue when tapped ── */
+  .bg-white:active *,
+  .bg-white:active { color: #1d4ed8 !important; }
+  button.bg-white:active, a.bg-white:active { color: #1d4ed8 !important; }
 
   /* Hide scrollbars while keeping scroll */
   * {
