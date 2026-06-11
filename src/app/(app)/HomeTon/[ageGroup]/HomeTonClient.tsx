@@ -122,11 +122,45 @@ function FeedMedia({ url }: { url: string }) {
 
   const isVideo = React.useMemo(() => {
     if (!url) return false;
-    const l = url.toLowerCase();
-    return l.includes('youtube') || l.includes('youtu.be') || l.includes('tiktok') ||
-      l.includes('instagram') || l.endsWith('.mp4') || l.endsWith('.webm') ||
-      l.endsWith('.mov') || l.startsWith('data:video') || l.includes('blob:') ||
-      l.includes('/storage/v1/object/') || l.includes('/object/public/');
+    const l = url.toLowerCase().split('?')[0]; // strip query params before checking extension
+
+    // Image extensions — always treat as image, never video
+    if (l.endsWith('.jpg') || l.endsWith('.jpeg') || l.endsWith('.png') ||
+        l.endsWith('.gif') || l.endsWith('.webp') || l.endsWith('.avif') ||
+        l.endsWith('.svg') || l.endsWith('.bmp') || l.endsWith('.tiff')) {
+      return false;
+    }
+
+    // Known video extensions
+    if (l.endsWith('.mp4') || l.endsWith('.webm') || l.endsWith('.mov') ||
+        l.endsWith('.avi') || l.endsWith('.mkv') || l.endsWith('.m4v') ||
+        l.endsWith('.ogv') || l.endsWith('.3gp')) {
+      return true;
+    }
+
+    // External video platforms
+    if (l.includes('youtube') || l.includes('youtu.be') ||
+        l.includes('tiktok') || l.includes('instagram') || l.includes('vimeo')) {
+      return true;
+    }
+
+    // Data URLs — check the mime type prefix
+    if (l.startsWith('data:video')) return true;
+    if (l.startsWith('data:image')) return false;
+
+    // Blob URLs — can be either; default to image (safer, no blank screen)
+    if (l.includes('blob:')) return false;
+
+    // Supabase Storage — check extension from the path, NOT the domain
+    // e.g. /storage/v1/object/public/media/posts/abc.jpg → image
+    //      /storage/v1/object/public/media/posts/abc.mp4 → video
+    if (l.includes('/storage/v1/object/') || l.includes('/object/public/')) {
+      // Already checked extensions above, so if we're here the extension is unknown
+      // Default to image — better a still image than a broken video player
+      return false;
+    }
+
+    return false;
   }, [url]);
 
   const isExternal = !!(url?.includes('youtube') || url?.includes('youtu.be') ||

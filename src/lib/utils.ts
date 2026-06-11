@@ -69,28 +69,46 @@ export function getYoutubeEmbedUrl(url: string) {
  */
 export function isVideoUrl(url: string, fileType?: string): boolean {
   if (!url) return false;
-  // File type takes priority
-  if (fileType) return fileType.startsWith('video/');
-  const lower = url.toLowerCase();
-  return (
-    lower.includes('youtube.com') ||
-    lower.includes('youtu.be') ||
-    lower.includes('tiktok.com') ||
-    lower.includes('instagram.com') ||
-    lower.includes('vimeo.com') ||
-    lower.includes('facebook.com/watch') ||
-    lower.includes('fb.watch') ||
-    lower.endsWith('.mp4') ||
-    lower.endsWith('.webm') ||
-    lower.endsWith('.mov') ||
-    lower.endsWith('.avi') ||
-    lower.endsWith('.mkv') ||
-    lower.endsWith('.m4v') ||
-    lower.endsWith('.ogv') ||
-    lower.startsWith('data:video') ||
-    lower.startsWith('blob:') ||
-    lower.includes('/video/') ||
-    lower.includes('video_url') ||
-    lower.includes('shorts/')
-  );
+
+  // File MIME type takes top priority
+  if (fileType) {
+    if (fileType.startsWith('video/')) return true;
+    if (fileType.startsWith('image/') || fileType.startsWith('audio/')) return false;
+  }
+
+  const l = url.toLowerCase().split('?')[0]; // strip query params before extension check
+
+  // Image extensions — NEVER treat as video
+  if (l.endsWith('.jpg') || l.endsWith('.jpeg') || l.endsWith('.png') ||
+      l.endsWith('.gif')  || l.endsWith('.webp')  || l.endsWith('.avif') ||
+      l.endsWith('.svg')  || l.endsWith('.bmp')   || l.endsWith('.tiff') ||
+      l.endsWith('.ico')) {
+    return false;
+  }
+
+  // Known video extensions
+  if (l.endsWith('.mp4')  || l.endsWith('.webm') || l.endsWith('.mov') ||
+      l.endsWith('.avi')  || l.endsWith('.mkv')  || l.endsWith('.m4v') ||
+      l.endsWith('.ogv')  || l.endsWith('.3gp')  || l.endsWith('.flv')) {
+    return true;
+  }
+
+  // External video platforms
+  if (l.includes('youtube.com') || l.includes('youtu.be') ||
+      l.includes('tiktok.com')  || l.includes('instagram.com') ||
+      l.includes('vimeo.com')   || l.includes('facebook.com/watch') ||
+      l.includes('fb.watch')    || l.includes('shorts/')) {
+    return true;
+  }
+
+  // Data URLs — check mime prefix
+  if (l.startsWith('data:video')) return true;
+  if (l.startsWith('data:image')) return false;
+
+  // Blob URLs — default image (avoid broken video player on uploaded photos)
+  if (l.startsWith('blob:')) return false;
+
+  // Supabase Storage paths — extension already checked above
+  // If we reach here with no known extension, treat as image (safer default)
+  return false;
 }
