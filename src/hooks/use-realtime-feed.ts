@@ -147,6 +147,9 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
   }
 
   try {
+    // Category routing: lesson-category posts also write to lessons table
+    const isLesson = post.category === 'lesson' || post.category === 'education' || post.type === 'lesson';
+
     const { data, error } = await supabase.from('posts').insert({
       user_id: post.userId || 'anonymous',
       user_name: post.userName || 'User',
@@ -164,6 +167,25 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
 
     if (data) {
       results.push(data.id);
+
+      // If it's a lesson, also write to the lessons table so Learning Hub picks it up
+      if (isLesson) {
+        try {
+          await supabase.from('lessons').insert({
+            user_id: post.userId || 'anonymous',
+            topic: post.title || post.caption,
+            age_group: post.ageGroup || '14-17',
+            lesson_plan: JSON.stringify({
+              title: post.title || post.caption,
+              url: post.url || post.mediaUrl,
+              mediaUrl: post.mediaUrl,
+              caption: post.caption,
+              post_id: data.id,
+            }),
+          });
+        } catch {}
+      }
+
       try {
         const { broadcastNotification } = await import('../lib/ads');
         broadcastNotification({

@@ -97,23 +97,19 @@ export default function SettingsPage() {
   const applyDarkMode = (dark: boolean) => {
     const root = document.documentElement;
     if (dark) {
+      root.classList.remove('light');
       root.classList.add('dark');
       root.style.colorScheme = 'dark';
-      root.style.removeProperty('--background');
-      root.style.removeProperty('--foreground');
-      root.style.removeProperty('--card');
-      root.style.removeProperty('--card-foreground');
-      root.style.removeProperty('--muted');
-      root.style.removeProperty('--muted-foreground');
+      // Remove any inline overrides so globals.css dark theme takes over
+      ['--background','--foreground','--card','--card-foreground','--muted','--muted-foreground',
+       '--primary','--primary-foreground','--border','--input','--ring','--accent','--accent-foreground'].forEach(v => root.style.removeProperty(v));
     } else {
       root.classList.remove('dark');
+      root.classList.add('light');
       root.style.colorScheme = 'light';
-      root.style.setProperty('--background', '0 0% 98%');
-      root.style.setProperty('--foreground', '285 70% 5%');
-      root.style.setProperty('--card', '0 0% 100%');
-      root.style.setProperty('--card-foreground', '285 70% 5%');
-      root.style.setProperty('--muted', '285 10% 92%');
-      root.style.setProperty('--muted-foreground', '285 10% 40%');
+      // Remove inline overrides — .light class in globals.css handles it
+      ['--background','--foreground','--card','--card-foreground','--muted','--muted-foreground',
+       '--primary','--primary-foreground','--border','--input','--ring','--accent','--accent-foreground'].forEach(v => root.style.removeProperty(v));
     }
     localStorage.setItem('nga-dark-mode', dark ? '1' : '0');
   };
@@ -313,24 +309,40 @@ export default function SettingsPage() {
                   </div>
                   <Camera className="h-5 w-5 text-primary shrink-0" />
                   <input id="gallery-picker" type="file" accept="image/*" className="hidden"
-                    onChange={e => {
+                    onChange={async e => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = async ev => {
-                        const dataUrl = ev.target?.result as string;
-                        setProfilePicture(dataUrl);
-                        // Save immediately to Firestore
-                        if (user && firestore) {
-                          try {
-                            await updateDoc(doc(firestore, 'users', user.uid), { profilePicture: dataUrl });
-                            const { upsertAppUser } = await import('../../../hooks/use-realtime');
-                            upsertAppUser({ id: user.uid, avatar: dataUrl });
-                            toast({ title: 'Profile picture updated!' });
-                          } catch {}
+
+                      // Show local preview immediately
+                      const localBlob = URL.createObjectURL(file);
+                      setProfilePicture(localBlob);
+                      toast({ title: 'Uploading photo...' });
+
+                      try {
+                        const { supabase } = await import('../../../lib/supabase');
+                        const ext = file.name.split('.').pop() || 'jpg';
+                        const path = `avatars/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+                        const { data, error } = await supabase.storage.from('media').upload(path, file, {
+                          cacheControl: '31536000', upsert: false,
+                        });
+                        let finalUrl = localBlob;
+                        if (data && !error) {
+                          const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
+                          if (urlData?.publicUrl) finalUrl = urlData.publicUrl;
+                        } else {
+                          toast({ variant: 'destructive', title: 'Upload failed', description: 'Using local preview — save to keep it.' });
                         }
-                      };
-                      reader.readAsDataURL(file);
+                        setProfilePicture(finalUrl);
+                        // Save real URL (never base64) to Firestore + Supabase
+                        if (user && firestore && finalUrl.startsWith('http')) {
+                          await updateDoc(doc(firestore, 'users', user.uid), { profilePicture: finalUrl });
+                          const { upsertAppUser } = await import('../../../hooks/use-realtime');
+                          upsertAppUser({ id: user.uid, avatar: finalUrl });
+                          toast({ title: 'Profile picture updated!' });
+                        }
+                      } catch {
+                        toast({ variant: 'destructive', title: 'Upload failed', description: 'Check your connection and try again.' });
+                      }
                     }} />
                 </div>
                 <Input placeholder="Or paste image URL..." className="h-11 bg-black/20 rounded-2xl border-white/5 text-sm"

@@ -56,12 +56,12 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Purple-blue gradient backgrounds that cycle with fade
+  // Black gradient backgrounds for notification dropdown
   const gradients = [
-    'linear-gradient(135deg, #1a0533 0%, #0d1b4b 50%, #1a0533 100%)',
-    'linear-gradient(135deg, #0d1b4b 0%, #2d0a5e 50%, #0a1a3d 100%)',
-    'linear-gradient(135deg, #2d0a5e 0%, #1a0533 50%, #0d2b5e 100%)',
-    'linear-gradient(135deg, #0a1a3d 0%, #3d0a6e 50%, #1a0533 100%)',
+    'linear-gradient(135deg, #000000 0%, #111111 50%, #000000 100%)',
+    'linear-gradient(135deg, #0a0a0a 0%, #141414 50%, #000000 100%)',
+    'linear-gradient(135deg, #111111 0%, #000000 50%, #0a0a0a 100%)',
+    'linear-gradient(135deg, #000000 0%, #0d0d0d 50%, #111111 100%)',
   ];
 
   // Cycle background gradient
@@ -132,7 +132,7 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
             <p className="font-black text-xs uppercase tracking-widest text-white">
               Notifications
               {unreadCount > 0 && (
-                <span className="ml-2 bg-purple-500/30 text-purple-300 px-2 py-0.5 rounded-full text-[9px]">
+                <span className="ml-2 bg-white/10 text-white/60 px-2 py-0.5 rounded-full text-[9px]">
                   {unreadCount} new
                 </span>
               )}
@@ -163,7 +163,7 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
                   else if (n.type === 'follow') router.push('/network');
                   else if (n.type === 'message') router.push('/chat');
                 }}>
-                <div className="h-9 w-9 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0 text-base border border-purple-500/20">
+                <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center shrink-0 text-base border border-white/10">
                   {n.type === 'like' ? '❤️'
                     : n.type === 'comment' ? '💬'
                     : n.type === 'follow' ? '👤'
@@ -179,7 +179,7 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
                     {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-                {!n.is_read && <div className="h-2 w-2 rounded-full bg-purple-400 shrink-0 mt-1.5 animate-pulse" />}
+                {!n.is_read && <div className="h-2 w-2 rounded-full bg-white shrink-0 mt-1.5 animate-pulse" />}
               </div>
             ))}
           </div>
@@ -201,11 +201,11 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
 function PresenceTracker({ userId, userName, userAvatar }: { userId: string; userName: string; userAvatar: string }) {
   usePresence(userId, userName, userAvatar);
 
-  // Upsert user into app_users table so they appear in chat/network
   React.useEffect(() => {
     if (!userId || !userName) return;
-    upsertAppUser({ id: userId, display_name: userName, avatar: userAvatar, is_online: true, last_seen: new Date().toISOString() });
-    // Mark offline on unload
+    // Never save blob: or data: URLs — only real http URLs
+    const safeAvatar = userAvatar?.startsWith('http') ? userAvatar : '';
+    upsertAppUser({ id: userId, display_name: userName, avatar: safeAvatar, is_online: true, last_seen: new Date().toISOString() });
     const handleUnload = () => {
       upsertAppUser({ id: userId, is_online: false, last_seen: new Date().toISOString() });
     };
@@ -251,10 +251,10 @@ function NewUserBanner() {
 
   return (
     <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[99998] animate-in slide-in-from-top-4 duration-500">
-      <div className="flex items-center gap-3 bg-slate-900/95 backdrop-blur-xl border border-primary/30 rounded-full px-5 py-3 shadow-2xl shadow-primary/20">
+      <div className="flex items-center gap-3 bg-black/95 backdrop-blur-xl border border-white/15 rounded-full px-5 py-3 shadow-2xl">
         <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
         <p className="text-xs font-black text-white">
-          <span className="text-primary">@{banner.name.replace(/\s/g, '_').toLowerCase()}</span> just joined — wanna check?
+          <span className="text-white font-black">@{banner.name.replace(/\s/g, '_').toLowerCase()}</span> just joined — wanna check?
         </p>
         <button onClick={() => { setBanner(null); router.push('/network'); }}
           className="text-[10px] font-black uppercase tracking-widest text-primary hover:text-white transition-colors ml-1">
@@ -307,8 +307,8 @@ function CreateModal({ ageGroup }: { ageGroup: string }) {
 
   const options = [
     { label: 'New Post', icon: BookImage, href: '/create-post', color: 'text-primary', desc: 'Photo or video to your feed' },
-    { label: 'Story', icon: Clapperboard, href: '/create-post?type=story', color: 'text-pink-400', desc: '24-hour story node' },
-    { label: 'Reel', icon: Video, href: '/create-post?type=reel', color: 'text-purple-400', desc: 'Short-form video reel' },
+    { label: 'Story', icon: Clapperboard, href: '/create-post?type=story', color: 'text-white/70', desc: '24-hour story node' },
+    { label: 'Reel', icon: Video, href: '/create-post?type=reel', color: 'text-white/70', desc: 'Short-form video reel' },
     { label: 'Record', icon: Camera, href: '/record-video', color: 'text-orange-400', desc: 'Record directly from camera' },
     { label: 'Go Live', icon: Radio, href: '/live-stream', color: 'text-red-400', desc: 'Start a live broadcast' },
   ];
@@ -326,7 +326,7 @@ function CreateModal({ ageGroup }: { ageGroup: string }) {
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-slate-900 border-primary/20 rounded-[2.5rem] max-w-sm p-6 shadow-2xl">
+        <DialogContent className="bg-black border-white/10 rounded-[2.5rem] max-w-sm p-6 shadow-2xl">
           <DialogTitle className="text-sm font-black uppercase tracking-widest text-center mb-4">Create</DialogTitle>
           <div className="space-y-2">
             {options.map(opt => (
@@ -740,36 +740,36 @@ export default function AppLayout({
       </SidebarProvider>
 
       <Dialog open={showBranding} onOpenChange={setShowBranding}>
-        <DialogContent className="bg-slate-900 border-primary/20 rounded-[3rem] max-w-md p-10 text-center shadow-2xl">
+        <DialogContent className="bg-black border-white/10 rounded-[3rem] max-w-md p-10 text-center shadow-2xl">
           <DialogTitle className="sr-only">BRAINEXSTARK Branding</DialogTitle>
           <div className="space-y-6">
-            <div className="mx-auto h-20 w-20 bg-primary/10 rounded-full flex items-center justify-center border-2 border-primary/20 animate-pulse">
-              <Zap className="h-10 w-10 text-primary" />
+            <div className="mx-auto h-20 w-20 bg-white/10 rounded-full flex items-center justify-center border-2 border-white/20 animate-pulse">
+              <Zap className="h-10 w-10 text-white" />
             </div>
             <div className="space-y-2">
                 <h2 className="text-3xl font-black uppercase tracking-tighter text-white font-headline">Made by BRAINEXSTARK COMPANIES</h2>
-                <p className="text-sm font-medium italic text-muted-foreground">Synchronizing high-performance legacy nodes.</p>
+                <p className="text-sm font-medium italic text-white/50">Synchronizing high-performance legacy nodes.</p>
             </div>
-            <div className="space-y-4 pt-6 border-t border-white/5 text-left">
-              <p className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Follow BRAINEXSTARK</p>
+            <div className="space-y-4 pt-6 border-t border-white/10 text-left">
+              <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-2">Follow BRAINEXSTARK</p>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: 'Instagram', color: 'text-pink-500', icon: Instagram, href: 'https://instagram.com/brainexstark' },
+                  { label: 'Instagram', color: 'text-white', icon: Instagram, href: 'https://instagram.com/brainexstark' },
                   { label: 'TikTok', color: 'text-white', icon: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z"/></svg>, href: 'https://tiktok.com/@brainexstark' },
-                  { label: 'Facebook', color: 'text-blue-500', icon: Facebook, href: 'https://facebook.com/brainexstark' },
+                  { label: 'Facebook', color: 'text-white', icon: Facebook, href: 'https://facebook.com/brainexstark' },
                   { label: 'Threads', color: 'text-white', icon: MessageSquareText, href: 'https://threads.net/@brainexstark' },
-                  { label: 'WhatsApp', color: 'text-green-400', icon: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.353-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.72 1.03 3.703 1.574 5.711 1.574h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>, href: 'https://wa.me/brainexstark' },
-                  { label: 'YouTube', color: 'text-red-500', icon: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>, href: 'https://youtube.com/@brainexstark' },
+                  { label: 'WhatsApp', color: 'text-white', icon: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.353-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.72 1.03 3.703 1.574 5.711 1.574h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>, href: 'https://wa.me/brainexstark' },
+                  { label: 'YouTube', color: 'text-white', icon: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>, href: 'https://youtube.com/@brainexstark' },
                 ].map(s => (
                   <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                     <s.icon className={cn('h-4 w-4', s.color)} />
-                    <span className="text-[10px] font-bold">@brainexstark</span>
+                    <span className="text-[10px] font-bold text-white/60">@brainexstark</span>
                   </a>
                 ))}
               </div>
             </div>
-            <Button onClick={() => setShowBranding(false)} className="w-full h-14 rounded-2xl font-black uppercase mt-4 shadow-xl animate-bg-color-sync border-none text-white">
-              INITIALIZE ENVIRONMENT
+            <Button onClick={() => setShowBranding(false)} className="w-full h-14 rounded-2xl font-black uppercase mt-4 shadow-xl bg-white text-black hover:bg-white/90 border-none">
+              Get Started
             </Button>
           </div>
         </DialogContent>

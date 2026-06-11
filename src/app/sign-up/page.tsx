@@ -88,7 +88,6 @@ export default function SignUpPage() {
     setUploadingPic(true);
 
     try {
-      // Upload to Supabase Storage — get a real short URL
       const { supabase } = await import('../../lib/supabase');
       const ext = file.name.split('.').pop() || 'jpg';
       const path = `avatars/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -99,11 +98,17 @@ export default function SignUpPage() {
       if (data && !error) {
         const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
         if (urlData?.publicUrl) {
-          setProfilePic(urlData.publicUrl); // replace blob with real URL
+          setProfilePic(urlData.publicUrl);
         }
+      } else {
+        // Upload failed — clear so user isn't stuck with a blob URL that won't save
+        setProfilePic('');
+        toast({ variant: 'destructive', title: 'Photo upload failed', description: 'Try again or use a URL instead.' });
       }
-      // If upload fails, keep blob URL for preview but clear it before saving
-    } catch {}
+    } catch {
+      setProfilePic('');
+      toast({ variant: 'destructive', title: 'Photo upload failed', description: 'Check your connection and try again.' });
+    }
     setUploadingPic(false);
   };
 
@@ -194,14 +199,14 @@ export default function SignUpPage() {
     }
   };
 
-  if (!mounted) return <div className="min-h-screen bg-[#0a051a]" />;
+  if (!mounted) return <div className="min-h-screen bg-black" />;
 
   const stepNum = step === 'account' ? 1 : step === 'profile' ? 2 : step === 'age' ? 3 : 4;
 
   return (
-    <main className="min-h-screen bg-[#0a051a] flex flex-col">
+    <main className="min-h-screen bg-black flex flex-col">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
         <Logo />
         <Link href="/sign-in" className="text-xs font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors">
           Sign in →
@@ -210,8 +215,8 @@ export default function SignUpPage() {
 
       {/* Background */}
       <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-accent/15 rounded-full blur-[120px]" />
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-white/3 rounded-full blur-[120px]" />
+        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-white/3 rounded-full blur-[120px]" />
       </div>
 
       <div className="flex-1 flex items-center justify-center px-6 py-12 relative z-10">

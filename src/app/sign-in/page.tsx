@@ -3,24 +3,24 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "../../components/logo";
-import { Loader2, Eye, EyeOff, ArrowRight, Mail, Lock } from "lucide-react";
+import { Loader2, Eye, EyeOff, ArrowRight, Mail, Lock, User } from "lucide-react";
 import Link from "next/link";
 import {
   GoogleAuthProvider, signInWithPopup, signInWithRedirect,
   getRedirectResult, signInWithEmailAndPassword, sendPasswordResetEmail
 } from "firebase/auth";
-import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { useAuth, useFirestore } from "../../firebase";
 import { useToast } from "../../hooks/use-toast";
 import { AnimatedBg } from "../../components/animated-bg";
+import { cn } from "../../lib/utils";
 
-// Map Firebase error codes to friendly messages — never show raw Firebase errors
 function friendlyAuthError(code: string): string {
   switch (code) {
     case 'auth/user-not-found':
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
-      return 'Email or password is incorrect. Please try again.';
+      return 'Email/username or password is incorrect.';
     case 'auth/invalid-email':
       return 'Please enter a valid email address.';
     case 'auth/user-disabled':
@@ -29,19 +29,13 @@ function friendlyAuthError(code: string): string {
       return 'Too many attempts. Please wait a moment and try again.';
     case 'auth/network-request-failed':
       return 'Network error. Check your connection and try again.';
-    case 'auth/popup-closed-by-user':
-      return 'Sign-in popup was closed. Please try again.';
-    case 'auth/popup-blocked':
-      return 'Popup was blocked by your browser. Trying redirect...';
-    case 'auth/email-already-in-use':
-      return 'This email is already registered. Try signing in instead.';
     default:
       return 'Sign in failed. Please check your details and try again.';
   }
 }
 
 export default function SignInPage() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState(''); // email OR username
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,66 +51,45 @@ export default function SignInPage() {
     setMounted(true);
     if (auth) {
       getRedirectResult(auth)
-        .then((result) => {
-          if (result?.user) {
-            toast({ title: 'Welcome back!' });
-            router.push('/');
-          }
-        })
+        .then((result) => { if (result?.user) { router.push('/'); } })
         .catch(() => {})
         .finally(() => setIsGoogleLoading(false));
     }
   }, [auth]);
 
+  // Resolve username → email by looking up Firestore
+  const resolveEmail = async (value: string): Promise<string> => {
+    const v = value.trim();
+    // If it looks like an email already, return it directly
+    if (v.includes('@')) return v;
+    // Otherwise treat as username — look up in Firestore
+    if (!firestore) return v;
+    try {
+      const q = query(
+        collection(firestore, 'users'),
+        where('displayName', '==', v),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        if (data.email) return data.email;
+      }
+    } catch {}
+    return v; // fall back to original value
+  };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) {
-      toast({ variant: 'destructive', title: 'App not ready', description: 'Please wait a moment and try again.' });
-      return;
-    }
-    if (!email.trim() || !password.trim()) {
-      toast({ variant: 'destructive', title: 'Fill in all fields' });
-      return;
-    }
+    if (!auth) { toast({ variant: 'destructive', title: 'App not ready' }); return; }
+    if (!identifier.trim() || !password.trim()) { toast({ variant: 'destructive', title: 'Fill in all fields' }); return; }
     setIsLoading(true);
     try {
-      const input = email.trim();
-      let emailToUse = input;
-
-      // If input doesn't contain @, treat it as a username — look up email in Firestore
-      if (!input.includes('@')) {
-        if (!firestore) {
-          toast({ variant: 'destructive', title: 'App not ready', description: 'Please wait a moment and try again.' });
-          setIsLoading(false);
-          return;
-        }
-        const usersRef = collection(firestore, 'users');
-        const q = query(usersRef, where('displayName', '==', input));
-        const snap = await getDocs(q);
-        if (snap.empty) {
-          toast({ variant: 'destructive', title: 'Sign in failed', description: 'No account found with that username.' });
-          setIsLoading(false);
-          return;
-        }
-        const userData = snap.docs[0].data();
-        emailToUse = userData.email || '';
-        if (!emailToUse) {
-          toast({ variant: 'destructive', title: 'Sign in failed', description: 'No email associated with that username.' });
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      await signInWithEmailAndPassword(auth, emailToUse, password);
-      // Success — router will redirect via layout auth check
+      const email = await resolveEmail(identifier);
+      await signInWithEmailAndPassword(auth, email, password);
       router.push('/');
     } catch (error: any) {
-      const code = error?.code || '';
-      toast({
-        variant: 'destructive',
-        title: 'Sign in failed',
-        description: friendlyAuthError(code),
-      });
+      toast({ variant: 'destructive', title: 'Sign in failed', description: friendlyAuthError(error?.code || '') });
     } finally {
       setIsLoading(false);
     }
@@ -132,39 +105,32 @@ export default function SignInPage() {
     } catch (err: any) {
       const code = err?.code || '';
       if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
-        try {
-          await signInWithRedirect(auth, provider);
-        } catch {}
+        try { await signInWithRedirect(auth, provider); } catch {}
       } else {
-        toast({
-          variant: 'destructive',
-          title: 'Google sign in failed',
-          description: friendlyAuthError(code),
-        });
+        toast({ variant: 'destructive', title: 'Google sign in failed', description: friendlyAuthError(code) });
         setIsGoogleLoading(false);
       }
     }
   };
 
   const handleForgotPassword = async () => {
-    if (!auth || !email.trim()) {
-      toast({ variant: 'destructive', title: 'Enter your email first' });
-      return;
-    }
+    if (!auth) return;
+    const email = identifier.includes('@') ? identifier.trim() : '';
+    if (!email) { toast({ variant: 'destructive', title: 'Enter your email address first' }); return; }
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      await sendPasswordResetEmail(auth, email);
       setResetSent(true);
-      toast({ title: 'Reset email sent', description: 'Check your inbox for a password reset link.' });
+      toast({ title: 'Reset email sent', description: 'Check your inbox.' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Could not send reset email', description: friendlyAuthError(err?.code || '') });
     }
   };
 
-  if (!mounted) return <div className="min-h-screen bg-[#0a051a]" />;
+  if (!mounted) return <div className="min-h-screen bg-black" />;
 
   return (
     <AnimatedBg className="min-h-screen flex flex-col">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
         <Logo />
         <Link href="/sign-up" className="text-sm font-medium text-white/40 hover:text-white transition-colors">
           Create account →
@@ -173,6 +139,7 @@ export default function SignInPage() {
 
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm space-y-7 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
           <div className="text-center space-y-2">
             <div className="mx-auto h-14 w-14 rounded-2xl overflow-hidden border border-white/10 mb-3">
               <img src="/icons/icon-192.png" alt="NGA Hub" className="w-full h-full object-cover" />
@@ -202,16 +169,22 @@ export default function SignInPage() {
           </div>
 
           <form onSubmit={handleSignIn} className="space-y-4">
+            {/* Email OR Username */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-white/50">Email or Username</label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                {identifier.includes('@')
+                  ? <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                  : <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                }
                 <input
-                  type="text" value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="Email or username"
-                  autoComplete="email"
-                  className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20"
+                  type="text"
+                  required
+                  value={identifier}
+                  onChange={e => setIdentifier(e.target.value)}
+                  placeholder="you@example.com or your_name"
+                  autoComplete="username"
+                  className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-white/40 outline-none transition-all placeholder:text-white/20"
                 />
               </div>
             </div>
@@ -221,11 +194,13 @@ export default function SignInPage() {
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
                 <input
-                  type={showPassword ? 'text' : 'password'} required value={password}
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="w-full h-12 pl-11 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20"
+                  className="w-full h-12 pl-11 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-white/40 outline-none transition-all placeholder:text-white/20"
                 />
                 <button type="button" onClick={() => setShowPassword(p => !p)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60 transition-colors">
@@ -234,21 +209,21 @@ export default function SignInPage() {
               </div>
               <div className="flex justify-end">
                 <button type="button" onClick={handleForgotPassword}
-                  className="text-[11px] text-primary/60 hover:text-primary transition-colors">
+                  className="text-[11px] text-white/40 hover:text-white transition-colors">
                   {resetSent ? '✓ Reset email sent' : 'Forgot password?'}
                 </button>
               </div>
             </div>
 
             <button type="submit" disabled={isLoading || isGoogleLoading}
-              className="w-full h-12 bg-primary rounded-2xl font-semibold text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl shadow-primary/20">
+              className="w-full h-12 bg-white text-black rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl">
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Sign in <ArrowRight className="h-4 w-4" /></>}
             </button>
           </form>
 
           <p className="text-center text-sm text-white/30">
             Don't have an account?{' '}
-            <Link href="/sign-up" className="text-primary font-semibold hover:text-primary/80 transition-colors">Sign up</Link>
+            <Link href="/sign-up" className="text-white font-semibold hover:text-white/80 transition-colors">Sign up</Link>
           </p>
         </div>
       </div>

@@ -8,13 +8,13 @@ export function AnimatedBg({ children, className = '' }: { children: React.React
   const [colorIndex, setColorIndex] = React.useState(0);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
-  // Colour palettes that fade between each other
+  // Colour palettes — black/white/grey only
   const palettes = [
-    { a: '#1a0533', b: '#0d1b4b', c: '#2d0a5e' },  // purple-blue
-    { a: '#0a1a3d', b: '#1a0533', c: '#3d0a6e' },  // deep blue-purple
-    { a: '#0d2b5e', b: '#2d0a5e', c: '#0a051a' },  // navy-purple
-    { a: '#1a0533', b: '#3d0a6e', c: '#0d1b4b' },  // violet
-    { a: '#0a051a', b: '#1a0533', c: '#0d2b5e' },  // dark purple
+    { a: '#000000', b: '#111111', c: '#1a1a1a' },
+    { a: '#0a0a0a', b: '#141414', c: '#000000' },
+    { a: '#111111', b: '#000000', c: '#0d0d0d' },
+    { a: '#000000', b: '#0a0a0a', c: '#111111' },
+    { a: '#0d0d0d', b: '#111111', c: '#000000' },
   ];
 
   // Cycle colours every 3 seconds
@@ -48,10 +48,7 @@ export function AnimatedBg({ children, className = '' }: { children: React.React
       className={`relative overflow-hidden ${className}`}
       onMouseMove={handleMouseMove}
       onTouchMove={handleTouchMove}
-      style={{
-        background: p.a,
-        transition: 'background 3s ease',
-      }}
+      style={{ background: '#000000' }}
     >
       {/* Dynamic colour blobs */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">

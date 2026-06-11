@@ -17,11 +17,11 @@ function DynamicBg({ children }: { children: React.ReactNode }) {
   const ref = React.useRef<HTMLDivElement>(null);
 
   const colors = [
-    ['#ff007f', '#9d00ff', '#0044ff'],
-    ['#9d00ff', '#0044ff', '#00c3ff'],
-    ['#0044ff', '#00c3ff', '#00e676'],
-    ['#ff6d00', '#ff007f', '#9d00ff'],
-    ['#00c3ff', '#9d00ff', '#ff007f'],
+    ['#ffffff', '#cccccc', '#999999'],
+    ['#eeeeee', '#ffffff', '#aaaaaa'],
+    ['#cccccc', '#aaaaaa', '#ffffff'],
+    ['#ffffff', '#dddddd', '#bbbbbb'],
+    ['#aaaaaa', '#ffffff', '#dddddd'],
   ];
 
   React.useEffect(() => {
@@ -40,7 +40,7 @@ function DynamicBg({ children }: { children: React.ReactNode }) {
 
   return (
     <div ref={ref} className="relative min-h-screen overflow-hidden"
-      style={{ background: '#0a051a' }}
+      style={{ background: '#000000' }}
       onMouseMove={e => handleMove(e.clientX, e.clientY)}
       onTouchMove={e => { const t = e.touches[0]; if (t) handleMove(t.clientX, t.clientY); }}>
       {/* Animated blobs */}
@@ -106,7 +106,7 @@ export default function Home() {
     return () => { supabase.removeChannel(ch); };
   }, []);
 
-  if (!mounted) return <div className="min-h-screen bg-[#0a051a]" />;
+  if (!mounted) return <div className="min-h-screen bg-black" />;
 
   return (
     <DynamicBg>

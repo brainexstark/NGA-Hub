@@ -729,18 +729,21 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
             <span className="text-[9px] font-medium text-white/50 truncate max-w-[60px] text-center">Your story</span>
           </div>
 
-          {/* Other users */}
+          {/* Other users — green dot OUTSIDE the overflow-hidden circle */}
           {newMembers.map((member, idx) => (
             <div key={member.id} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group">
-              <div className={`relative h-16 w-16 rounded-full overflow-hidden border-2 border-background ring-2 transition-all group-hover:scale-105 ${member.is_online ? 'ring-green-400' : 'ring-primary/60'}`}>
-                <Avatar className="h-full w-full">
-                  <AvatarImage src={member.avatar || ''} className="object-cover" />
-                  <AvatarFallback className="bg-primary/20 text-primary font-black">
-                    {member.display_name?.[0]?.toUpperCase() || 'U'}
-                  </AvatarFallback>
-                </Avatar>
+              <div className="relative h-16 w-16">
+                <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-background ring-2 transition-all group-hover:scale-105 ring-white/20">
+                  <Avatar className="h-full w-full">
+                    <AvatarImage src={member.avatar || ''} className="object-cover" />
+                    <AvatarFallback className="bg-white/10 text-white font-black">
+                      {member.display_name?.[0]?.toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                {/* Green dot OUTSIDE overflow-hidden — bottom-right corner */}
                 {member.is_online && (
-                  <span className="absolute bottom-0 right-0 h-3 w-3 bg-green-400 rounded-full border-2 border-background animate-pulse z-10" />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 bg-green-400 rounded-full border-2 border-background animate-pulse z-20 shadow-md" />
                 )}
               </div>
               <span className="text-[9px] font-medium text-white/50 truncate max-w-[60px] text-center">
