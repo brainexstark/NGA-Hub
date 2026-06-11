@@ -504,6 +504,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
         userAvatar: p.userAvatar,
         category: p.category,
         likesCount: p.likesCount,
+        createdAt: p.createdAt,
       }));
     // Keep newest 3 at top, shuffle the rest for variety
     const top = mapped.slice(0, 3);
@@ -511,8 +512,24 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     return [...top, ...rest];
   }, [supabasePosts]);
 
+  // AI-ranked feed — runs after rawPosts are set
+  const [rankedPosts, setRankedPosts] = React.useState<any[]>([]);
+  React.useEffect(() => {
+    if (!rawPosts.length) { setRankedPosts([]); return; }
+    const userInterests: Record<string, number> = profile?.interests || {};
+    const watchHistory: string[] = profile?.watchHistory || [];
+    import('../../../../lib/cloudflare-ai').then(({ aiRankFeed }) => {
+      aiRankFeed(rawPosts, userInterests, watchHistory).then(sorted => {
+        setRankedPosts(sorted);
+      }).catch(() => setRankedPosts(rawPosts));
+    }).catch(() => setRankedPosts(rawPosts));
+  }, [rawPosts, profile]);
+
+  // Use rankedPosts if available, fall back to rawPosts
+  const postsForFeed = rankedPosts.length > 0 ? rankedPosts : rawPosts;
+
   // Inject ads every 5 posts
-  const feedPosts = React.useMemo(() => injectAds(rawPosts, ads, 5), [rawPosts, ads]);
+  const feedPosts = React.useMemo(() => injectAds(postsForFeed, ads, 5), [postsForFeed, ads]);
 
   const handleTriggerCycle = () => {
     window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));

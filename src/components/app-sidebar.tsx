@@ -152,6 +152,8 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
     { href: '/ai-tools', label: 'AI Suite', icon: Bot },
     { href: '/live-lesson', label: 'Live Lesson', icon: Flame },
     { href: '/video-bank', label: 'Video Bank', icon: Film },
+    { href: '/offline-reels', label: 'Offline Reels', icon: Download },
+    { href: '/office', label: 'Office Apps', icon: FileText },
     { href: '/install', label: 'Install Hub', icon: Download },
   ];
 

@@ -21,19 +21,49 @@ import {
 import { Card, CardContent } from '../../../components/ui/card';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "../../../components/ui/dialog";
 import { getEmbedUrl } from "../../../lib/utils";
-import { useUser, useFirestore, updateDocumentNonBlocking } from '../../../firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '../../../firebase';
 import { doc, arrayUnion } from 'firebase/firestore';
+import { useToast } from '../../../hooks/use-toast';
+import { aiFilterSearch } from '../../../lib/cloudflare-ai';
+import type { UserProfile } from '../../../lib/types';
 
 export default function SearchPage() {
   const { user } = useUser();
   const firestore = useFirestore();
+  const { toast } = useToast();
   const [query, setQuery] = React.useState('');
   const [isSearching, setIsSearching] = React.useState(false);
   const [activeUrl, setActiveUrl] = React.useState<string | null>(null);
 
-  const handleSearch = (e: React.FormEvent) => {
+  // Fetch user profile to get ageGroup for AI filtering
+  const profileRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [user, firestore]);
+  const { data: profile } = useDoc<UserProfile>(profileRef);
+
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
+    
+    setIsSearching(true);
+
+    // AI search filter — only blocks if CF is configured and returns allowed=false
+    try {
+      const ageGroup = profile?.ageGroup || '14-17';
+      const { allowed, reason } = await aiFilterSearch(query.trim(), ageGroup);
+      if (!allowed) {
+        toast({
+          title: 'Search Blocked',
+          description: reason || 'This search is not allowed for your age group.',
+          variant: 'destructive',
+        });
+        setIsSearching(false);
+        return;
+      }
+    } catch {
+      // If AI check fails for any reason, proceed normally — never block users
+    }
     
     // Algorithmic History Sync
     if (user && firestore) {
@@ -41,7 +71,6 @@ export default function SearchPage() {
         updateDocumentNonBlocking(userRef, { searchHistory: arrayUnion(query.trim()) });
     }
 
-    setIsSearching(true);
     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&igu=1`;
     
     setTimeout(() => {

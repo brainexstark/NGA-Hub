@@ -23,6 +23,13 @@ import { getEmbedUrl, cn } from "@/lib/utils";
 
 const tools = [
   {
+    title: "NGA Hub AI",
+    description: "Chat with NGA Hub's built-in AI assistant — powered by Cloudflare Workers AI. Get help with homework, creative ideas, and more.",
+    href: "/ai-assistant",
+    icon: Bot,
+    isExternal: false,
+  },
+  {
     title: "AI Live Lesson Generator",
     description: "Generate an instant lesson plan for any topic, 'streamed' by our AI instructor. An internal tool for NGA Hub.",
     href: "/live-lesson",
