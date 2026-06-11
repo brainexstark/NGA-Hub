@@ -251,19 +251,20 @@ function CreatePostContent() {
 
     // AI moderation with a 4-second timeout — if it hangs, skip it and publish anyway
     try {
+      const { aiModerateContent } = await import('../../../lib/cloudflare-ai');
       const modResult = await Promise.race([
-        moderateContent({ text: `${title} ${caption}` }),
-        new Promise<{ isInappropriate: false }>((resolve) =>
-          setTimeout(() => resolve({ isInappropriate: false }), 4000)
+        aiModerateContent(`${title} ${caption}`),
+        new Promise<{ flagged: false; reason: '' }>((resolve) =>
+          setTimeout(() => resolve({ flagged: false, reason: '' }), 4000)
         ),
       ]);
-      if (modResult.isInappropriate) {
-        toast({ variant: 'destructive', title: 'Content flagged by AI moderation' });
+      if (modResult.flagged) {
+        toast({ variant: 'destructive', title: 'Content flagged', description: modResult.reason || 'Content not suitable for NGA Hub.' });
         setIsSubmitting(false);
         return;
       }
     } catch {
-      // Moderation failed — proceed with publish anyway
+      // Moderation unavailable — proceed
     }
 
     const finalUrl = mediaUrl.trim() || 'https://placehold.co/600x400/1a0533/ffffff?text=NGA+Hub';

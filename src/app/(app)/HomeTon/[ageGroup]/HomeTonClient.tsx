@@ -163,15 +163,15 @@ function FeedMedia({ url }: { url: string }) {
     return base.includes('?') ? `${base}&autoplay=1&mute=0&playsinline=1` : `${base}?autoplay=1&mute=0&playsinline=1`;
   }, [url, isExternal, inView]);
 
-  if (!url) return <div className="w-full aspect-[9/16] bg-black" />;
+  if (!url) return <div className="w-full aspect-square bg-black" />;
 
   return (
-    <div ref={ref} className="w-full aspect-[9/16] bg-black overflow-hidden">
+    <div ref={ref} className="w-full aspect-square bg-black overflow-hidden">
       {!isVideo ? (
-        // Image — never autoplay
+        // Image
         <img src={url} alt="post" className="w-full h-full object-cover" loading="lazy" />
       ) : isExternal ? (
-        // External embed — only mount iframe when in view to prevent all playing at once
+        // External embed — only mount iframe when in view
         inView ? (
           <iframe
             key={`playing-${url}`}
@@ -181,21 +181,20 @@ function FeedMedia({ url }: { url: string }) {
             allowFullScreen
           />
         ) : (
-          // Placeholder shown when out of view
           <div className="w-full h-full bg-black flex items-center justify-center">
             <PlayCircle className="h-14 w-14 text-white/30" />
           </div>
         )
       ) : (
-        // Native video — play/pause via ref, object-contain so it's never cropped
+        // Native video — unmuted, plays when in view
         <video
           ref={videoRef}
           src={url}
           className="w-full h-full object-contain bg-black"
-          muted
           loop
           playsInline
           preload="metadata"
+          controls
         />
       )}
     </div>
@@ -256,31 +255,31 @@ function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid, i
   };
 
   return (
-    <div className="px-4 py-2 flex items-center justify-between">
+    <div className="px-4 py-2 flex items-center justify-between border-b border-pink-500/10">
       <div className="flex items-center gap-5">
         <button onClick={handleLike} className="flex items-center gap-1.5 active:scale-125 transition-transform">
-          <Heart className={cn("h-6 w-6 transition-all duration-200", liked ? "fill-red-500 text-red-500" : "text-white/80")} />
+          <Heart className={cn("h-6 w-6 transition-all duration-200", liked ? "fill-pink-500 text-pink-500" : "text-white/70")} />
           {likesCount > 0 && <span className="text-xs font-black text-white/60">{likesCount}</span>}
         </button>
         <Link href={`/comments/${postId}`} className="flex items-center gap-1.5 active:scale-110 transition-transform">
-          <MessageCircle className="h-6 w-6 text-white/80" />
+          <MessageCircle className="h-6 w-6 text-blue-400/70" />
         </Link>
         <button onClick={handleRepost} className="active:scale-110 transition-transform">
-          <Repeat2 className={cn("h-6 w-6 transition-all duration-200", reposted ? "text-green-400" : "text-white/80")} />
+          <Repeat2 className={cn("h-6 w-6 transition-all duration-200", reposted ? "text-green-400" : "text-white/70")} />
         </button>
         <button onClick={handleShare} className="active:scale-110 transition-transform">
-          <Send className="h-6 w-6 text-white/80" />
+          <Send className="h-6 w-6 text-white/70" />
         </button>
-      </div>      {/* Right: Volume + Save */}
+      </div>
       <div className="flex items-center gap-4">
         <button onClick={handleMute} className="active:scale-110 transition-transform">
           {muted
-            ? <VolumeX className="h-6 w-6 text-white/80" />
-            : <Volume2 className="h-6 w-6 text-white" />
+            ? <VolumeX className="h-6 w-6 text-white/60" />
+            : <Volume2 className="h-6 w-6 text-blue-400" />
           }
         </button>
         <button onClick={handleSave} className="active:scale-110 transition-transform">
-          <Bookmark className={cn("h-6 w-6 transition-all duration-200", saved ? "fill-white text-white" : "text-white/80")} />
+          <Bookmark className={cn("h-6 w-6 transition-all duration-200", saved ? "fill-pink-400 text-pink-400" : "text-white/70")} />
         </button>
       </div>
     </div>
@@ -448,9 +447,9 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
     fetchAds(ageGroup).then(setAds);
   }, [ageGroup]);
 
-  // Map supabase posts directly — no Firestore fallback, no threshold
+  // Map supabase posts directly — shuffle for variety
   const rawPosts = React.useMemo(() => {
-    return supabasePosts
+    const mapped = supabasePosts
       .slice()
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .map(p => ({
@@ -464,6 +463,10 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
         category: p.category,
         likesCount: p.likesCount,
       }));
+    // Keep newest 3 at top, shuffle the rest for variety
+    const top = mapped.slice(0, 3);
+    const rest = mapped.slice(3).sort(() => Math.random() - 0.5);
+    return [...top, ...rest];
   }, [supabasePosts]);
 
   // Inject ads every 5 posts
@@ -676,26 +679,26 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
   return (
     <div className="mx-auto max-w-2xl pb-32 relative animate-in fade-in duration-700">
 
-      {/* ── SINGLE TOP HEADER — icon + name + stats + notification + favorites ── */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-xl border-b border-white/5 px-4 py-2.5 flex items-center justify-between gap-2">
+      {/* ── SINGLE TOP HEADER — pink-blue gradient accent ── */}
+      <header className="sticky top-0 z-50 bg-gradient-to-r from-slate-950 via-purple-950/80 to-slate-950 backdrop-blur-xl border-b border-pink-500/20 px-4 py-2.5 flex items-center justify-between gap-2">
         {/* Left: App icon + name */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="h-8 w-8 rounded-xl overflow-hidden border border-white/10 shrink-0">
+          <div className="h-8 w-8 rounded-xl overflow-hidden border border-pink-500/30 shrink-0 ring-1 ring-pink-500/20">
             <img src="/icons/icon-192.png" alt="NGA Hub" className="w-full h-full object-cover" />
           </div>
-          <span className="font-bold text-sm text-white tracking-tight">NGA Hub</span>
+          <span className="font-bold text-sm tracking-tight bg-gradient-to-r from-pink-400 to-blue-400 bg-clip-text text-transparent">NGA Hub</span>
         </div>
 
         {/* Center: Stats */}
         <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-widest">
-          <SocialStatsPopover type="disciples" count={profile?.disciplesCount || 0} label="Disciples" colorClass="text-primary" />
-          <SocialStatsPopover type="followers" count={followersCount} label="Followers" colorClass="text-accent" />
+          <SocialStatsPopover type="disciples" count={profile?.disciplesCount || 0} label="Disciples" colorClass="text-pink-400" />
+          <SocialStatsPopover type="followers" count={followersCount} label="Followers" colorClass="text-blue-400" />
           <SocialStatsPopover type="following" count={followingCount} label="Following" colorClass="text-foreground/60" />
         </div>
 
         {/* Right: Notification + Favorites */}
         <div className="flex items-center gap-3 shrink-0">
-          <Link href="/favorites" className="text-foreground/60 hover:text-primary transition-colors">
+          <Link href="/favorites" className="text-pink-400/70 hover:text-pink-400 transition-colors">
             <Heart className="h-5 w-5" />
           </Link>
           {user && (
@@ -708,42 +711,62 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
         </div>
       </header>
 
-      {/* ── STORIES / PROFILES ROW — hides on scroll down ── */}
-      <div className={`transition-all duration-300 overflow-hidden border-b border-white/5 ${profilesVisible ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0'}`}>
+      {/* ── PROFILES / STORIES ROW — logged-in user first, then all app users ── */}
+      <div className={`transition-all duration-300 overflow-hidden border-b border-pink-500/10 bg-gradient-to-r from-slate-950/80 via-purple-950/30 to-slate-950/80 ${profilesVisible ? 'max-h-36 opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 py-3">
-          {/* Your Story */}
+
+          {/* ── LOGGED-IN USER — always first, full profile pic ── */}
           <div className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group" onClick={() => router.push('/create-post/?type=story')}>
             <div className="relative">
-              <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-background ring-2 ring-white/20 group-hover:ring-primary/60 transition-all">
-                <Avatar className="h-full w-full">
-                  <AvatarImage src={profile?.profilePicture || user?.photoURL || ''} className="object-cover" />
-                  <AvatarFallback className="bg-primary/20 text-primary font-black">
-                    {profile?.displayName?.[0]?.toUpperCase() || 'U'}
-                  </AvatarFallback>
-                </Avatar>
+              {/* Pink-blue gradient ring for own profile */}
+              <div className="h-16 w-16 rounded-full p-[2px] bg-gradient-to-tr from-pink-500 via-blue-500 to-purple-500 group-hover:scale-105 transition-all">
+                <div className="h-full w-full rounded-full overflow-hidden border-2 border-background">
+                  {(profile?.profilePicture || user?.photoURL) ? (
+                    <img
+                      src={profile?.profilePicture || user?.photoURL || ''}
+                      alt="You"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-pink-500 to-blue-500 flex items-center justify-center">
+                      <span className="text-white font-black text-lg">
+                        {(profile?.displayName || user?.displayName || 'U')[0].toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 h-5 w-5 bg-primary rounded-full border-2 border-background flex items-center justify-center">
+              {/* + add story button */}
+              <div className="absolute -bottom-0.5 -right-0.5 h-5 w-5 bg-gradient-to-br from-pink-500 to-blue-500 rounded-full border-2 border-background flex items-center justify-center">
                 <span className="text-white text-[10px] font-black">+</span>
               </div>
             </div>
-            <span className="text-[9px] font-medium text-white/50 truncate max-w-[60px] text-center">Your story</span>
+            <span className="text-[9px] font-bold text-white/60 truncate max-w-[60px] text-center">
+              {profile?.displayName?.split(' ')[0] || 'You'}
+            </span>
           </div>
 
-          {/* Other users — green dot OUTSIDE the overflow-hidden circle */}
+          {/* ── OTHER REGISTERED USERS — real profiles with green online dot ── */}
           {newMembers.map((member, idx) => (
             <div key={member.id} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group">
-              <div className="relative h-16 w-16">
-                <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-background ring-2 transition-all group-hover:scale-105 ring-white/20">
-                  <Avatar className="h-full w-full">
-                    <AvatarImage src={member.avatar || ''} className="object-cover" />
-                    <AvatarFallback className="bg-white/10 text-white font-black">
-                      {member.display_name?.[0]?.toUpperCase() || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
+              <div className="relative">
+                {/* Blue ring for online, white/grey for offline */}
+                <div className={`h-16 w-16 rounded-full p-[2px] transition-all group-hover:scale-105 ${member.is_online ? 'bg-gradient-to-tr from-blue-400 to-cyan-400' : 'bg-white/20'}`}>
+                  <div className="h-full w-full rounded-full overflow-hidden border-2 border-background">
+                    {member.avatar ? (
+                      <img src={member.avatar} alt={member.display_name || ''} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-white/10 flex items-center justify-center">
+                        <span className="text-white font-black text-lg">
+                          {(member.display_name || 'U')[0].toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {/* Green dot OUTSIDE overflow-hidden — bottom-right corner */}
+                {/* Green online dot — outside overflow-hidden */}
                 {member.is_online && (
-                  <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 bg-green-400 rounded-full border-2 border-background animate-pulse z-20 shadow-md" />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 bg-green-400 rounded-full border-2 border-background animate-pulse z-20" />
                 )}
               </div>
               <span className="text-[9px] font-medium text-white/50 truncate max-w-[60px] text-center">
@@ -752,18 +775,23 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
             </div>
           ))}
 
-          {/* Stories */}
+          {/* ── STORIES ── */}
           {realtimeStories.map((story, idx) => (
             <Dialog key={story.id}>
               <DialogTrigger asChild>
                 <div className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group" onClick={handleTriggerCycle}>
-                  <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-background ring-2 ring-primary group-hover:scale-105 transition-all">
-                    <Avatar className="h-full w-full">
-                      <AvatarImage src={story.user_avatar || ''} className="object-cover" />
-                      <AvatarFallback className="bg-primary/20 text-primary font-black">
-                        {story.user_name?.[0]?.toUpperCase() || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
+                  <div className="relative">
+                    <div className="h-16 w-16 rounded-full p-[2px] bg-gradient-to-tr from-pink-500 to-purple-500 group-hover:scale-105 transition-all">
+                      <div className="h-full w-full rounded-full overflow-hidden border-2 border-background">
+                        {story.user_avatar ? (
+                          <img src={story.user_avatar} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-pink-900 flex items-center justify-center">
+                            <span className="text-white font-black">{story.user_name?.[0]?.toUpperCase() || 'U'}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <span className="text-[9px] font-medium text-white/50 truncate max-w-[60px] text-center">
                     {story.user_name?.split(' ')[0] || `user_${idx}`}

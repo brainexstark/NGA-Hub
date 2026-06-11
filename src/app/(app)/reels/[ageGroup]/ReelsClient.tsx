@@ -254,10 +254,10 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
   // Supabase user-uploaded reels — newest first
   const { posts: supabasePosts } = useRealtimeFeed(ageGroup);
 
-  // Only show real user content — no static mock reels
+  // Only show real user content — shuffled for variety
   const allReels = React.useMemo(() => {
     const userReels = supabasePosts
-      .slice() // copy to avoid mutating
+      .slice()
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .map(p => ({
         id: p.id,
@@ -268,10 +268,16 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
         category: p.category || 'general',
         userName: p.userName,
         userAvatar: p.userAvatar,
+        userId: p.userId,
       }));
 
-    if (!isUnder13) return userReels;
-    return userReels.filter(r => !containsInappropriateWords(`${r.description || ''}`));
+    // Keep newest 2 at top, shuffle the rest for variety
+    const top = userReels.slice(0, 2);
+    const rest = userReels.slice(2).sort(() => Math.random() - 0.5);
+    const shuffled = [...top, ...rest];
+
+    if (!isUnder13) return shuffled;
+    return shuffled.filter(r => !containsInappropriateWords(`${r.description || ''}`));
   }, [supabasePosts, isUnder13]);
 
   const reels = React.useMemo(() => {

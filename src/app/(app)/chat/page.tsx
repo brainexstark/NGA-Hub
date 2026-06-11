@@ -284,9 +284,12 @@ export default function ChatPage() {
             <div className="flex flex-col h-full bg-background max-w-2xl mx-auto w-full border-x border-white/5 animate-in fade-in duration-500 overflow-hidden">
                 <header className={cn(
                     "px-6 pt-12 pb-6 relative overflow-hidden text-white",
-                    isUnder13 ? "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500" : "bg-gradient-to-br from-primary via-primary to-accent"
+                    isUnder13
+                      ? "bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500"
+                      : "bg-gradient-to-br from-slate-900 via-purple-950 to-indigo-900"
                 )}>
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32 animate-pulse" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-pink-500/20 rounded-full blur-3xl -ml-24 -mb-24" />
                     
                     <div className="flex items-center justify-between mb-8 relative z-10">
                         <div className="flex items-center gap-3">

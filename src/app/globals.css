@@ -60,7 +60,7 @@
 
   body {
     @apply bg-background text-foreground;
-    /* Subtle noise texture instead of flat void */
+    /* Subtle texture instead of flat void */
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,255,255,0.04) 0%, transparent 60%),
       radial-gradient(ellipse 60% 40% at 80% 100%, rgba(255,255,255,0.025) 0%, transparent 50%);
@@ -69,10 +69,24 @@
     overflow-x: hidden;
   }
 
+  /* Light mode body — dark text on white */
   .light body,
-  .light {
+  html.light {
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,0,0,0.03) 0%, transparent 60%);
+  }
+
+  /* Ensure buttons with white bg always have black text */
+  .light .btn-primary,
+  .light button[class*="bg-white"],
+  .light [class*="bg-primary"] {
+    color: #000 !important;
+  }
+
+  /* Ensure inputs are readable in both modes */
+  input, textarea, select {
+    color: inherit;
+    background-color: transparent;
   }
 
   /* Hide scrollbars while keeping scroll */
@@ -105,23 +119,30 @@
     height: 1px;
   }
 
-  /* ── Logo text gradient — white only ── */
+  /* ── Logo text — colourful gradient ── */
   .logo-dynamics {
-    @apply font-black text-white;
-    letter-spacing: -0.02em;
-  }
-
-  /* ── Dynamic text — subtle shimmer instead of colour cycling ── */
-  .dynamic-text-mesh {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, #ffffff 0%, #aaaaaa 50%, #ffffff 100%);
+    @apply bg-clip-text text-transparent font-black;
+    background-image: linear-gradient(135deg, #ffffff 0%, #cccccc 50%, #ffffff 100%);
     background-size: 200% auto;
-    animation: shimmerText 4s linear infinite;
+    animation: shimmerText 3s linear infinite;
   }
 
   @keyframes shimmerText {
-    0% { background-position: 0% center; }
+    0%   { background-position: 0% center; }
     100% { background-position: 200% center; }
+  }
+
+  /* ── Dynamic text — colourful cycling gradient (used on welcome page) ── */
+  .dynamic-text-mesh {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #ff007f, #9d00ff, #0044ff, #00c3ff, #ff007f);
+    background-size: 300% auto;
+    animation: colorCycleText 5s linear infinite;
+  }
+
+  @keyframes colorCycleText {
+    0%   { background-position: 0% center; }
+    100% { background-position: 300% center; }
   }
 
   /* ── Animations (class names kept so existing code doesn't break) ── */
