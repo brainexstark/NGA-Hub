@@ -186,6 +186,8 @@ function CreatePostContent() {
   const [caption, setCaption] = React.useState('');
   const [category, setCategory] = React.useState('general');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [uploadInProgress, setUploadInProgress] = React.useState(false);
+  const [uploadedPath, setUploadedPath] = React.useState<string | null>(null);
 
   const userProfileRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -202,13 +204,14 @@ function CreatePostContent() {
     if (!file) return;
     setMediaFile(file);
     setFileType(file.type);
-
     // Show local preview immediately while uploading in background
     const localPreview = URL.createObjectURL(file);
     setMediaUrl(localPreview);
     setStep('edit');
 
-    // Upload to Supabase Storage so we store a real URL (not base64)
+    // Upload to Supabase Storage so we store a real URL (not blob)
+    setUploadInProgress(true);
+    setUploadedPath(null);
     try {
       const ext = file.name.split('.').pop() || 'bin';
       const path = `posts/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -218,12 +221,17 @@ function CreatePostContent() {
       });
       if (data && !error) {
         const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-        if (urlData?.publicUrl) {
-          setMediaUrl(urlData.publicUrl); // replace local blob with real URL
+        const publicUrl = urlData?.publicUrl || (urlData as any)?.publicURL || '';
+        if (publicUrl) {
+          setMediaUrl(publicUrl); // replace local blob with real URL
+          setUploadedPath(path);
         }
       }
-      // If upload fails, keep local blob URL — post will still work for this session
-    } catch {}
+    } catch (err) {
+      console.error('Upload failed', err);
+    } finally {
+      setUploadInProgress(false);
+    }
   };
 
   const handleUrlSubmit = () => {
@@ -265,6 +273,43 @@ function CreatePostContent() {
       }
     } catch {
       // Moderation unavailable — proceed
+    }
+
+    // Ensure media is uploaded and has a public URL. If an upload is in progress, wait for it briefly.
+    try {
+      if (uploadInProgress) {
+        toast({ title: 'Still uploading', description: 'Waiting for media upload to finish...' });
+        const start = Date.now();
+        while (uploadInProgress && Date.now() - start < 15000) {
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise(res => setTimeout(res, 500));
+        }
+      }
+
+      // If we have a local blob URL (user didn't wait for background upload), upload now synchronously
+      if (mediaFile && (!mediaUrl || mediaUrl.startsWith('blob:') || mediaUrl.startsWith('data:') || !mediaUrl.includes('supabase'))) {
+        try {
+          const file = mediaFile;
+          const ext = file.name.split('.').pop() || 'bin';
+          const path = uploadedPath || `posts/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          setUploadInProgress(true);
+          const { data, error } = await supabase.storage.from('media').upload(path, file, { cacheControl: '3600', upsert: false });
+          if (data && !error) {
+            const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
+            const publicUrl = urlData?.publicUrl || (urlData as any)?.publicURL || '';
+            if (publicUrl) {
+              setMediaUrl(publicUrl);
+            }
+            setUploadedPath(path);
+          }
+        } catch (err) {
+          console.error('Publish-time upload failed', err);
+        } finally {
+          setUploadInProgress(false);
+        }
+      }
+    } catch (err) {
+      console.error(err);
     }
 
     const finalUrl = mediaUrl.trim() || 'https://placehold.co/600x400/1a0533/ffffff?text=NGA+Hub';
@@ -524,7 +569,7 @@ function CreatePostContent() {
             <p className="text-[9px] font-black uppercase tracking-widest text-primary/60">AI Moderation Active</p>
           </div>
 
-          <Button onClick={handlePublish} disabled={isSubmitting || !title.trim() || !caption.trim()}
+          <Button onClick={handlePublish} disabled={isSubmitting || uploadInProgress || !title.trim() || !caption.trim()}
             className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl">
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
             Publish to Feed
