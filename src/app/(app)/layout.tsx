@@ -4,8 +4,9 @@ import * as React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { AppSidebar } from '../../components/app-sidebar';
 import { SidebarProvider, SidebarInset, useSidebar } from '../../components/ui/sidebar';
-import { useUser, useFirestore } from '../../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { useUser } from '../../firebase';
+import { supabase } from '../../lib/supabase';
+import { updateDocNonBlocking, docRef } from '../../lib/db';
 import type { UserProfile } from '../../lib/types';
 import { Loader2, Heart, Bell, Plus, Home, Search, GraduationCap, Instagram, Facebook, MessageSquareText, Zap, Power, Video, BookImage, Clapperboard, Radio, Camera, ArrowLeft } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -18,7 +19,6 @@ import { Avatar, AvatarImage } from '../../components/ui/avatar';
 import { useToast } from '../../hooks/use-toast';
 import { Dialog, DialogContent, DialogTitle } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
-import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { useRealtimeNotifications, usePresence, upsertAppUser } from '../../hooks/use-realtime';
 import { showNativeNotification, setupPushNotifications } from '../../hooks/use-push-notifications';
 import { ThemeToggle } from '../../components/theme-toggle';
@@ -42,7 +42,6 @@ function sendPushNotification(title: string, body: string, icon = '/icons/icon-1
       icon,
       badge: '/icons/icon-32.png',
       tag: 'nga-hub-notification',
-      renotify: true,
       silent: false,
     });
     n.onclick = () => { window.focus(); n.close(); };
@@ -158,19 +157,19 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
                 onClick={() => {
                   setOpen(false);
                   markAllRead();
-                  if (n.type === 'live') router.push('/live-stream');
+                  if ((n.type as string) === 'live') router.push('/live-stream');
                   else if (n.post_id) router.push(`/comments/${n.post_id}`);
-                  else if (n.type === 'follow') router.push('/network');
-                  else if (n.type === 'message') router.push('/chat');
+                  else if ((n.type as string) === 'follow') router.push('/network');
+                  else if ((n.type as string) === 'message') router.push('/chat');
                 }}>
                 <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center shrink-0 text-base border border-white/10">
                   {n.type === 'like' ? '❤️'
                     : n.type === 'comment' ? '💬'
                     : n.type === 'follow' ? '👤'
-                    : n.type === 'message' ? '✉️'
+                    : (n.type as string) === 'message' ? '✉️'
                     : n.type === 'live' ? '🔴'
-                    : n.type === 'group' ? '👥'
-                    : n.type === 'mention' ? '@️'
+                    : (n.type as string) === 'group' ? '👥'
+                    : (n.type as string) === 'mention' ? '@️'
                     : '🔔'}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -216,36 +215,42 @@ function PresenceTracker({ userId, userName, userAvatar }: { userId: string; use
   return null;
 }
 
-// New user join notification banner
+// New user join notification banner — uses Supabase realtime
 function NewUserBanner() {
   const [banner, setBanner] = React.useState<{ name: string; uid: string } | null>(null);
-  const firestore = useFirestore();
   const router = useRouter();
   const seenRef = React.useRef<Set<string>>(new Set());
 
   React.useEffect(() => {
-    if (!firestore) return;
-    // Listen for recently created users
-    const q = query(collection(firestore, 'users'), orderBy('createdAt', 'desc'), limit(5));
-    const unsub = onSnapshot(q, (snap) => {
-      snap.docChanges().forEach(change => {
-        if (change.type === 'added') {
-          const data = change.doc.data();
-          const uid = change.doc.id;
-          if (seenRef.current.has(uid)) return;
-          seenRef.current.add(uid);
-          const name = data.displayName || 'Someone';
-          // Only show if joined in last 60 seconds
-          const createdAt = data.createdAt?.toDate?.();
-          if (createdAt && Date.now() - createdAt.getTime() < 60000) {
-            setBanner({ name, uid });
+    // Fetch recently joined users
+    supabase.from('app_users')
+      .select('id,display_name,created_at')
+      .order('created_at', { ascending: false })
+      .limit(5)
+      .then(({ data }) => {
+        data?.forEach(u => {
+          if (seenRef.current.has(u.id)) return;
+          seenRef.current.add(u.id);
+          const createdAt = new Date(u.created_at);
+          if (Date.now() - createdAt.getTime() < 60000) {
+            setBanner({ name: u.display_name || 'Someone', uid: u.id });
             setTimeout(() => setBanner(null), 6000);
           }
-        }
+        });
       });
-    });
-    return () => unsub();
-  }, [firestore]);
+
+    // Real-time subscription for new users
+    const channel = supabase.channel('new-users-banner')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'app_users' }, (payload) => {
+        const u = payload.new as any;
+        if (seenRef.current.has(u.id)) return;
+        seenRef.current.add(u.id);
+        setBanner({ name: u.display_name || 'Someone', uid: u.id });
+        setTimeout(() => setBanner(null), 6000);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   if (!banner) return null;
 
@@ -450,7 +455,6 @@ export default function AppLayout({
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const pathname = usePathname();
-  const firestore = useFirestore();
   const { toast } = useToast();
   
   const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
@@ -469,15 +473,13 @@ export default function AppLayout({
     setThemeVariant(Math.floor(Math.random() * 6));
   }, []);
 
-  // Save new theme to Firestore whenever user logs in fresh
+  // Save new theme to Supabase whenever user logs in fresh
   React.useEffect(() => {
-    if (!user || !firestore || !mounted) return;
+    if (!user || !mounted) return;
     const newVariant = Math.floor(Math.random() * 6);
     setThemeVariant(newVariant);
-    // Persist to Firestore so all devices get same theme this session
-    import('firebase/firestore').then(({ doc, updateDoc }) => {
-      updateDoc(doc(firestore, 'users', user.uid), { themeVariant: newVariant }).catch(() => {});
-    });
+    // Persist to Supabase so all devices get same theme this session
+    updateDocNonBlocking(docRef('users', user.uid), { themeVariant: newVariant });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]); // only fires when user changes (new login)
 
@@ -550,19 +552,15 @@ export default function AppLayout({
   }, [protocolStatus, eduRemainingSeconds, pathname]);
 
   React.useEffect(() => {
-    if (!user || !firestore || !mounted) {
-        // Only mark loading done if user is confirmed absent — not if firestore just isn't ready yet
+    if (!user || !mounted) {
         if (!user && mounted && !isUserLoading) setProfileLoading(false);
         return;
     }
     const syncProfile = async () => {
         try {
-            const docRef = doc(firestore, 'users', user.uid);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data() as UserProfile;
-                setUserProfile(data);
-                // Restore saved theme variant if available
+            const { data } = await supabase.from('app_users').select('*').eq('id', user.uid).single();
+            if (data) {
+                setUserProfile(data as UserProfile);
                 if (typeof data.themeVariant === 'number') {
                   setThemeVariant(data.themeVariant);
                 }
@@ -576,7 +574,7 @@ export default function AppLayout({
         }
     };
     syncProfile();
-  }, [user, firestore, mounted, isUserLoading]);
+  }, [user, mounted, isUserLoading]);
 
   React.useEffect(() => {
     if (!mounted || isUserLoading) return;
@@ -588,8 +586,8 @@ export default function AppLayout({
       }
       return;
     }
-    // Wait for both profile loading to finish AND firestore to be ready
-    if (!profileLoading && firestore) {
+    // Profile is loaded, proceed with routing
+    if (!profileLoading) {
       const isAuthFlow = ['/sign-in', '/sign-up', '/add-phone'].includes(pathname);
       if (userProfile && !userProfile.ageGroup) {
         if (pathname !== '/sign-up') router.replace('/sign-up');
@@ -622,7 +620,7 @@ export default function AppLayout({
         }
       }
     }
-  }, [user, userProfile, isUserLoading, profileLoading, firestore, router, pathname, mounted]);
+  }, [user, userProfile, isUserLoading, profileLoading, router, pathname, mounted]);
 
   if (!mounted) return null;
 

@@ -2,8 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '../../../../firebase';
-import { doc } from 'firebase/firestore';
+import { useUser } from '../../../../firebase';
 import type { UserProfile } from '../../../../lib/types';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -244,9 +243,9 @@ function FeedMedia({ url }: { url: string }) {
 }
 
 // ─── Post Action Buttons ────────────────────────────────────────────────────
-function PostActions({ postId, userId, postUrl, postTitle, firestore, userUid, initialLikes = 0 }: {
+function PostActions({ postId, userId, postUrl, postTitle, userUid, initialLikes = 0 }: {
   postId: string; userId: string; postUrl: string; postTitle: string;
-  firestore: any; userUid?: string; initialLikes?: number;
+  userUid?: string; initialLikes?: number;
 }) {
   const [liked, setLiked] = React.useState(false);
   const [likesCount, setLikesCount] = React.useState(initialLikes);
@@ -440,14 +439,13 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
-  const firestore = useFirestore();
   const [mounted, setMounted] = React.useState(false);
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
 
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(profileRef);
+  React.useEffect(() => {
+    if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
 
   // Realtime follower/following counts from Supabase
   const { followersCount, followingCount } = useRealtimeFollowers(user?.uid || '');
@@ -941,7 +939,7 @@ export default function HomeTonClient({ ageGroup }: { ageGroup: string }) {
                 <PostActions
                   postId={p.id} userId={user?.uid || ''}
                   postUrl={p.url || p.mediaUrl} postTitle={p.title || p.caption}
-                  firestore={firestore} initialLikes={p.likesCount || 0}
+                  initialLikes={p.likesCount || 0}
                 />
 
                 {/* Caption */}

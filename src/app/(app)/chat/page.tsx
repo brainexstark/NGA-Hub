@@ -35,8 +35,8 @@ import {
     ToyBrick,
     Rocket
 } from "lucide-react";
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '../../../firebase';
-import { doc, getDoc, collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
+import { useUser } from '../../../firebase';
+import { supabase } from '../../../lib/supabase';
 import { cn } from "../../../lib/utils";
 import { useToast } from '../../../hooks/use-toast';
 import { chatWithIntelligence } from '../../../ai/flows/chat-with-intelligence';
@@ -49,16 +49,15 @@ import { useAppUsers, useDirectMessages, useTypingIndicator } from '../../../hoo
 
 export default function ChatPage() {
     const { user } = useUser();
-    const firestore = useFirestore();
     const { toast } = useToast();
     const { requestMicrophone, requestBoth } = useHardwareAccess();
     
-    // Sector Synchronization Node
-    const profileRef = useMemoFirebase(() => {
-        if (!user || !firestore) return null;
-        return doc(firestore, 'users', user.uid);
-    }, [user, firestore]);
-    const { data: profile } = useDoc<UserProfile>(profileRef);
+    // Sector Synchronization Node - load profile via Supabase
+    const [profile, setProfile] = React.useState<UserProfile | null>(null);
+    React.useEffect(() => {
+        if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+            .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+    }, [user?.uid]);
     const isUnder13 = profile?.ageGroup === 'under-13';
 
     const [view, setView] = useState<'hub' | 'thread'>('hub');
@@ -160,7 +159,7 @@ export default function ChatPage() {
         setView('thread');
         setMessages([]);
 
-        if (!firestore) return;
+        if (!activeChat?.id) return;
 
         // Build a deterministic chatId from both user UIDs so both sides share the same doc
         const chatId = user?.uid && chat.id
@@ -183,10 +182,36 @@ export default function ChatPage() {
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `chat_id=eq.${chatId}` },
                 (payload: any) => {
                     const m = payload.new;
-                    setMessages((prev: any[]) => [...prev, {
-                        id: m.id, senderId: m.sender_id, senderName: m.sender_name,
-                        text: m.text, createdAt: new Date(m.created_at), status: 'delivered',
-                    }]);
+                    setMessages((prev: any[]) => {
+                        // Prevent duplicates from optimistic UI + realtime insert event
+                        const alreadyExists = prev.some(msg => msg.id === m.id);
+                        if (alreadyExists) return prev;
+
+                        const tempIndex = prev.findIndex(msg =>
+                            msg.senderId === m.sender_id &&
+                            msg.text === m.text &&
+                            msg.status === 'sent' &&
+                            Math.abs(new Date(msg.createdAt).getTime() - new Date(m.created_at).getTime()) < 5000
+                        );
+
+                        if (tempIndex !== -1) {
+                            const updated = [...prev];
+                            updated[tempIndex] = {
+                                id: m.id,
+                                senderId: m.sender_id,
+                                senderName: m.sender_name,
+                                text: m.text,
+                                createdAt: new Date(m.created_at),
+                                status: 'delivered',
+                            };
+                            return updated;
+                        }
+
+                        return [...prev, {
+                            id: m.id, senderId: m.sender_id, senderName: m.sender_name,
+                            text: m.text, createdAt: new Date(m.created_at), status: 'delivered',
+                        }];
+                    });
                     setChats((prev: any[]) => prev.map(c =>
                         c.id === chat.id ? { ...c, lastMessage: m.text, time: 'Just Now' } : c
                     ));
@@ -251,7 +276,7 @@ export default function ChatPage() {
 
         // Optimistic UI
         const tempMsg = {
-            id: Date.now().toString(),
+            id: `tmp-${Date.now()}`,
             senderId: user.uid,
             senderName: profile?.displayName || user.displayName || 'Me',
             text: msgText,
@@ -407,7 +432,7 @@ export default function ChatPage() {
                                                 </div>
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-1.5 text-sm truncate pr-4 text-muted-foreground font-medium italic">
-                                                        {chat.type === 'voice' && <Mic className="h-3 w-3 text-primary" />}
+                                                        {(chat as any).type === 'voice' && <Mic className="h-3 w-3 text-primary" />}
                                                         {chat.status === 'typing' ? (
                                                             <span className="text-primary font-black not-italic animate-pulse">{isUnder13 ? "Thinking..." : "Synchronizing node..."}</span>
                                                         ) : (

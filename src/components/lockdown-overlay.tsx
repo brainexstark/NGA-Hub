@@ -4,11 +4,11 @@ import * as React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./ui/card";
 import { ShieldAlert, Loader2, Home, Power } from "lucide-react";
 import { Button } from "./ui/button";
-import { useUser, useFirestore } from '../firebase';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { useUser } from '../firebase';
+import { supabase } from '../lib/supabase';
 import { useToast } from '../hooks/use-toast';
-import { errorEmitter } from '../firebase/error-emitter';
-import { FirestorePermissionError } from '../firebase/errors';
+import { errorEmitter } from '../lib/db';
+import { DbPermissionError } from '../lib/db';
 import Link from 'next/link';
 
 interface LockdownOverlayProps {
@@ -21,50 +21,28 @@ const defaultMessage = "Due to a security event, access to your service is tempo
 
 export function LockdownOverlay({ message }: LockdownOverlayProps) {
   const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
   const [isLifting, setIsLifting] = React.useState(false);
   
   const isAdmin = user?.uid === ADMIN_UID;
 
-  const handleLiftLockdown = () => {
-    if (!firestore || !isAdmin || !user) {
+  const handleLiftLockdown = async () => {
+    if (!isAdmin || !user) {
         toast({ variant: 'destructive', title: "Authorization Required", description: "Only STARK-B Admin can restore full system workability." });
         return;
     }
 
     setIsLifting(true);
     
-    const statusRef = doc(firestore, 'app_status', 'main');
-    const statusUpdate = { isLockedDown: false, message: "System fully operational." };
-    
-    const userRef = doc(firestore, 'users', user.uid);
-    const userUpdate = { isBreached: false };
-
-    setDoc(statusRef, statusUpdate, { merge: true })
-        .catch(async () => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: statusRef.path,
-                operation: 'update',
-                requestResourceData: statusUpdate,
-            }));
-        });
-
-    updateDoc(userRef, userUpdate)
-        .then(() => {
-            toast({ title: "System Restored", description: "Node workability recovered. Re-initializing environment..." });
-            setTimeout(() => {
-                window.location.reload();
-            }, 800);
-        })
-        .catch(async () => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: userRef.path,
-                operation: 'update',
-                requestResourceData: userUpdate,
-            }));
-            setIsLifting(false);
-        });
+    try {
+      await supabase.from('app_status').upsert({ id: 'main', isLockedDown: false, message: "System fully operational." }, { onConflict: 'id' });
+      await supabase.from('app_users').update({ isBreached: false }).eq('id', user.uid);
+      toast({ title: "System Restored", description: "Node workability recovered. Re-initializing environment..." });
+      setTimeout(() => window.location.reload(), 800);
+    } catch {
+      errorEmitter.emit('permission-error', new DbPermissionError({ table: 'app_status', operation: 'update' }));
+      setIsLifting(false);
+    }
   };
 
   return (

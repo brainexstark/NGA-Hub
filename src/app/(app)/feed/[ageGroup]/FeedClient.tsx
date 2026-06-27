@@ -10,10 +10,9 @@ import type { Post } from '../../../../lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../../components/ui/avatar';
 import { ShareDialog } from '../../../../components/share-dialog';
 import Link from 'next/link';
-import { useUser, useFirestore, updateDocumentNonBlocking } from '../../../../firebase';
-import { doc, arrayUnion } from 'firebase/firestore';
-import { isAd, type Ad } from '../../../../lib/ads';
+import { useUser } from '../../../../firebase';
 import { supabase } from '../../../../lib/supabase';
+import { isAd, type Ad } from '../../../../lib/ads';
 import { useToast } from '../../../../hooks/use-toast';
 
 type AgeGroup = 'under-10' | '10-16' | '16-plus';
@@ -190,7 +189,6 @@ function AdCard({ ad }: { ad: Ad }) {
 
 function FeedPostCard({ post }: { post: Post }) {
   const { user } = useUser();
-  const firestore = useFirestore();
   const { likesCount, liked, toggleLike } = useRealtimeLikes(post.id, user?.uid || '');
   const { reactions, sendReaction } = useLiveReactions(post.id);
   const [followed, setFollowed] = React.useState(false);
@@ -228,10 +226,16 @@ function FeedPostCard({ post }: { post: Post }) {
     }
     lastTapRef.current = now;
     window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
-    if (user && firestore) {
-      updateDocumentNonBlocking(doc(firestore, 'users', user.uid), {
-        watchHistory: arrayUnion(post.id),
-      });
+    if (user) {
+      void (async () => {
+        try {
+          const { data } = await supabase.from('app_users').select('watch_history').eq('id', user.uid).single();
+          const history: string[] = (data as any)?.watch_history || [];
+          if (!history.includes(post.id)) {
+            await supabase.from('app_users').update({ watch_history: [...history, post.id] }).eq('id', user.uid);
+          }
+        } catch {}
+      })();
     }
   };
 

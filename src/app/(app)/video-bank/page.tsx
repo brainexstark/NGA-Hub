@@ -35,17 +35,13 @@ import {
   ShieldAlert
 } from "lucide-react";
 import { cn, getEmbedUrl } from "@/lib/utils";
-import { useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, addDoc } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useUser } from '@/firebase';
+import { errorEmitter, DbPermissionError } from '@/lib/db';
+import { supabase } from "@/lib/supabase";
 import { moderateContent } from '@/ai/flows/moderate-content';
 import type { VideoEntry, UserProfile } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
-import { useCollection } from '@/firebase';
 import { UsageTimer } from "@/components/usage-timer";
-import { supabase } from "@/lib/supabase";
 
 const InternalPlayer = ({ url }: { url: string }) => {
   if (!url) return null;
@@ -102,8 +98,10 @@ const InternalPlayer = ({ url }: { url: string }) => {
 
 export default function VideoBankPage() {
   const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [userVideos, setUserVideos] = useState<VideoEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [videoUrl, setVideoUrl] = useState('');
   const [videoTitle, setVideoTitle] = useState('');
@@ -111,29 +109,22 @@ export default function VideoBankPage() {
   const [currentVideo, setCurrentVideo] = useState<VideoEntry | null>(null);
   const [uploadSource, setUploadSource] = useState<'url' | 'local'>('url');
   
-  // Session Governance Sync
   const [remainingSeconds, setRemainingSeconds] = useState<number>(1800);
   const [protocolStatus, setProtocolStatus] = useState<string>('AUTHORIZED');
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const userProfileRef = useMemoFirebase(() => (!user || !firestore) ? null : doc(firestore, 'users', user.uid), [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(userProfileRef);
-
-  const videosQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return query(
-      collection(firestore, 'users', user.uid, 'videos'),
-      orderBy('createdAt', 'desc')
-    );
-  }, [user, firestore]);
-
-  const { data: userVideos, isLoading } = useCollection<VideoEntry>(videosQuery);
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+    supabase.from('videos').select('*').eq('user_id', user.uid).order('created_at', { ascending: false })
+      .then(({ data }) => { setUserVideos((data || []) as VideoEntry[]); setIsLoading(false); });
+  }, [user?.uid]);
 
   useEffect(() => {
     const handleSync = (e: any) => {
-        setRemainingSeconds(e.detail.remainingSeconds);
-        setProtocolStatus(e.detail.protocolStatus);
+      setRemainingSeconds(e.detail.remainingSeconds);
+      setProtocolStatus(e.detail.protocolStatus);
     };
     window.addEventListener('stark-b-timer-sync', handleSync);
     return () => window.removeEventListener('stark-b-timer-sync', handleSync);
@@ -141,111 +132,73 @@ export default function VideoBankPage() {
 
   const handleSelectVideo = (video: VideoEntry) => {
     setCurrentVideo(video);
-    // STARK-B Engagement Sync: Archival videos are part of entertainment protocol
     window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
   };
 
   const handleDeposit = async () => {
-    if (!videoUrl || !videoTitle || !user || !firestore) {
-        toast({ variant: 'destructive', title: "Missing Node Data" });
-        return;
+    if (!videoUrl || !videoTitle || !user) {
+      toast({ variant: 'destructive', title: "Missing Node Data" });
+      return;
     }
-
     setIsDepositing(true);
-
     try {
-        const modResult = await moderateContent({ text: videoTitle, mediaUrl: videoUrl.startsWith('http') ? videoUrl : undefined });
-        if (modResult.isInappropriate) {
-            toast({ 
-                variant: 'destructive', 
-                title: 'Academic Protocol Violation', 
-                description: modResult.reason || 'Inappropriate node detected.' 
-            });
-            
-            await addDoc(collection(firestore, 'flagged_content'), {
-                contentId: 'pending',
-                contentType: 'video',
-                userId: user.uid,
-                userName: profile?.displayName || user.displayName || 'Authorized User',
-                text: videoTitle,
-                mediaUrl: videoUrl.startsWith('http') ? videoUrl : 'local_storage',
-                reason: modResult.reason || 'AI Moderation Flag',
-                severity: modResult.severity || 'medium',
-                timestamp: serverTimestamp(),
-                status: 'pending'
-            });
+      const modResult = await moderateContent({ text: videoTitle, mediaUrl: videoUrl.startsWith('http') ? videoUrl : undefined });
+      if (modResult.isInappropriate) {
+        toast({ variant: 'destructive', title: 'Academic Protocol Violation', description: modResult.reason || 'Inappropriate node detected.' });
+        await supabase.from('flagged_content').insert({
+          content_type: 'video', user_id: user.uid,
+          user_name: profile?.displayName || user.displayName || 'User',
+          text: videoTitle, media_url: videoUrl.startsWith('http') ? videoUrl : 'local',
+          reason: modResult.reason || 'AI Moderation Flag',
+          severity: modResult.severity || 'medium', status: 'pending',
+        });
+        setIsDepositing(false);
+        return;
+      }
+    } catch { console.warn("Moderation handshake failed."); }
 
-            setIsDepositing(false);
-            return;
-        }
-    } catch (e) {
-        console.warn("Moderation handshake failed - relying on legacy filter.");
+    const { data, error } = await supabase.from('videos').insert({
+      user_id: user.uid, title: videoTitle, video_url: videoUrl,
+      duration: '0:30', source: uploadSource === 'local' ? 'record' : 'deposit',
+    }).select().single();
+
+    if (!error) {
+      setUserVideos(prev => [data as VideoEntry, ...prev]);
+      setVideoUrl(''); setVideoTitle('');
+      toast({ title: "Asset Deposited", description: "Video successfully synced to your records." });
+    } else {
+      toast({ variant: 'destructive', title: "Deposit failed" });
     }
-
-    const videoId = `vid_${Date.now()}`;
-    const videoRef = doc(firestore, 'users', user.uid, 'videos', videoId);
-    
-    const videoData = {
-      userId: user.uid,
-      title: videoTitle,
-      videoUrl: videoUrl,
-      duration: '0:30',
-      source: uploadSource === 'local' ? 'record' : 'deposit',
-      createdAt: serverTimestamp(),
-    };
-
-    setDocumentNonBlocking(videoRef, videoData, { merge: true });
-    
-    setVideoUrl('');
-    setVideoTitle('');
-    toast({ title: "Asset Deposited", description: "Video successfully synced to your superdatabase records." });
     setIsDepositing(false);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      // Show local preview immediately so the user sees something
-      const localBlob = URL.createObjectURL(file);
-      setVideoUrl(localBlob);
-      setVideoTitle(prev => prev || file.name.replace(/\.[^.]+$/, ''));
-      setUploadSource('local');
-
-      // Upload to Supabase Storage in the background and replace blob with real URL
-      try {
-        const ext = file.name.split('.').pop() || 'mp4';
-        const path = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { data, error } = await supabase.storage.from('media').upload(path, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-        if (data && !error) {
-          const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-          if (urlData?.publicUrl) {
-            setVideoUrl(urlData.publicUrl);
-            toast({ title: 'Video uploaded', description: 'Ready to deposit.' });
-          }
-        } else if (error) {
-          toast({ variant: 'destructive', title: 'Upload failed', description: 'Video saved locally for this session only.' });
-        }
-      } catch {
-        toast({ variant: 'destructive', title: 'Upload failed', description: 'Video saved locally for this session only.' });
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const localBlob = URL.createObjectURL(file);
+    setVideoUrl(localBlob);
+    setVideoTitle(prev => prev || file.name.replace(/\.[^.]+$/, ''));
+    setUploadSource('local');
+    try {
+      const ext = file.name.split('.').pop() || 'mp4';
+      const path = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { data, error } = await supabase.storage.from('media').upload(path, file, { cacheControl: '3600', upsert: false });
+      if (data && !error) {
+        const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
+        if (urlData?.publicUrl) { setVideoUrl(urlData.publicUrl); toast({ title: 'Video uploaded' }); }
       }
+    } catch { toast({ variant: 'destructive', title: 'Upload failed' }); }
   };
 
-  const handleWithdraw = (videoId: string) => {
-    if (!user || !firestore) return;
-    const videoRef = doc(firestore, 'users', user.uid, 'videos', videoId);
-
+  const handleWithdraw = async (videoId: string) => {
+    if (!user) return;
     if (currentVideo?.id === videoId) setCurrentVideo(null);
-
-    deleteDoc(videoRef).catch(async () => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: videoRef.path,
-        operation: 'delete',
-      }));
-    });
+    const { error } = await supabase.from('videos').delete().eq('id', videoId).eq('user_id', user.uid);
+    if (!error) {
+      setUserVideos(prev => prev.filter(v => v.id !== videoId));
+    } else {
+      errorEmitter.emit('permission-error', new DbPermissionError({ table: 'videos', operation: 'delete' }));
+    }
   };
 
   const getSourceIcon = (source: string) => {

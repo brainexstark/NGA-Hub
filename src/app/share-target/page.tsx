@@ -3,9 +3,9 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Share2, CheckCircle } from 'lucide-react';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '../../firebase';
-import { doc } from 'firebase/firestore';
+import { useUser } from '../../firebase';
 import type { UserProfile } from '../../lib/types';
+import { supabase } from '../../lib/supabase';
 import { publishPost } from '../../hooks/use-realtime-feed';
 import { useToast } from '../../hooks/use-toast';
 
@@ -14,18 +14,17 @@ import { useToast } from '../../hooks/use-toast';
 export default function ShareTargetPage() {
   const router = useRouter();
   const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
   const [status, setStatus] = React.useState<'processing' | 'done' | 'error'>('processing');
   const [sharedTitle, setSharedTitle] = React.useState('');
   const [sharedUrl, setSharedUrl] = React.useState('');
   const processed = React.useRef(false);
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
 
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(profileRef);
+  React.useEffect(() => {
+    if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
 
   React.useEffect(() => {
     if (processed.current) return;
@@ -34,16 +33,12 @@ export default function ShareTargetPage() {
 
     const handleShare = async () => {
       try {
-        // Read shared data from URL params (GET) or form data (POST)
         const params = new URLSearchParams(window.location.search);
         const title = params.get('title') || 'Shared from another app';
         const text = params.get('text') || '';
         const url = params.get('url') || '';
-
         setSharedTitle(title || text || url);
         setSharedUrl(url);
-
-        // Extract a usable media URL
         const mediaUrl = url || `https://picsum.photos/seed/${Date.now()}/800/600`;
         const caption = text || title || 'Shared via NGA Hub';
 
@@ -61,14 +56,11 @@ export default function ShareTargetPage() {
           commentsCount: 0,
           isFlagged: false,
           category: 'general',
-        }, firestore);
+        });
 
         setStatus('done');
         toast({ title: 'Posted to NGA Hub!', description: 'Your shared content is now live.' });
-
-        setTimeout(() => {
-          router.push(`/feed/${profile.ageGroup || '14-17'}`);
-        }, 2000);
+        setTimeout(() => router.push(`/feed/${profile.ageGroup || '14-17'}`), 2000);
       } catch (err: any) {
         setStatus('error');
         toast({ variant: 'destructive', title: 'Share failed', description: err.message });
@@ -76,7 +68,7 @@ export default function ShareTargetPage() {
     };
 
     handleShare();
-  }, [user, profile, firestore]);
+  }, [user, profile]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center space-y-6">

@@ -2,10 +2,8 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '../firebase';
+import { useUser } from '../firebase';
 import { useRouter } from 'next/navigation';
-import { doc } from 'firebase/firestore';
-import type { UserProfile } from '../lib/types';
 import { supabase, type SupabasePost } from '../lib/supabase';
 import { Heart, Play, ArrowRight, Loader2 } from 'lucide-react';
 import { getEmbedUrl, cn, isVideoUrl } from '../lib/utils';
@@ -60,19 +58,23 @@ function DynamicBg({ children }: { children: React.ReactNode }) {
 export default function Home() {
   const [mounted, setMounted] = React.useState(false);
   const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
   const router = useRouter();
   const [posts, setPosts] = React.useState<SupabasePost[]>([]);
   const [feedLoading, setFeedLoading] = React.useState(true);
   const [activePost, setActivePost] = React.useState<SupabasePost | null>(null);
   const [likedPosts, setLikedPosts] = React.useState<Record<string, boolean>>({});
   const [userCount, setUserCount] = React.useState(0);
+  const [userProfile, setUserProfile] = React.useState<any>(null);
+  const [profileLoading, setProfileLoading] = React.useState(true);
 
-  const userProfileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: userProfile, isLoading: profileLoading } = useDoc<UserProfile>(userProfileRef);
+  React.useEffect(() => {
+    if (user) {
+      supabase.from('app_users').select('*').eq('id', user.uid).single()
+        .then(({ data }) => { setUserProfile(data); setProfileLoading(false); });
+    } else if (!isUserLoading) {
+      setProfileLoading(false);
+    }
+  }, [user?.uid, isUserLoading]);
 
   React.useEffect(() => { setMounted(true); }, []);
 

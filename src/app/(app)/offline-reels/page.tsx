@@ -3,21 +3,21 @@
 import * as React from 'react';
 import { useOfflineReels } from '../../../hooks/use-offline-reels';
 import { useRealtimeFeed } from '../../../hooks/use-realtime-feed';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '../../../firebase';
-import { doc } from 'firebase/firestore';
+import { useUser } from '../../../firebase';
+import { supabase } from '../../../lib/supabase';
 import type { UserProfile } from '../../../lib/types';
 import { WifiOff, RefreshCw, PlayCircle, Lock } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
 export default function OfflineReelsPage() {
   const { user } = useUser();
-  const firestore = useFirestore();
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
 
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(profileRef);
+  React.useEffect(() => {
+    if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
+
   const ageGroup = profile?.ageGroup || '14-17';
 
   const { posts: onlinePosts } = useRealtimeFeed(ageGroup);

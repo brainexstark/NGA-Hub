@@ -6,48 +6,48 @@
 
 @layer base {
   :root {
-    /* ── Dark theme (default) — rich dark grey, NOT flat black ── */
-    --background: 0 0% 4%;
-    --foreground: 0 0% 95%;
-    --card: 0 0% 8%;
-    --card-foreground: 0 0% 95%;
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 0% 95%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 5%;
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 0 0% 80%;
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 55%;
-    --accent: 0 0% 18%;
-    --accent-foreground: 0 0% 95%;
-    --destructive: 0 84% 60%;
+    /* ── Dark theme (default) — rich slate background with Electric Indigo accents ── */
+    --background: 231 28% 10%;          /* #0F172A */
+    --foreground: 210 16% 95%;          /* soft white */
+    --card: 214 26% 20%;                /* #1E293B */
+    --card-foreground: 210 20% 96%;     /* near white */
+    --popover: 214 26% 18%;             /* subtle dark panel */
+    --popover-foreground: 210 20% 96%;  /* near white */
+    --primary: 250 89% 57%;             /* #4F46E5 Electric Indigo */
+    --primary-foreground: 250 12% 100%;
+    --secondary: 210 16% 96%;           /* #F8FAFC crisp canvas */
+    --secondary-foreground: 210 16% 8%;
+    --muted: 216 24% 25%;               /* slate boundary */
+    --muted-foreground: 210 14% 65%;
+    --accent: 344 85% 60%;              /* #F43F5E Coral Pink */
+    --accent-foreground: 0 0% 100%;     /* white */
+    --destructive: 344 85% 60%;         /* aligned to Coral Pink */
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 18%;
-    --input: 0 0% 14%;
-    --ring: 0 0% 70%;
+    --border: 216 24% 25%;              /* cool slate divider */
+    --input: 214 26% 16%;               /* dark input surface */
+    --ring: 162 68% 44%;                /* #10B981 Emerald Green */
     --radius: 1.5rem;
   }
 
-  /* ── Light mode — crisp white, not washed out ── */
+  /* ── Light mode — crisp airy canvas with brand accents ── */
   .light {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 5%;
-    --card: 0 0% 97%;
-    --card-foreground: 0 0% 5%;
-    --popover: 0 0% 97%;
-    --popover-foreground: 0 0% 5%;
-    --primary: 0 0% 5%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 93%;
-    --secondary-foreground: 0 0% 15%;
-    --muted: 0 0% 93%;
-    --muted-foreground: 0 0% 42%;
-    --accent: 0 0% 88%;
-    --accent-foreground: 0 0% 5%;
-    --border: 0 0% 85%;
-    --input: 0 0% 90%;
-    --ring: 0 0% 25%;
+    --background: 210 16% 98%;          /* #F8FAFC */
+    --foreground: 210 16% 8%;
+    --card: 210 14% 96%;                /* light card / content frame */
+    --card-foreground: 210 16% 8%;      /* dark text */
+    --popover: 210 14% 99%;
+    --popover-foreground: 210 16% 8%;    /* dark text */
+    --primary: 250 89% 57%;             /* #4F46E5 Electric Indigo */
+    --primary-foreground: 0 0% 100%;     /* white */
+    --secondary: 210 16% 90%;           /* #E2E8F0 cool gray */
+    --secondary-foreground: 210 16% 8%;
+    --muted: 210 12% 93%;
+    --muted-foreground: 210 14% 45%;    /* muted text */
+    --accent: 344 85% 60%;              /* coral accent */
+    --accent-foreground: 0 0% 100%;     /* white */
+    --border: 210 16% 80%;              /* soft cool gray */
+    --input: 210 14% 96%;
+    --ring: 162 68% 44%;                /* emerald */
   }
 
   /* ── Pages that keep their own colour scheme (chat, edu, kids) ── */
@@ -75,21 +75,21 @@
     transition: filter 0.08s ease;
   }
 
-  /* ── Primary bg buttons specifically turn blue on press ── */
+  /* ── Primary bg buttons specifically turn Indigo on press ── */
   button.bg-primary:active:not([disabled]),
   button[class*="bg-primary"]:active:not([disabled]) {
-    background-color: #3b82f6 !important;
+    background-color: #4338ca !important;
     color: #ffffff !important;
   }
 
-  /* ── Dashboard/card text turns dark blue when clicked ── */
+  /* ── Dashboard/card text turns Indigo when clicked ── */
   .card-clickable:active *,
   [role="button"]:active p,
   [role="button"]:active span,
   [role="button"]:active h1,
   [role="button"]:active h2,
   [role="button"]:active h3 {
-    color: #1d4ed8 !important;
+    color: #4f46e5 !important;
   }
 
   /* ── Input text always clearly visible — never washed out ── */

@@ -1,54 +1,45 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { onSnapshot, Query, DocumentData } from 'firebase/firestore';
-import { errorEmitter } from '../error-emitter';
-import { FirestorePermissionError } from '../errors';
-import { isMemoized } from '../provider';
+import { supabase } from '../../lib/supabase';
 
 /**
- * STARK-B Specialized Dropdown Hook
- * Optimized for high-performance selection matrices and lists.
+ * useCollectionDropdownFull — Supabase dropdown list hook.
+ * Replaces the Firestore-based dropdown hook.
  */
-export function useCollectionDropdownFull<T = DocumentData>(options: { path: Query | null }) {
+export function useCollectionDropdownFull<T = Record<string, any>>(options: {
+  path: { table: string; filters?: Record<string, any>; orderBy?: string } | null;
+}) {
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
 
   useEffect(() => {
-    const queryNode = options.path;
-    if (!queryNode) {
-      setLoading(false);
-      return;
-    }
+    const q = options.path;
+    if (!q) { setLoading(false); return; }
 
-    if (!isMemoized(queryNode)) {
-        console.warn("STARK-B Node: Dropdown Query is not memoized.");
-    }
-
-    const unsubscribe = onSnapshot(
-      queryNode,
-      (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as T[];
-        setItems(data);
-        setLoading(false);
-      },
-      (err) => {
-        const permissionError = new FirestorePermissionError({
-          path: (queryNode as any)._query?.path?.segments?.join('/') || 'unknown',
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        setError(err);
-        setLoading(false);
+    let query = supabase.from(q.table).select('*');
+    if (q.filters) {
+      for (const [key, val] of Object.entries(q.filters)) {
+        query = query.eq(key, val) as any;
       }
-    );
+    }
+    if (q.orderBy) query = query.order(q.orderBy) as any;
 
-    return () => unsubscribe();
-  }, [options.path]);
+    query.then(({ data, error: err }) => {
+      if (err) setError(err);
+      setItems((data as T[]) || []);
+      setLoading(false);
+    });
+
+    const channel = supabase.channel(`dropdown-${q.table}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: q.table }, () => {
+        query.then(({ data }) => { if (data) setItems(data as T[]); });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [JSON.stringify(options.path)]);
 
   return { items, loading, error, empty: items.length === 0 };
 }

@@ -10,12 +10,10 @@ import {
   FlipHorizontal, Mic, MicOff, Type, Sliders, Scissors,
   Zap, ChevronLeft, Check, X, Sun, Contrast, Gauge
 } from 'lucide-react';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { publishPost } from '@/hooks/use-realtime-feed';
-import { useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -36,15 +34,14 @@ type EditTool = 'none' | 'filters' | 'adjust' | 'text' | 'trim' | 'speed';
 
 export default function RecordVideoPage() {
   const { user } = useUser();
-  const firestore = useFirestore();
-  const { toast } = useToast();
+    const { toast } = useToast();
   const router = useRouter();
 
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(profileRef);
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
+  React.useEffect(() => {
+    if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
 
   // ─── Camera state ────────────────────────────────────────────────────────────
   const [permissionState, setPermissionState] = React.useState<'idle' | 'granted' | 'denied'>('idle');
@@ -205,7 +202,7 @@ export default function RecordVideoPage() {
         caption: videoTitle, title: videoTitle,
         ageGroup: profile?.ageGroup || '14-17',
         likesCount: 0, commentsCount: 0, isFlagged: false,
-      }, firestore);
+      });
       toast({ title: 'Video Published!', description: 'Now live on the feed.' });
       router.push(`/feed/${profile?.ageGroup || '14-17'}`);
     } catch (err: any) {

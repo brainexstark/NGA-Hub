@@ -15,32 +15,32 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '../firebase';
-import { signOut } from 'firebase/auth';
+import { useAuth, useUser } from '../firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Skeleton } from './ui/skeleton';
-import { doc } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { Bell, Settings, LogOut, Activity } from 'lucide-react';
 import type { UserProfile } from '../lib/types';
 import { useToast } from '../hooks/use-toast';
+import { useState, useEffect } from 'react';
 
 export function UserNav() {
-  const { user, isUserLoading, auth } = useUser();
-  const firestore = useFirestore();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
-  const userProfileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-
-  const { data: profile } = useDoc<UserProfile>(userProfileRef);
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
 
   const handleLogout = async () => {
     if (!auth) return;
-    await signOut(auth);
+    await auth.signOut();
     router.push('/sign-in');
   };
 

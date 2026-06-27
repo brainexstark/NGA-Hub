@@ -1,8 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '../../../firebase';
-import { collection, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { useUser } from '../../../firebase';
+import { supabase } from '../../../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { 
@@ -38,37 +38,41 @@ const LocalBadge = ({ children, variant = 'default', className = '' }: { childre
 
 export default function ModerationHubPage() {
   const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
+  const [flaggedItems, setFlaggedItems] = React.useState<FlaggedContent[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
   
   const isAdmin = user?.uid === ADMIN_UID;
 
-  const flaggedQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'flagged_content'), orderBy('timestamp', 'desc'));
-  }, [firestore]);
+  React.useEffect(() => {
+    supabase.from('flagged_content').select('*').order('created_at', { ascending: false })
+      .then(({ data }) => { setFlaggedItems((data || []) as FlaggedContent[]); setIsLoading(false); });
 
-  const { data: flaggedItems, isLoading } = useCollection<FlaggedContent>(flaggedQuery);
+    const ch = supabase.channel('flagged-content')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'flagged_content' }, () => {
+        supabase.from('flagged_content').select('*').order('created_at', { ascending: false })
+          .then(({ data }) => setFlaggedItems((data || []) as FlaggedContent[]));
+      }).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
   const handleBlockContent = async (item: FlaggedContent) => {
-    if (!firestore || !isAdmin) return;
+    if (!isAdmin) return;
     try {
-        const flaggedRef = doc(firestore, 'flagged_content', item.id);
-        await updateDoc(flaggedRef, { status: 'blocked' });
-        toast({ title: "Node Blocked", description: "Inappropriate content restricted across network." });
-    } catch (e) {
-        toast({ variant: 'destructive', title: "Enforcement Failed" });
+      await supabase.from('flagged_content').update({ status: 'blocked' }).eq('id', item.id);
+      toast({ title: "Node Blocked", description: "Inappropriate content restricted across network." });
+    } catch {
+      toast({ variant: 'destructive', title: "Enforcement Failed" });
     }
   };
 
   const handleClearContent = async (item: FlaggedContent) => {
-    if (!firestore || !isAdmin) return;
+    if (!isAdmin) return;
     try {
-        const flaggedRef = doc(firestore, 'flagged_content', item.id);
-        await updateDoc(flaggedRef, { status: 'cleared' });
-        toast({ title: "Node Cleared", description: "Content authorized for community display." });
-    } catch (e) {
-        toast({ variant: 'destructive', title: "Enforcement Failed" });
+      await supabase.from('flagged_content').update({ status: 'cleared' }).eq('id', item.id);
+      toast({ title: "Node Cleared", description: "Content authorized for community display." });
+    } catch {
+      toast({ variant: 'destructive', title: "Enforcement Failed" });
     }
   };
 

@@ -102,13 +102,13 @@ export async function endLiveStream(streamId: string): Promise<void> {
 }
 
 export async function incrementViewerCount(streamId: string): Promise<void> {
-  await supabase.rpc('increment_viewers', { stream_id: streamId }).catch(() => {
+  try {
+    await supabase.rpc('increment_viewers', { stream_id: streamId });
+  } catch {
     // Fallback: manual increment
-    supabase.from('live_streams').select('viewer_count').eq('id', streamId).single()
-      .then(({ data }) => {
-        if (data) supabase.from('live_streams').update({ viewer_count: (data.viewer_count || 0) + 1 }).eq('id', streamId);
-      });
-  });
+    const { data } = await supabase.from('live_streams').select('viewer_count').eq('id', streamId).single();
+    if (data) await supabase.from('live_streams').update({ viewer_count: (data.viewer_count || 0) + 1 }).eq('id', streamId);
+  }
 }
 
 export function useActiveStreams(ageGroup: string) {

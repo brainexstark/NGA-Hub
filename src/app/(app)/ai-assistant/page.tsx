@@ -4,8 +4,8 @@ import * as React from 'react';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Send, Bot, Loader2, ArrowLeft } from 'lucide-react';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '../../../firebase';
-import { doc } from 'firebase/firestore';
+import { useUser } from '../../../firebase';
+import { supabase } from '../../../lib/supabase';
 import type { UserProfile } from '../../../lib/types';
 import { aiChat, type ChatMessage } from '../../../lib/cloudflare-ai';
 import Link from 'next/link';
@@ -15,13 +15,12 @@ const CF_ACCOUNT_ID = process.env.NEXT_PUBLIC_CF_ACCOUNT_ID || '';
 
 export default function AiAssistantPage() {
   const { user } = useUser();
-  const firestore = useFirestore();
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
 
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(profileRef);
+  React.useEffect(() => {
+    if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
 
   const ageGroup = profile?.ageGroup || '14-17';
 

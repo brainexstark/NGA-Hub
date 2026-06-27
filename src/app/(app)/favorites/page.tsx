@@ -2,31 +2,26 @@
 
 import * as React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '../../../firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { useUser } from '../../../firebase';
+import { supabase } from '../../../lib/supabase';
 import { ContentCard } from '../../../components/content-card';
 import { Bookmark, Film, BookOpen, MessageSquare, Loader2, Star } from 'lucide-react';
 import type { VideoEntry } from '../../../lib/types';
 
 export default function FavoritesPage() {
   const { user } = useUser();
-  const firestore = useFirestore();
+  const [savedPosts, setSavedPosts] = React.useState<any[]>([]);
+  const [savedVideos, setSavedVideos] = React.useState<VideoEntry[]>([]);
+  const [postsLoading, setPostsLoading] = React.useState(true);
+  const [videosLoading, setVideosLoading] = React.useState(true);
 
-  const savedPostsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return collection(firestore, 'users', user.uid, 'saved_posts');
-  }, [user, firestore]);
-
-  const savedVideosQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return query(
-      collection(firestore, 'users', user.uid, 'videos'),
-      orderBy('createdAt', 'desc')
-    );
-  }, [user, firestore]);
-
-  const { data: savedPosts, isLoading: postsLoading } = useCollection(savedPostsQuery);
-  const { data: savedVideos, isLoading: videosLoading } = useCollection<VideoEntry>(savedVideosQuery);
+  React.useEffect(() => {
+    if (!user) { setPostsLoading(false); setVideosLoading(false); return; }
+    supabase.from('saved_posts').select('*').eq('user_id', user.uid)
+      .then(({ data }) => { setSavedPosts(data || []); setPostsLoading(false); });
+    supabase.from('videos').select('*').eq('user_id', user.uid).order('created_at', { ascending: false })
+      .then(({ data }) => { setSavedVideos((data || []) as VideoEntry[]); setVideosLoading(false); });
+  }, [user?.uid]);
 
   const savedAssets = React.useMemo(() => {
     if (!savedPosts) return [];

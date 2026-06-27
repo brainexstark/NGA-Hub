@@ -1,8 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, deleteDoc } from 'firebase/firestore';
+import { useUser } from '@/firebase';
+import { supabase } from '@/lib/supabase';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,32 +13,30 @@ import { useRouter } from 'next/navigation';
 
 export default function NetworkPage() {
   const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
 
-  const followingQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return collection(firestore, 'users', user.uid, 'following');
-  }, [user, firestore]);
+  const [following, setFollowing] = React.useState<any[]>([]);
+  const [followers, setFollowers] = React.useState<any[]>([]);
+  const [disciples, setDisciples] = React.useState<any[]>([]);
+  const [followingLoading, setFollowingLoading] = React.useState(true);
+  const [followersLoading, setFollowersLoading] = React.useState(true);
+  const [disciplesLoading, setDisciplesLoading] = React.useState(true);
 
-  const disciplesQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return collection(firestore, 'users', user.uid, 'disciples_of');
-  }, [user, firestore]);
-
-  const followersQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return collection(firestore, 'users', user.uid, 'followers');
-  }, [user, firestore]);
-
-  const { data: following, isLoading: followingLoading } = useCollection(followingQuery);
-  const { data: disciples, isLoading: disciplesLoading } = useCollection(disciplesQuery);
-  const { data: followers, isLoading: followersLoading } = useCollection(followersQuery);
+  React.useEffect(() => {
+    if (!user) return;
+    supabase.from('follows').select('*').eq('follower_id', user.uid)
+      .then(({ data }) => { setFollowing(data || []); setFollowingLoading(false); });
+    supabase.from('follows').select('*').eq('following_id', user.uid)
+      .then(({ data }) => { setFollowers(data || []); setFollowersLoading(false); });
+    supabase.from('follows').select('*').eq('follower_id', user.uid)
+      .then(({ data }) => { setDisciples(data || []); setDisciplesLoading(false); });
+  }, [user?.uid]);
 
   const handleUnfollow = async (nodeId: string, nodeName: string) => {
-    if (!user || !firestore) return;
-    await deleteDoc(doc(firestore, 'users', user.uid, 'following', nodeId));
+    if (!user) return;
+    await supabase.from('follows').delete().eq('follower_id', user.uid).eq('following_id', nodeId);
+    setFollowing(prev => prev.filter(f => f.following_id !== nodeId));
     toast({ title: `Unlinked from ${nodeName}` });
   };
 

@@ -9,8 +9,8 @@ import { Card, CardContent, CardFooter, CardHeader } from './ui/card';
 import { ShareDialog } from './share-dialog';
 import Link from 'next/link';
 import { cn, getEmbedUrl } from '../lib/utils';
-import { useUser, useFirestore, updateDocumentNonBlocking } from '../firebase';
-import { doc, arrayUnion } from 'firebase/firestore';
+import { useUser } from '../firebase';
+import { supabase } from '../lib/supabase';
 import { useRealtimeLikes } from '../hooks/use-realtime';
 
 interface ContentCardProps {
@@ -91,21 +91,20 @@ function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
 
 export function ContentCard({ id, title, creator, image, likesCount: initialLikes = 0, commentsCount: initialComments = 0, hideActions = false }: ContentCardProps) {
   const { user } = useUser();
-  const firestore = useFirestore();
   const { likesCount, liked, toggleLike } = useRealtimeLikes(id || '', user?.uid || '');
 
   const handleEngagement = () => {
     window.dispatchEvent(new CustomEvent('stark-b-entertainment-engaged'));
-    if (user && firestore) {
-      const userRef = doc(firestore, 'users', user.uid);
-      if (image?.category) {
-        updateDocumentNonBlocking(userRef, {
-          [`interests.${image.category}`]: (prev: any) => (prev || 0) + 1,
-          watchHistory: arrayUnion(id),
-        });
-      } else {
-        updateDocumentNonBlocking(userRef, { watchHistory: arrayUnion(id) });
-      }
+    if (user && id) {
+      void (async () => {
+        try {
+          const { data } = await supabase.from('app_users').select('watch_history').eq('id', user.uid).single();
+          const history: string[] = data?.watch_history || [];
+          if (!history.includes(id)) {
+            await supabase.from('app_users').update({ watch_history: [...history, id] }).eq('id', user.uid);
+          }
+        } catch {}
+      })();
     }
   };
 

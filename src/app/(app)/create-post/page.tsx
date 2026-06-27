@@ -14,8 +14,7 @@ import {
 } from "lucide-react";
 import { useToast } from '../../../hooks/use-toast';
 import { containsInappropriateWords } from '../../../lib/inappropriate-words';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '../../../firebase';
-import { collection, addDoc, serverTimestamp, doc } from 'firebase/firestore';
+import { useUser } from '../../../firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { moderateContent } from '../../../ai/flows/moderate-content';
 import Image from 'next/image';
@@ -39,6 +38,14 @@ const FILTERS = [
   { id: 'drama',    label: 'Drama',   css: 'contrast(1.5) saturate(0.8)' },
   { id: 'neon',     label: 'Neon',    css: 'saturate(2.5) hue-rotate(15deg) brightness(1.1)' },
 ];
+
+function isSupabaseUrl(url: string) {
+  return url.includes('supabase.co') || url.includes('/storage/v1/object/public/');
+}
+
+function isLocalPreviewUrl(url: string) {
+  return url.startsWith('blob:') || url.startsWith('data:') || url.startsWith('file:');
+}
 
 // ─── Media Preview ────────────────────────────────────────────────────────────
 function MediaPreview({ url, fileType, filter, textOverlay, textColor, musicUrl, muted = false }:
@@ -150,11 +157,16 @@ function MusicLibrary({ onSelect, selected }: { onSelect: (url: string, name: st
 // ─── Main Create Post Content ─────────────────────────────────────────────────
 function CreatePostContent() {
   const { user } = useUser();
-  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const typeParam = searchParams.get('type') as NodeType | null;
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
+
+  React.useEffect(() => {
+    if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
 
   // Step state
   const [step, setStep] = React.useState<EditStep>('upload');
@@ -188,12 +200,7 @@ function CreatePostContent() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [uploadInProgress, setUploadInProgress] = React.useState(false);
   const [uploadedPath, setUploadedPath] = React.useState<string | null>(null);
-
-  const userProfileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(userProfileRef);
+  const uploadPromiseRef = React.useRef<Promise<string | null> | null>(null);
 
   const filterBase = FILTERS.find(f => f.id === activeFilter)?.css || 'none';
   const adjustments = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
@@ -204,33 +211,49 @@ function CreatePostContent() {
     if (!file) return;
     setMediaFile(file);
     setFileType(file.type);
+
     // Show local preview immediately while uploading in background
     const localPreview = URL.createObjectURL(file);
     setMediaUrl(localPreview);
     setStep('edit');
 
-    // Upload to Supabase Storage so we store a real URL (not blob)
     setUploadInProgress(true);
     setUploadedPath(null);
-    try {
+
+    const uploadFlow = (async () => {
       const ext = file.name.split('.').pop() || 'bin';
       const path = `posts/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { data, error } = await supabase.storage.from('media').upload(path, file, {
         cacheControl: '3600',
         upsert: false,
+        contentType: file.type,
       });
-      if (data && !error) {
-        const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-        const publicUrl = urlData?.publicUrl || (urlData as any)?.publicURL || '';
-        if (publicUrl) {
-          setMediaUrl(publicUrl); // replace local blob with real URL
-          setUploadedPath(path);
-        }
+
+      if (error) {
+        throw error;
       }
+
+      const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
+
+      const publicUrl = urlData?.publicUrl || '';
+      if (!publicUrl) {
+        throw new Error('Could not generate public media URL');
+      }
+
+      setMediaUrl(publicUrl); // replace local blob with real URL
+      setUploadedPath(path);
+      return publicUrl;
+    })();
+
+    uploadPromiseRef.current = uploadFlow;
+    try {
+      await uploadFlow;
     } catch (err) {
       console.error('Upload failed', err);
+      toast({ variant: 'destructive', title: 'Upload failed', description: 'Could not upload your file. Please try again.' });
     } finally {
       setUploadInProgress(false);
+      uploadPromiseRef.current = null;
     }
   };
 
@@ -275,38 +298,53 @@ function CreatePostContent() {
       // Moderation unavailable — proceed
     }
 
-    // Ensure media is uploaded and has a public URL. If an upload is in progress, wait for it briefly.
+    // Ensure media is uploaded and has a public URL. If an upload is in progress, wait for it.
     try {
-      if (uploadInProgress) {
+      if (uploadPromiseRef.current) {
         toast({ title: 'Still uploading', description: 'Waiting for media upload to finish...' });
-        const start = Date.now();
-        while (uploadInProgress && Date.now() - start < 15000) {
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise(res => setTimeout(res, 500));
-        }
+        await Promise.race([
+          uploadPromiseRef.current,
+          new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 15000)),
+        ]);
       }
 
-      // If we have a local blob URL (user didn't wait for background upload), upload now synchronously
-      if (mediaFile && (!mediaUrl || mediaUrl.startsWith('blob:') || mediaUrl.startsWith('data:') || !mediaUrl.includes('supabase'))) {
+      const needsUpload = mediaFile && (isLocalPreviewUrl(mediaUrl) || !isSupabaseUrl(mediaUrl));
+      if (needsUpload) {
         try {
           const file = mediaFile;
           const ext = file.name.split('.').pop() || 'bin';
           const path = uploadedPath || `posts/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
           setUploadInProgress(true);
-          const { data, error } = await supabase.storage.from('media').upload(path, file, { cacheControl: '3600', upsert: false });
-          if (data && !error) {
-            const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-            const publicUrl = urlData?.publicUrl || (urlData as any)?.publicURL || '';
-            if (publicUrl) {
-              setMediaUrl(publicUrl);
-            }
-            setUploadedPath(path);
+          const { data, error } = await supabase.storage.from('media').upload(path, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type,
+          });
+          if (error) throw error;
+
+          const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
+
+          const publicUrl = urlData?.publicUrl || '';
+          if (!publicUrl) {
+            throw new Error('Could not generate public media URL');
           }
+
+          setMediaUrl(publicUrl);
+          setUploadedPath(path);
         } catch (err) {
           console.error('Publish-time upload failed', err);
+          toast({ variant: 'destructive', title: 'Could not upload media', description: 'Your file could not be stored. Please try again.' });
+          setIsSubmitting(false);
+          return;
         } finally {
           setUploadInProgress(false);
         }
+      }
+
+      if (isLocalPreviewUrl(mediaUrl) || !isSupabaseUrl(mediaUrl)) {
+        toast({ variant: 'destructive', title: 'Invalid media URL', description: 'Your file must be uploaded before publishing.' });
+        setIsSubmitting(false);
+        return;
       }
     } catch (err) {
       console.error(err);
@@ -329,7 +367,7 @@ function CreatePostContent() {
         commentsCount: 0,
         isFlagged: false,
         category,
-      }, firestore);
+      });
 
       if (postId) {
         toast({ title: 'Published!', description: 'Your content is now live.' });

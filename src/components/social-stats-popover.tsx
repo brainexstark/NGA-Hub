@@ -5,8 +5,8 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Button } from './ui/button';
 import { UserPlus, UserMinus, X, Zap, Users, Loader2, MessageCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { useUser, useFirestore } from '../firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, serverTimestamp, increment, updateDoc } from 'firebase/firestore';
+import { useUser } from '../firebase';
+import { supabase } from '../lib/supabase';
 import { useRouter } from 'next/navigation';
 
 interface SocialStatsPopoverProps {
@@ -22,19 +22,18 @@ export function SocialStatsPopover({ type, count, label, colorClass }: SocialSta
   const [loading, setLoading] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
   const { user } = useUser();
-  const firestore = useFirestore();
   const router = useRouter();
 
   React.useEffect(() => {
-    if (!open || !user || !firestore) return;
+    if (!open || !user) return;
     setLoading(true);
-    const colName = type === 'following' ? 'following' : type === 'followers' ? 'followers' : 'disciples_of';
-    const unsub = onSnapshot(collection(firestore, 'users', user.uid, colName), (snap) => {
-      setPeople(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    });
-    return () => unsub();
-  }, [open, user, firestore, type]);
+    const colName = type === 'following' ? 'follower_id' : 'following_id';
+    supabase.from('follows').select('*, app_users(*)').eq(colName, user.uid)
+      .then(({ data }) => {
+        setPeople((data || []).map((r: any) => r.app_users || r));
+        setLoading(false);
+      });
+  }, [open, user, type]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -46,22 +45,15 @@ export function SocialStatsPopover({ type, count, label, colorClass }: SocialSta
   }, [open]);
 
   const handleUnfollow = async (personId: string) => {
-    if (!user || !firestore) return;
-    await deleteDoc(doc(firestore, 'users', user.uid, 'following', personId));
-    await updateDoc(doc(firestore, 'users', user.uid), { followingCount: increment(-1) }).catch(() => {});
-    await updateDoc(doc(firestore, 'users', personId), { followersCount: increment(-1) }).catch(() => {});
+    if (!user) return;
+    await supabase.from('follows').delete().eq('follower_id', user.uid).eq('following_id', personId);
+    setPeople(prev => prev.filter(p => p.id !== personId));
   };
 
   const handleFollow = async (personId: string, personName: string, personAvatar: string) => {
-    if (!user || !firestore) return;
-    await setDoc(doc(firestore, 'users', user.uid, 'following', personId), {
-      userId: personId, displayName: personName, profilePicture: personAvatar, followedAt: serverTimestamp(),
-    });
-    await setDoc(doc(firestore, 'users', personId, 'followers', user.uid), {
-      userId: user.uid, followedAt: serverTimestamp(),
-    });
-    await updateDoc(doc(firestore, 'users', user.uid), { followingCount: increment(1) }).catch(() => {});
-    await updateDoc(doc(firestore, 'users', personId), { followersCount: increment(1) }).catch(() => {});
+    if (!user) return;
+    await supabase.from('follows').upsert({ follower_id: user.uid, following_id: personId }, { onConflict: 'follower_id,following_id' });
+    setPeople(prev => [...prev, { id: personId, display_name: personName, avatar: personAvatar }]);
   };
 
   const title = type === 'disciples' ? 'Disciples' : type === 'followers' ? 'Followers' : 'Following';

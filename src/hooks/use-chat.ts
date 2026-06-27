@@ -1,8 +1,12 @@
 'use client';
 
+/**
+ * use-chat.ts — Supabase replacement for Firebase Firestore chat hooks.
+ * Uses the Supabase realtime hooks from use-realtime.ts.
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, doc, updateDoc, increment } from 'firebase/firestore';
 
 export interface ChatMessage {
   id: string;
@@ -10,96 +14,109 @@ export interface ChatMessage {
   senderName: string;
   senderAvatar: string;
   text: string;
-  createdAt: any;
+  createdAt: string;
   type: 'text' | 'image' | 'file';
   fileUrl?: string;
   fileName?: string;
   read: boolean;
 }
 
-export function useFirestoreChat(firestore: any, chatId: string | null, userId: string | null) {
+/**
+ * useSupabaseChat — replaces useFirestoreChat.
+ * Provides real-time messages for a group chat room.
+ */
+export function useFirestoreChat(_firestore: any, chatId: string | null, userId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!firestore || !chatId || !userId) { setLoading(false); return; }
+    if (!chatId || !userId) { setLoading(false); return; }
 
-    const q = query(
-      collection(firestore, 'chats', chatId, 'messages'),
-      orderBy('createdAt', 'asc'),
-      limit(100)
-    );
+    supabase.from('group_messages').select('*')
+      .eq('group_id', chatId)
+      .order('created_at', { ascending: true })
+      .limit(100)
+      .then(({ data }) => {
+        if (data) setMessages(data.map(mapMessage));
+        setLoading(false);
+      });
 
-    const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)));
-      setLoading(false);
-    }, () => setLoading(false));
+    const channel = supabase.channel(`chat-${chatId}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'group_messages',
+        filter: `group_id=eq.${chatId}`,
+      }, (payload) => {
+        setMessages(prev => [...prev, mapMessage(payload.new as any)]);
+      })
+      .subscribe();
 
-    return () => unsub();
-  }, [firestore, chatId, userId]);
+    return () => { supabase.removeChannel(channel); };
+  }, [chatId, userId]);
 
   const sendMessage = useCallback(async (
     senderId: string, senderName: string, senderAvatar: string,
     text: string, type: 'text' | 'image' | 'file' = 'text',
     fileUrl?: string, fileName?: string
   ) => {
-    if (!firestore || !chatId || !text.trim()) return;
-    await addDoc(collection(firestore, 'chats', chatId, 'messages'), {
-      senderId, senderName, senderAvatar,
-      text: text.trim(), type, fileUrl, fileName,
-      read: false, createdAt: serverTimestamp(),
+    if (!chatId || !text.trim()) return;
+    await supabase.from('group_messages').insert({
+      group_id: chatId,
+      sender_id: senderId,
+      sender_name: senderName,
+      sender_avatar: senderAvatar,
+      text: text.trim(),
     });
-    // Update last message on chat doc
-    await updateDoc(doc(firestore, 'chats', chatId), {
-      lastMessage: text.trim(),
-      lastMessageAt: serverTimestamp(),
-      [`unread_${senderId}`]: 0,
-    }).catch(() => {});
-  }, [firestore, chatId]);
+  }, [chatId]);
 
   return { messages, loading, sendMessage };
 }
 
+function mapMessage(row: any): ChatMessage {
+  return {
+    id: row.id,
+    senderId: row.sender_id,
+    senderName: row.sender_name,
+    senderAvatar: row.sender_avatar,
+    text: row.text,
+    createdAt: row.created_at,
+    type: 'text',
+    read: false,
+  };
+}
+
+/**
+ * useRealtimeFollowers — Supabase replacement for Firebase followers hook.
+ */
 export function useRealtimeFollowers(firestore: any, userId: string | null) {
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [disciplesCount, setDisciplesCount] = useState(0);
 
   useEffect(() => {
-    if (!firestore || !userId) return;
+    if (!userId) return;
 
-    const followersUnsub = onSnapshot(
-      collection(firestore, 'users', userId, 'followers'),
-      (snap) => setFollowersCount(snap.size)
-    );
-    const followingUnsub = onSnapshot(
-      collection(firestore, 'users', userId, 'following'),
-      (snap) => setFollowingCount(snap.size)
-    );
-    const disciplesUnsub = onSnapshot(
-      collection(firestore, 'users', userId, 'disciples_of'),
-      (snap) => setDisciplesCount(snap.size)
-    );
+    const fetchCounts = () => {
+      supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', userId)
+        .then(({ count }) => setFollowersCount(count || 0));
+      supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId)
+        .then(({ count }) => setFollowingCount(count || 0));
+    };
+    fetchCounts();
 
-    return () => { followersUnsub(); followingUnsub(); disciplesUnsub(); };
-  }, [firestore, userId]);
+    const channel = supabase.channel(`follows-counts-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `following_id=eq.${userId}` }, fetchCounts)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
 
   const follow = useCallback(async (targetUserId: string, targetName: string, targetAvatar: string) => {
-    if (!firestore || !userId) return;
-    const { addDoc: add, doc: d, setDoc } = await import('firebase/firestore');
-    // Add to my following
-    await setDoc(doc(firestore, 'users', userId, 'following', targetUserId), {
-      userId: targetUserId, displayName: targetName, profilePicture: targetAvatar,
-      followedAt: serverTimestamp(),
-    });
-    // Add to their followers
-    await setDoc(doc(firestore, 'users', targetUserId, 'followers', userId), {
-      userId, followedAt: serverTimestamp(),
-    });
-    // Update counts
-    await updateDoc(doc(firestore, 'users', userId), { followingCount: increment(1) }).catch(() => {});
-    await updateDoc(doc(firestore, 'users', targetUserId), { followersCount: increment(1) }).catch(() => {});
-  }, [firestore, userId]);
+    if (!userId) return;
+    await supabase.from('follows').upsert(
+      { follower_id: userId, following_id: targetUserId },
+      { onConflict: 'follower_id,following_id' }
+    );
+  }, [userId]);
 
   return { followersCount, followingCount, disciplesCount, follow };
 }

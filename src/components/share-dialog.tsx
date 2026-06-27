@@ -5,8 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "./ui/button";
 import { Share2, Copy, MessageCircle, Twitter, Facebook, Check, Linkedin, Send, Info, Globe } from "lucide-react";
 import { useToast } from '../hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '../firebase';
-import { doc } from 'firebase/firestore';
+import { useUser } from '../firebase';
+import { supabase } from '../lib/supabase';
 import type { UserProfile } from '../lib/types';
 
 interface ShareDialogProps {
@@ -23,20 +23,17 @@ interface ShareDialogProps {
 export function ShareDialog({ title, url, children }: ShareDialogProps) {
   const { toast } = useToast();
   const { user } = useUser();
-  const firestore = useFirestore();
   const [copied, setCopied] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
-
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(profileRef);
-  const isUnder13 = profile?.ageGroup === 'under-13';
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
 
   React.useEffect(() => {
     setMounted(true);
-  }, []);
+    if (user) supabase.from('app_users').select('ageGroup').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
+
+  const isUnder13 = profile?.ageGroup === 'under-13';
 
   const shareUrl = url || (mounted ? window.location.href : '');
   const shareText = `Check out this node on NGA Hub: ${title}`;

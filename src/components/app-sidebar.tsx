@@ -56,8 +56,8 @@ import {
 } from './ui/sidebar';
 import React from 'react';
 import { X } from 'lucide-react';
-import { useUser, useFirestore } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { useUser } from '../firebase';
+import { supabase } from '../lib/supabase';
 import type { UserProfile } from '../lib/types';
 import { UsageTimer } from './usage-timer';
 import { cn } from '../lib/utils';
@@ -93,19 +93,17 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
   const router = useRouter();
   const { setOpenMobile } = useSidebar();
   const { user } = useUser();
-  const firestore = useFirestore();
   const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
   
   const isUnder13 = ageGroup === 'under-10';
   const isAdmin = user?.uid === ADMIN_UID;
 
   React.useEffect(() => {
-    if (user && firestore) {
-        getDoc(doc(firestore, 'users', user.uid)).then(snap => {
-            if (snap.exists()) setUserProfile(snap.data() as UserProfile);
-        });
+    if (user) {
+      supabase.from('app_users').select('*').eq('id', user.uid).single()
+        .then(({ data }) => { if (data) setUserProfile(data as UserProfile); });
     }
-  }, [user, firestore]);
+  }, [user]);
 
   const mainMenuItems = [
     { href: `/HomeTon/${ageGroup}`, label: 'HomeTon', icon: isUnder13 ? Rocket : LayoutGrid },

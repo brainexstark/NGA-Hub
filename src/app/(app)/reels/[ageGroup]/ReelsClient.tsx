@@ -9,8 +9,7 @@ import { ShareDialog } from '../../../../components/share-dialog';
 import { cn, getEmbedUrl } from '../../../../lib/utils';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from "../../../../firebase";
-import { collection, serverTimestamp, doc, addDoc } from "firebase/firestore";
+import { useUser, updateDocumentNonBlocking } from "../../../../firebase";
 import type { UserProfile } from '../../../../lib/types';
 import { containsInappropriateWords } from '../../../../lib/inappropriate-words';
 import { useRealtimeFeed } from '../../../../hooks/use-realtime-feed';
@@ -236,16 +235,15 @@ function ReelItem({
 export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
   const { toast } = useToast();
   const { user } = useUser();
-  const firestore = useFirestore();
   const router = useRouter();
   const isUnder13 = ageGroup === 'under-13';
   const is18Plus = ageGroup === '18+';
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
 
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(profileRef);
+  React.useEffect(() => {
+    if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
 
   const [activeCategory, setActiveCategory] = React.useState('all');
   const [activeIndex, setActiveIndex] = React.useState(0);
@@ -315,11 +313,10 @@ export default function ReelsClient({ ageGroup }: { ageGroup: string }) {
   }, [reels]);
 
   const handleSave = (reel: any) => {
-    if (!user || !firestore) return;
-    addDoc(collection(firestore, 'users', user.uid, 'videos'), {
-      userId: user.uid, title: reel.description || 'STARK-B Asset',
-      videoUrl: reel.url || reel.imageUrl, duration: '0:30',
-      source: 'save', createdAt: serverTimestamp(),
+    if (!user) return;
+    supabase.from('videos').insert({
+      user_id: user.uid, title: reel.description || 'STARK-B Asset',
+      video_url: reel.url || reel.imageUrl, duration: '0:30', source: 'save',
     }).then(() => toast({ title: 'Saved to Video Bank' }));
   };
 

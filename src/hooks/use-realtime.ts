@@ -165,10 +165,10 @@ export function usePresence(userId: string, userName: string, userAvatar: string
         setOnlineUsers(users);
       })
       .on('presence', { event: 'join' }, ({ newPresences }) => {
-        setOnlineUsers(prev => [...prev, ...newPresences as PresenceUser[]]);
+        setOnlineUsers(prev => [...prev, ...(newPresences as unknown as PresenceUser[])]);
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }) => {
-        const leftIds = (leftPresences as PresenceUser[]).map(u => u.user_id);
+        const leftIds = (leftPresences as unknown as PresenceUser[]).map(u => u.user_id);
         setOnlineUsers(prev => prev.filter(u => !leftIds.includes(u.user_id)));
       })
       .subscribe(async (status) => {

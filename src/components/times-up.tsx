@@ -4,9 +4,10 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/
 import { Button } from "./ui/button";
 import { Hourglass, Lightbulb, BookOpen, ShieldCheck, PlayCircle } from "lucide-react";
 import Link from 'next/link';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '../firebase';
-import { doc } from 'firebase/firestore';
+import { useUser } from '../firebase';
+import { supabase } from '../lib/supabase';
 import type { UserProfile } from '../lib/types';
+import { useState, useEffect } from 'react';
 
 interface TimesUpProps {
   mode?: 'entertainment' | 'educational';
@@ -14,14 +15,13 @@ interface TimesUpProps {
 
 export function TimesUp({ mode = 'entertainment' }: TimesUpProps) {
   const { user } = useUser();
-  const firestore = useFirestore();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
-  const userProfileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
+  useEffect(() => {
+    if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
 
-  const { data: profile } = useDoc<UserProfile>(userProfileRef);
   const isEdu = mode === 'educational';
 
   return (

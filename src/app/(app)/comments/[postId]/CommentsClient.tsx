@@ -2,8 +2,8 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore } from '../../../../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { useUser } from '../../../../firebase';
+import { supabase } from '../../../../lib/supabase';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../../components/ui/avatar';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
@@ -15,7 +15,6 @@ import { useRealtimeComments } from '../../../../hooks/use-realtime';
 export default function CommentsClient({ postId }: { postId: string }) {
   const router = useRouter();
   const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
 
   const [commentText, setCommentText] = React.useState('');
@@ -29,20 +28,23 @@ export default function CommentsClient({ postId }: { postId: string }) {
 
   // Load user profile
   React.useEffect(() => {
-    if (user && firestore) {
-      getDoc(doc(firestore, 'users', user.uid)).then(snap => {
-        if (snap.exists()) setProfile(snap.data() as UserProfile);
+    if (user) {
+      supabase.from('app_users').select('*').eq('id', user.uid).single().then(({ data }) => {
+        if (data) setProfile(data as UserProfile);
       });
     }
-  }, [user, firestore]);
+  }, [user?.uid]);
 
-  // Load post info from Firestore
+  // Load post info from Supabase
   React.useEffect(() => {
-    if (!postId || !firestore) return;
-    getDoc(doc(firestore, 'posts', postId)).then(snap => {
-      if (snap.exists()) setPost(snap.data() as Post);
-    }).catch(() => {});
-  }, [postId, firestore]);
+    if (!postId) return;
+    void (async () => {
+      try {
+        const { data } = await supabase.from('posts').select('*').eq('id', postId).single();
+        if (data) setPost(data as Post);
+      } catch {}
+    })();
+  }, [postId]);
 
   // Auto-scroll to bottom on new comments
   React.useEffect(() => {

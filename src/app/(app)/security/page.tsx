@@ -23,11 +23,11 @@ import { getSecurityAlerts } from '../../../ai/flows/get-security-alerts';
 import { Button } from "../../../components/ui/button";
 import { Textarea } from "../../../components/ui/textarea";
 import { Label } from "../../../components/ui/label";
-import { useFirestore, useDoc, useMemoFirebase, useUser } from "../../../firebase";
-import { doc } from 'firebase/firestore';
+import { useUser } from "../../../firebase";
+import { supabase } from "../../../lib/supabase";
 import { useToast } from "../../../hooks/use-toast";
 import type { AppStatus, UserProfile } from '../../../lib/types';
-import { setDocumentNonBlocking, updateDocumentNonBlocking } from '../../../firebase/non-blocking-updates';
+import { setDocNonBlocking, updateDocNonBlocking, docRef } from '../../../lib/db';
 
 const ADMIN_UID = "s1EFDYsBy3SryAxicoIivG46M353";
 
@@ -38,17 +38,20 @@ export default function SecurityPage() {
   const [lockdownMessage, setLockdownMessage] = useState('');
 
   const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
+  const [appStatus, setAppStatus] = React.useState<AppStatus | null>(null);
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
   
   const isAdmin = user?.uid === ADMIN_UID;
 
-  const appStatusRef = useMemoFirebase(() => (!firestore) ? null : doc(firestore, 'app_status', 'main'), [firestore]);
-  const { data: appStatus } = useDoc<AppStatus>(appStatusRef);
-
-  const userProfileRef = useMemoFirebase(() => (!user || !firestore) ? null : doc(firestore, 'users', user.uid), [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(userProfileRef);
-
+  React.useEffect(() => {
+    supabase.from('app_status').select('*').eq('id', 'main').single()
+      .then(({ data }) => { if (data) setAppStatus(data as AppStatus); });
+    if (user) {
+      supabase.from('app_users').select('*').eq('id', user.uid).single()
+        .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+    }
+  }, [user?.uid]);
   useEffect(() => {
     async function fetchAlerts() {
         setIsLoading(true);
@@ -69,19 +72,17 @@ export default function SecurityPage() {
   }, [appStatus]);
 
   const handleUpdateLockdown = (isLockedDown: boolean) => {
-    if (!firestore || !isAdmin) return;
+    if (!isAdmin) return;
     setIsUpdating(true);
-    const statusRef = doc(firestore, 'app_status', 'main');
-    setDocumentNonBlocking(statusRef, { isLockedDown, message: lockdownMessage }, { merge: true });
+    setDocNonBlocking(docRef('app_status', 'main'), { isLockedDown, message: lockdownMessage });
     toast({ title: 'Broadcast Synchronized' });
     setIsUpdating(false);
   };
 
   const handleToggleSelfBreach = () => {
-    if (!user || !firestore) return;
-    const userRef = doc(firestore, 'users', user.uid);
+    if (!user) return;
     const newBreachState = !profile?.isBreached;
-    updateDocumentNonBlocking(userRef, { isBreached: newBreachState });
+    updateDocNonBlocking(docRef('app_users', user.uid), { isBreached: newBreachState });
     toast({ title: `Targeted Lockdown ${newBreachState ? 'Activated' : 'Lifted'}` });
   };
 

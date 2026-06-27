@@ -6,9 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Button } from '../../../components/ui/button';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '../../../firebase';
-import { doc, updateDoc } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
+import { useAuth, useUser } from '../../../firebase';
+import { supabase } from '../../../lib/supabase';
 import { useToast } from '../../../hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
 import { useRouter } from 'next/navigation';
@@ -47,17 +46,19 @@ const LANGUAGES = [
 ];
 
 export default function SettingsPage() {
-  const { user, isUserLoading, auth } = useUser();
-  const firestore = useFirestore();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const router = useRouter();
 
-  const userProfileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = React.useState(true);
 
-  const { data: profile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
+  React.useEffect(() => {
+    if (!user) { setIsProfileLoading(false); return; }
+    supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { setProfile(data as UserProfile | null); setIsProfileLoading(false); });
+  }, [user?.uid]);
 
   const [displayName, setDisplayName] = useState('');
   const [profilePicture, setProfilePicture] = useState('');
@@ -117,25 +118,26 @@ export default function SettingsPage() {
   const handleToggleDark = (checked: boolean) => {
     setDarkTheme(checked);
     applyDarkMode(checked);
-    if (user && firestore) {
-      updateDoc(doc(firestore, 'users', user.uid), { darkTheme: checked }).catch(() => {});
+    if (user) {
+      void (async () => {
+        try { await supabase.from('app_users').update({ dark_theme: checked }).eq('id', user.uid); } catch {}
+      })();
     }
   };
 
   const handleSave = async () => {
-    if (!user || !firestore) return;
+    if (!user) return;
     setIsUpdating(true);
     try {
-      await updateDoc(doc(firestore, 'users', user.uid), {
-        displayName,
-        profilePicture,
-        timerNotifications,
-        darkTheme,
+      await supabase.from('app_users').update({
+        display_name: displayName,
+        avatar: profilePicture,
+        timer_notifications: timerNotifications,
+        dark_theme: darkTheme,
         language,
         country,
-        privacyLevel,
-      });
-      // Also update in Supabase app_users so it shows in chat/network
+        privacy_level: privacyLevel,
+      }).eq('id', user.uid);
       const { upsertAppUser } = await import('../../../hooks/use-realtime');
       await upsertAppUser({ id: user.uid, display_name: displayName, avatar: profilePicture });
       toast({ title: 'Settings Saved', description: 'All changes synchronized.' });
@@ -149,7 +151,7 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     if (!auth) return;
-    await signOut(auth);
+    await auth.signOut();
     router.push('/sign-in');
   };
 
@@ -333,9 +335,9 @@ export default function SettingsPage() {
                           toast({ variant: 'destructive', title: 'Upload failed', description: 'Using local preview — save to keep it.' });
                         }
                         setProfilePicture(finalUrl);
-                        // Save real URL (never base64) to Firestore + Supabase
-                        if (user && firestore && finalUrl.startsWith('http')) {
-                          await updateDoc(doc(firestore, 'users', user.uid), { profilePicture: finalUrl });
+                        // Save real URL to Supabase
+                        if (user && finalUrl.startsWith('http')) {
+                          await supabase.from('app_users').update({ avatar: finalUrl }).eq('id', user.uid);
                           const { upsertAppUser } = await import('../../../hooks/use-realtime');
                           upsertAppUser({ id: user.uid, avatar: finalUrl });
                           toast({ title: 'Profile picture updated!' });
@@ -434,7 +436,7 @@ export default function SettingsPage() {
                   </div>
                   <Switch checked={item.state} onCheckedChange={(v) => {
                     item.set(v);
-                    if (user && firestore) updateDoc(doc(firestore, 'users', user.uid), { [item.key]: v }).catch(() => {});
+                    if (user) void supabase.from('app_users').update({ [item.key]: v }).eq('id', user.uid).then(() => {});
                   }} />
                 </div>
               ))}

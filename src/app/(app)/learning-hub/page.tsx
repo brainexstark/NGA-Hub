@@ -31,8 +31,8 @@ import {
 } from 'lucide-react';import { cn, getEmbedUrl } from '../../../lib/utils';
 import { Dialog, DialogContent, DialogTitle } from "../../../components/ui/dialog";
 import { useToast } from '../../../hooks/use-toast';
-import { useUser, useFirestore, useMemoFirebase, useDoc } from '../../../firebase';
-import { doc } from 'firebase/firestore';
+import { useUser } from '../../../firebase';
+import { supabase } from '../../../lib/supabase';
 import type { UserProfile } from '../../../lib/types';
 import { Input } from '../../../components/ui/input';
 import {
@@ -43,7 +43,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
-import { updateDocumentNonBlocking } from '../../../firebase/non-blocking-updates';
+import { updateDocNonBlocking, docRef } from '../../../lib/db';
 import { containsInappropriateWords } from '../../../lib/inappropriate-words';
 import { MultilingualEngine } from '../../../components/multilingual-engine';
 
@@ -230,9 +230,14 @@ const GoogleViewer = ({ query, onClose }: { query: string, onClose: () => void }
 export default function LearningHubPage() {
   const router = useRouter();
   const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
   
+  React.useEffect(() => {
+    if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
+
   const [selectedLesson, setSelectedLesson] = React.useState<any>(null);
   const [missionSeconds, setMissionSeconds] = React.useState<number | null>(null);
   const [isMissionComplete, setIsMissionComplete] = React.useState(false);
@@ -243,8 +248,6 @@ export default function LearningHubPage() {
   const [streakCount, setStreakCount] = React.useState(0);
   const [badgesCount, setBadgesCount] = React.useState(0);
 
-  const userRef = useMemoFirebase(() => (!user || !firestore) ? null : doc(firestore, 'users', user.uid), [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(userRef);
   const isUnder13 = profile?.ageGroup === 'under-13';
 
   React.useEffect(() => {
@@ -268,9 +271,8 @@ export default function LearningHubPage() {
       }, 1000);
     } else if (missionSeconds === 0) {
       setIsMissionComplete(true);
-      if (user && firestore) {
-          const uRef = doc(firestore, 'users', user.uid);
-          updateDocumentNonBlocking(uRef, { 
+      if (user) {
+          updateDocNonBlocking(docRef('app_users', user.uid), { 
               lessonsCompleted: (completedCount || 0) + 1,
               nodeStreak: (streakCount || 0) + 1 
           });
@@ -280,7 +282,7 @@ export default function LearningHubPage() {
       setSelectedLesson(null);
     }
     return () => clearInterval(interval);
-  }, [missionSeconds, user, firestore, completedCount, streakCount]);
+  }, [missionSeconds, user, completedCount, streakCount]);
 
   const handleInitializeLesson = (lesson: any) => {
     setSelectedLesson(lesson);

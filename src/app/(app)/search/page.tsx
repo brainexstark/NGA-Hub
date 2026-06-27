@@ -21,26 +21,24 @@ import {
 import { Card, CardContent } from '../../../components/ui/card';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "../../../components/ui/dialog";
 import { getEmbedUrl } from "../../../lib/utils";
-import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '../../../firebase';
-import { doc, arrayUnion } from 'firebase/firestore';
+import { useUser, updateDocumentNonBlocking } from '../../../firebase';
+import { supabase } from '../../../lib/supabase';
 import { useToast } from '../../../hooks/use-toast';
 import { aiFilterSearch } from '../../../lib/cloudflare-ai';
 import type { UserProfile } from '../../../lib/types';
 
 export default function SearchPage() {
   const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
   const [query, setQuery] = React.useState('');
   const [isSearching, setIsSearching] = React.useState(false);
   const [activeUrl, setActiveUrl] = React.useState<string | null>(null);
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
 
-  // Fetch user profile to get ageGroup for AI filtering
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(profileRef);
+  React.useEffect(() => {
+    if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,10 +63,15 @@ export default function SearchPage() {
       // If AI check fails for any reason, proceed normally — never block users
     }
     
-    // Algorithmic History Sync
-    if (user && firestore) {
-        const userRef = doc(firestore, 'users', user.uid);
-        updateDocumentNonBlocking(userRef, { searchHistory: arrayUnion(query.trim()) });
+    // Algorithmic History Sync via Supabase
+    if (user) {
+      void (async () => {
+        try {
+          const { data } = await supabase.from('app_users').select('search_history').eq('id', user.uid).single();
+          const history: string[] = (data as any)?.search_history || [];
+          await supabase.from('app_users').update({ search_history: [...history, query.trim()] }).eq('id', user.uid);
+        } catch {}
+      })();
     }
 
     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&igu=1`;

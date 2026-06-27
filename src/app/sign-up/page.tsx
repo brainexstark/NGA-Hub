@@ -6,9 +6,8 @@ import { Logo } from "../../components/logo";
 import { Loader2, Eye, EyeOff, ArrowRight, ArrowLeft, Mail, Lock, User, Camera, Upload, Link2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, updateProfile, createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { useAuth, useFirestore } from "../../firebase";
+import { useAuth, useUser } from "../../firebase";
+import { supabase } from "../../lib/supabase";
 import { useToast } from "../../hooks/use-toast";
 import { upsertAppUser } from "../../hooks/use-realtime";
 import { cn } from "../../lib/utils";
@@ -46,35 +45,46 @@ export default function SignUpPage() {
 
   const router = useRouter();
   const auth = useAuth();
-  const firestore = useFirestore();
   const { toast } = useToast();
+
+  const { user: currentUser } = useUser();
+  const [redirectHandled, setRedirectHandled] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    if (auth && firestore) {
-      getRedirectResult(auth).then(async (result) => {
-        if (result?.user) {
-          const u = result.user;
-          // Check if user already has an age group set — if so, go straight to app
-          const { doc: firestoreDoc, getDoc } = await import('firebase/firestore');
-          const snap = await getDoc(firestoreDoc(firestore, 'users', u.uid));
-          if (snap.exists() && snap.data()?.ageGroup) {
-            router.push(`/HomeTon/${snap.data().ageGroup}`);
-          } else {
-            // New Google user — save basic profile and show age step
-            await setDoc(doc(firestore, 'users', u.uid), {
-              uid: u.uid, displayName: u.displayName, email: u.email,
-              profilePicture: u.photoURL || '', lastLogin: serverTimestamp(),
-            }, { merge: true });
-            setEmail(u.email || '');
-            setUsername(u.displayName || '');
-            setProfilePic(u.photoURL || '');
-            setStep('age');
-          }
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser || redirectHandled) return;
+    if (step !== 'account') return;
+
+    const handleExistingUser = async () => {
+      try {
+        const { data: existingProfile } = await supabase.from('app_users').select('*').eq('id', currentUser.uid).single();
+        if (existingProfile?.ageGroup) {
+          router.push(`/HomeTon/${existingProfile.ageGroup}`);
+          return;
         }
-      }).catch(() => {});
-    }
-  }, [auth, firestore]);
+        await supabase.from('app_users').upsert({
+          id: currentUser.uid,
+          display_name: currentUser.displayName,
+          email: currentUser.email,
+          avatar: currentUser.photoURL || '',
+          last_seen: new Date().toISOString(),
+        }, { onConflict: 'id' });
+        setEmail(currentUser.email || '');
+        setUsername(currentUser.displayName || '');
+        setProfilePic(currentUser.photoURL || '');
+        setStep('age');
+      } catch {
+        // ignore; allow the user to continue signing up manually if Firestore is not available
+      } finally {
+        setRedirectHandled(true);
+      }
+    };
+
+    handleExistingUser();
+  }, [currentUser, redirectHandled, router, step]);
 
   const [uploadingPic, setUploadingPic] = useState(false);
 
@@ -113,71 +123,50 @@ export default function SignUpPage() {
   };
 
   const handleGoogle = async () => {
-    if (!auth || !firestore) return;
+    if (!auth) return;
     setIsGoogleLoading(true);
-    const provider = new GoogleAuthProvider();
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const u = result.user;
-      // Check if user already has age group — if so skip to app
-      const { doc: firestoreDoc, getDoc } = await import('firebase/firestore');
-      const snap = await getDoc(firestoreDoc(firestore, 'users', u.uid));
-      if (snap.exists() && snap.data()?.ageGroup) {
-        router.push(`/HomeTon/${snap.data().ageGroup}`);
-        return;
-      }
-      // New Google user — save basic info, show age step
-      await setDoc(doc(firestore, 'users', u.uid), {
-        uid: u.uid, displayName: u.displayName, email: u.email,
-        profilePicture: u.photoURL || '', lastLogin: serverTimestamp(),
-      }, { merge: true });
-      setEmail(u.email || '');
-      setUsername(u.displayName || '');
-      setProfilePic(u.photoURL || '');
-      setStep('age');
-    } catch (err: any) {
-      if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/popup-closed-by-user') {
-        try { await signInWithRedirect(auth, provider); } catch {}
-      } else {
-        toast({ variant: 'destructive', title: 'Google sign up failed', description: err.message });
-        setIsGoogleLoading(false);
-      }
+
+    const { error } = await auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/sign-up`,
+      },
+    });
+
+    if (error) {
+      toast({ variant: 'destructive', title: 'Google sign up failed', description: error.message });
+      setIsGoogleLoading(false);
     }
   };
 
   const handleFinish = async () => {
-    if (!auth || !firestore || !ageGroup) return;
+    if (!auth || !ageGroup) return;
     setIsLoading(true);
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      const u = cred.user;
-
-      // Only use real HTTP URLs for Firebase Auth — never base64 or blob URLs
       const rawPic = profilePic || picUrl || '';
       const isRealUrl = rawPic.startsWith('http://') || rawPic.startsWith('https://');
       const safePhotoURL = isRealUrl ? rawPic : '';
 
-      // Update Firebase Auth profile — photoURL must be a real URL or empty
-      await updateProfile(u, {
-        displayName: username,
-        ...(safePhotoURL ? { photoURL: safePhotoURL } : {}),
+      const { data, error } = await auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: username,
+            avatar_url: safePhotoURL,
+          },
+        },
       });
 
-      // Store full picture in Firestore (can hold longer strings, but keep it a real URL)
-      await setDoc(doc(firestore, 'users', u.uid), {
-        uid: u.uid,
-        displayName: username,
-        email: u.email,
-        ageGroup,
-        profilePicture: safePhotoURL,
-        ...(dob ? { dob } : {}),
-        ...(phone ? { phone } : {}),
-        lastLogin: serverTimestamp(),
-      }, { merge: true });
+      if (error) throw error;
+      const u = data.user;
+      if (!u) {
+        toast({ title: 'Verify your email', description: 'Check your inbox to complete registration.' });
+        return;
+      }
 
-      // Register in Supabase
       await upsertAppUser({
-        id: u.uid,
+        id: u.id,
         display_name: username,
         email: u.email || '',
         avatar: safePhotoURL,
@@ -190,7 +179,7 @@ export default function SignUpPage() {
     } catch (err: any) {
       const code = err?.code || '';
       let msg = err?.message || 'Something went wrong';
-      if (code === 'auth/email-already-in-use') msg = 'This email is already registered. Try signing in.';
+      if (code === 'auth/email-address-already-in-use') msg = 'This email is already registered. Try signing in.';
       if (code === 'auth/weak-password') msg = 'Password must be at least 6 characters.';
       if (code === 'auth/invalid-email') msg = 'Please enter a valid email address.';
       toast({ variant: 'destructive', title: 'Sign up failed', description: msg });

@@ -119,7 +119,7 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
 
 // Publish a post to Supabase
 // Stories go to the `stories` table; everything else goes to `posts`
-export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestore: any) {
+export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, _firestore?: any) {
   const results: string[] = [];
 
   const isStory = post.type === 'story';
@@ -148,7 +148,7 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
 
   try {
     // Category routing: lesson-category posts also write to lessons table
-    const isLesson = post.category === 'lesson' || post.category === 'education' || post.type === 'lesson';
+    const isLesson = post.category === 'lesson' || post.category === 'education' || (post.type as string) === 'lesson';
 
     const { data, error } = await supabase.from('posts').insert({
       user_id: post.userId || 'anonymous',
@@ -202,21 +202,6 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, firestor
     if (error) console.warn('Supabase insert error:', error.message);
   } catch (e) {
     console.warn('Supabase publish failed:', e);
-  }
-
-  // Firestore backup (posts only)
-  if (firestore) {
-    try {
-      const { collection: col, addDoc, serverTimestamp } = await import('firebase/firestore');
-      const ref = await addDoc(col(firestore, 'posts'), {
-        ...post,
-        isFlagged: false,
-        createdAt: serverTimestamp(),
-      });
-      if (!results.length) results.push(ref.id);
-    } catch (e) {
-      console.warn('Firestore publish failed:', e);
-    }
   }
 
   return results[0] || null;

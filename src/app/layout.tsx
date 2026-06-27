@@ -5,7 +5,8 @@ import { Toaster } from '../components/ui/toaster';
 import { PwaInstaller } from '../components/pwa-installer';
 import { InstallBanner } from '../components/install-banner';
 import './globals.css';
-import { FirebaseClientProvider } from '../firebase/client-provider';
+import { DbProvider } from '../lib/db-provider';
+import { AuthProvider } from '../auth';
 import { RateAppDialog } from '../components/rate-app-dialog';
 
 /**
@@ -22,11 +23,11 @@ export default function RootLayout({
 
   useEffect(() => {
     setMounted(true);
-    // Set black theme-color for status bar
+    // Set dark slate theme-color for status bar
     const meta = document.getElementById('theme-color-meta');
-    if (meta) meta.setAttribute('content', '#000000');
+    if (meta) meta.setAttribute('content', '#0f172a');
     const bar = document.getElementById('dynamic-top-bar');
-    if (bar) bar.style.background = '#000000';
+    if (bar) bar.style.background = '#0f172a';
   }, []);
 
   return (
@@ -54,21 +55,23 @@ export default function RootLayout({
         <meta name="msapplication-TileImage" content="/icons/icon-192.png" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
-      <body className="min-h-screen font-sans antialiased bg-black" suppressHydrationWarning>
-        {/* Thin black top bar */}
+      <body className="min-h-screen font-sans antialiased bg-background" suppressHydrationWarning>
+        {/* Thin dark slate top bar */}
         <div id="dynamic-top-bar" className="fixed top-0 left-0 right-0 h-0.5 z-[9999] bg-white/10" />
-        <FirebaseClientProvider>
-          <PwaInstaller />
-          <InstallBanner />
-          {/* STARK-B Hydration Guard: Terminates SSR logic interference */}
-          {mounted ? children : (
-            <div className="flex h-screen w-screen flex-col items-center justify-center bg-black">
-                <div className="h-12 w-12 rounded-full border-4 border-white border-t-transparent animate-spin" />
-            </div>
-          )}
-          <Toaster />
-          <RateAppDialog />
-        </FirebaseClientProvider>
+        <DbProvider>
+          <AuthProvider>
+            <PwaInstaller />
+            <InstallBanner />
+            {/* STARK-B Hydration Guard: Terminates SSR logic interference */}
+            {mounted ? children : (
+              <div className="flex h-screen w-screen flex-col items-center justify-center bg-black">
+                  <div className="h-12 w-12 rounded-full border-4 border-white border-t-transparent animate-spin" />
+              </div>
+            )}
+            <Toaster />
+            <RateAppDialog />
+          </AuthProvider>
+        </DbProvider>
       </body>
     </html>
   );

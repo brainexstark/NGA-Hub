@@ -7,8 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Radio, User, StopCircle, Send, Camera, Zap, ShieldCheck, AlertCircle, Tv, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useUser, useFirestore } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -228,19 +227,17 @@ function StreamBroadcaster({ profile, user, onEnd }: { profile: UserProfile | nu
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function LiveStreamPage() {
   const { user } = useUser();
-  const firestore = useFirestore();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [view, setView] = useState<'lobby' | 'broadcast' | 'watch'>('lobby');
   const [watchingId, setWatchingId] = useState<string | null>(null);
   const activeStreams = useActiveStreams(profile?.ageGroup || '14-17');
 
   useEffect(() => {
-    if (user && firestore) {
-      getDoc(doc(firestore, 'users', user.uid)).then(snap => {
-        if (snap.exists()) setProfile(snap.data() as UserProfile);
-      });
+    if (user) {
+      supabase.from('app_users').select('*').eq('id', user.uid).single()
+        .then(({ data }) => { if (data) setProfile(data as UserProfile); });
     }
-  }, [user, firestore]);
+  }, [user?.uid]);
 
   if (view === 'broadcast') {
     return (

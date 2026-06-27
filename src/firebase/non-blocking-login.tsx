@@ -1,28 +1,20 @@
 'use client';
-import {
-  Auth,
-  signInAnonymously,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-} from 'firebase/auth';
 
-/** Initiate anonymous sign-in (non-blocking). */
-export function initiateAnonymousSignIn(authInstance: Auth): void {
-  signInAnonymously(authInstance).catch((error) => {
-    console.error("STARK-B Auth Node: Anonymous Sync Failure", error);
-  });
+/**
+ * Non-blocking login helpers — already uses Supabase only.
+ */
+import { supabase } from '../lib/supabase';
+
+export function initiateAnonymousSignIn(): void {
+  console.warn('Anonymous sign-in is not supported in this app flow.');
 }
 
-/** Initiate email/password sign-up (non-blocking). */
-export function initiateEmailSignUp(authInstance: Auth, email: string, password: string): void {
-  createUserWithEmailAndPassword(authInstance, email, password).catch((error) => {
-    console.error("STARK-B Auth Node: Registration Sync Failure", error);
-  });
+export async function initiateEmailSignUp(email: string, password: string): Promise<void> {
+  const { error } = await supabase.auth.signUp({ email, password });
+  if (error) console.error('Auth: Registration failed', error);
 }
 
-/** Initiate email/password sign-in (non-blocking). */
-export function initiateEmailSignIn(authInstance: Auth, email: string, password: string): void {
-  signInWithEmailAndPassword(authInstance, email, password).catch((error) => {
-    console.error("STARK-B Auth Node: Login Sync Failure", error);
-  });
+export async function initiateEmailSignIn(email: string, password: string): Promise<void> {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) console.error('Auth: Login failed', error);
 }

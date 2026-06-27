@@ -6,15 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useUser, useFirestore, useFirebaseApp } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { useUser, useFirebaseApp } from '@/firebase';
+import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
 export default function AddPhonePage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
-  const firestore = useFirestore();
   const { toast } = useToast();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -32,15 +31,11 @@ export default function AddPhonePage() {
 
     setIsUpdating(true);
     try {
-      const userRef = doc(firestore, 'users', user.uid);
-      await updateDoc(userRef, { phoneNumber });
+      await supabase.from('app_users').update({ phone_number: phoneNumber }).eq('id', user.uid);
       toast({ title: 'Phone number saved!' });
-      
-      // Redirect to the root; the main layout will handle the final destination.
-      router.push('/'); 
+      router.push('/');
     } catch (error) {
       toast({ variant: 'destructive', title: 'Failed to save phone number.' });
-      console.error(error);
     } finally {
       setIsUpdating(false);
     }

@@ -8,10 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Lightbulb, Send, Zap, ThumbsUp, Loader2, CheckCircle, Clock, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
-import type { UserProfile } from '@/lib/types';
+import { useUser } from '@/firebase';
 import { supabase } from '@/lib/supabase';
+import type { UserProfile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface FeatureRequest {
@@ -35,19 +34,18 @@ const STATUS_CONFIG = {
 export default function FeatureRequestPage() {
   const { toast } = useToast();
   const { user } = useUser();
-  const firestore = useFirestore();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [requestText, setRequestText] = React.useState('');
   const [benefit, setBenefit] = React.useState('');
   const [requests, setRequests] = React.useState<FeatureRequest[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [votedIds, setVotedIds] = React.useState<Set<string>>(new Set());
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
 
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(profileRef);
+  React.useEffect(() => {
+    if (user) supabase.from('app_users').select('*').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
 
   // Load requests + realtime updates
   React.useEffect(() => {

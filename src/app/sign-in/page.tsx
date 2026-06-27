@@ -5,12 +5,8 @@ import { useRouter } from "next/navigation";
 import { Logo } from "../../components/logo";
 import { Loader2, Eye, EyeOff, ArrowRight, Mail, Lock, User } from "lucide-react";
 import Link from "next/link";
-import {
-  GoogleAuthProvider, signInWithPopup, signInWithRedirect,
-  getRedirectResult, signInWithEmailAndPassword, sendPasswordResetEmail
-} from "firebase/auth";
-import { collection, query, where, getDocs, limit } from "firebase/firestore";
-import { useAuth, useFirestore } from "../../firebase";
+import { useAuth, useUser } from "../../firebase";
+import { supabase } from "../../lib/supabase";
 import { useToast } from "../../hooks/use-toast";
 import { AnimatedBg } from "../../components/animated-bg";
 import { cn } from "../../lib/utils";
@@ -44,39 +40,30 @@ export default function SignInPage() {
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const auth = useAuth();
-  const firestore = useFirestore();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 
   useEffect(() => {
     setMounted(true);
-    if (auth) {
-      getRedirectResult(auth)
-        .then((result) => { if (result?.user) { router.push('/'); } })
-        .catch(() => {})
-        .finally(() => setIsGoogleLoading(false));
-    }
-  }, [auth]);
+    setIsGoogleLoading(false);
+  }, []);
 
-  // Resolve username → email by looking up Firestore
+  useEffect(() => {
+    if (!mounted || isUserLoading) return;
+    if (user) {
+      router.replace('/');
+    }
+  }, [mounted, isUserLoading, router, user]);
+
+  // Resolve username → email via Supabase
   const resolveEmail = async (value: string): Promise<string> => {
     const v = value.trim();
-    // If it looks like an email already, return it directly
     if (v.includes('@')) return v;
-    // Otherwise treat as username — look up in Firestore
-    if (!firestore) return v;
     try {
-      const q = query(
-        collection(firestore, 'users'),
-        where('displayName', '==', v),
-        limit(1)
-      );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const data = snap.docs[0].data();
-        if (data.email) return data.email;
-      }
+      const { data } = await supabase.from('app_users').select('email').eq('display_name', v).limit(1).single();
+      if (data?.email) return data.email;
     } catch {}
-    return v; // fall back to original value
+    return v;
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -86,7 +73,8 @@ export default function SignInPage() {
     setIsLoading(true);
     try {
       const email = await resolveEmail(identifier);
-      await signInWithEmailAndPassword(auth, email, password);
+      const { error } = await auth.signInWithPassword({ email, password });
+      if (error) throw error;
       router.push('/');
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Sign in failed', description: friendlyAuthError(error?.code || '') });
@@ -98,18 +86,15 @@ export default function SignInPage() {
   const handleGoogle = async () => {
     if (!auth) return;
     setIsGoogleLoading(true);
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-      router.push('/');
-    } catch (err: any) {
-      const code = err?.code || '';
-      if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
-        try { await signInWithRedirect(auth, provider); } catch {}
-      } else {
-        toast({ variant: 'destructive', title: 'Google sign in failed', description: friendlyAuthError(code) });
-        setIsGoogleLoading(false);
-      }
+    const { error } = await auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/sign-in`,
+      },
+    });
+    if (error) {
+      toast({ variant: 'destructive', title: 'Google sign in failed', description: error.message });
+      setIsGoogleLoading(false);
     }
   };
 
@@ -117,13 +102,13 @@ export default function SignInPage() {
     if (!auth) return;
     const email = identifier.includes('@') ? identifier.trim() : '';
     if (!email) { toast({ variant: 'destructive', title: 'Enter your email address first' }); return; }
-    try {
-      await sendPasswordResetEmail(auth, email);
-      setResetSent(true);
-      toast({ title: 'Reset email sent', description: 'Check your inbox.' });
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Could not send reset email', description: friendlyAuthError(err?.code || '') });
+    const { error } = await auth.resetPasswordForEmail(email);
+    if (error) {
+      toast({ variant: 'destructive', title: 'Could not send reset email', description: friendlyAuthError(error?.code || '') });
+      return;
     }
+    setResetSent(true);
+    toast({ title: 'Reset email sent', description: 'Check your inbox.' });
   };
 
   if (!mounted) return <div className="min-h-screen bg-black" />;

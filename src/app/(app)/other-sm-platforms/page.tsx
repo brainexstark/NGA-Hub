@@ -4,8 +4,8 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Link as LinkIcon, Twitter, Instagram, Facebook, Youtube, Share2, Zap, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser } from '@/firebase';
+import { supabase } from '@/lib/supabase';
 import type { UserProfile } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 
@@ -46,18 +46,17 @@ const socialPlatforms = [
 
 export default function SocialPlatformsPage() {
   const { user } = useUser();
-  const firestore = useFirestore();
   const router = useRouter();
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
 
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: profile } = useDoc<UserProfile>(profileRef);
+  React.useEffect(() => {
+    if (user) supabase.from('app_users').select('ageGroup').eq('id', user.uid).single()
+      .then(({ data }) => { if (data) setProfile(data as UserProfile); });
+  }, [user?.uid]);
 
   React.useEffect(() => {
     if (profile && profile.ageGroup === 'under-13') {
-        router.replace(`/HomeTon/${profile.ageGroup}`);
+      router.replace(`/HomeTon/${profile.ageGroup}`);
     }
   }, [profile, router]);
 
