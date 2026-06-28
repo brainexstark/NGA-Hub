@@ -53,7 +53,7 @@ export function MediaRenderer({
 
   // IntersectionObserver for autoplay
   useEffect(() => {
-    if (!autoPlayOnView || type !== 'video') return;
+    if (!autoPlayOnView || (type !== 'video' && type !== 'unknown')) return;
     const el = containerRef.current;
     if (!el) return;
     const obs = new IntersectionObserver(
@@ -104,9 +104,25 @@ export function MediaRenderer({
   }
 
   // ── Native video (blob, data:video, .mp4, Supabase video) ───────────────────
-  if (type === 'video') {
+  // Also handles 'unknown' blob: URLs by trying video first
+  if (type === 'video' || type === 'unknown') {
+    if (videoError && type === 'unknown') {
+      // blob: URL failed as video — try as image
+      return (
+        <div ref={containerRef} className={cn('relative overflow-hidden', className)}>
+          <img
+            src={url}
+            alt={alt}
+            className="w-full h-full object-cover"
+            style={filterStyle}
+            loading="lazy"
+            onLoad={onLoad}
+            onError={() => { setImgError(true); onError?.(); }}
+          />
+        </div>
+      );
+    }
     if (videoError) {
-      // Video failed — show image fallback
       return (
         <div className={cn('flex flex-col items-center justify-center bg-zinc-900 gap-2', className)}>
           <PlayCircle className="h-12 w-12 text-white/30" />

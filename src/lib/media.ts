@@ -130,30 +130,45 @@ export type MediaType = 'image' | 'video' | 'external' | 'unknown';
 
 export function detectMediaType(url: string, fileType?: string): MediaType {
   if (!url) return 'unknown';
+
+  // MIME type from file input is the most reliable signal
   if (fileType?.startsWith('video/')) return 'video';
   if (fileType?.startsWith('image/')) return 'image';
+  if (fileType?.startsWith('audio/')) return 'unknown';
 
   const l = url.toLowerCase().split('?')[0];
 
+  // External embeds
   if (l.includes('youtube') || l.includes('youtu.be') ||
       l.includes('tiktok') || l.includes('instagram') ||
       l.includes('vimeo') || l.includes('fb.watch')) return 'external';
 
+  // data: URLs — check mime prefix
+  if (l.startsWith('data:video')) return 'video';
+  if (l.startsWith('data:image')) return 'image';
+
+  // blob: URLs — can be either image or video.
+  // We can't inspect blob content from URL alone.
+  // Return 'unknown' so the caller can pass fileType to disambiguate.
+  // MediaRenderer handles 'unknown' as image (safe default).
+  if (l.startsWith('blob:')) return 'unknown';
+
+  // Known video extensions
   if (l.endsWith('.mp4') || l.endsWith('.webm') || l.endsWith('.mov') ||
       l.endsWith('.avi') || l.endsWith('.mkv') || l.endsWith('.m4v') ||
-      l.startsWith('data:video')) return 'video';
+      l.endsWith('.ogv') || l.endsWith('.3gp') || l.endsWith('.flv')) return 'video';
 
+  // Known image extensions
   if (l.endsWith('.jpg') || l.endsWith('.jpeg') || l.endsWith('.png') ||
       l.endsWith('.gif') || l.endsWith('.webp') || l.endsWith('.avif') ||
-      l.endsWith('.svg') || l.startsWith('data:image')) return 'image';
+      l.endsWith('.svg') || l.endsWith('.bmp')) return 'image';
 
   // Supabase storage — inspect the path extension
   if (l.includes('/storage/v1/object/') || l.includes('/object/public/')) {
-    const cleanPath = l.split('?')[0];
-    const pathExt = cleanPath.split('.').pop() || '';
-    if (['mp4','webm','mov','avi','mkv','m4v'].includes(pathExt)) return 'video';
-    if (['jpg','jpeg','png','gif','webp','avif','svg'].includes(pathExt)) return 'image';
+    const pathExt = l.split('.').pop() || '';
+    if (['mp4','webm','mov','avi','mkv','m4v','ogv','3gp'].includes(pathExt)) return 'video';
+    if (['jpg','jpeg','png','gif','webp','avif','svg','bmp'].includes(pathExt)) return 'image';
   }
 
-  return 'image'; // safe default — won't show broken video player
+  return 'image'; // safe default
 }

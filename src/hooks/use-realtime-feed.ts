@@ -37,15 +37,24 @@ async function fastFetchPosts(ageGroup: string, category: string): Promise<Supab
 }
 
 function mapPost(p: SupabasePost): Post {
+  // Determine the best media URL — prefer video_url for video content, media_url otherwise
+  const mediaUrl = p.media_url || '';
+  const videoUrl = p.video_url || '';
+
+  // Figure out actual type from the URL itself
+  const effectiveUrl = videoUrl || mediaUrl;
+  const isVideo = isVideoByUrl(effectiveUrl) || isVideoByUrl(mediaUrl);
+  const type: Post['type'] = isVideo ? 'video' : 'image';
+
   return {
     id: p.id,
     userId: p.user_id,
     userName: p.user_name,
     userAvatar: p.user_avatar,
-    type: 'video',
+    type,
     category: p.category,
-    mediaUrl: p.media_url,
-    url: p.video_url || p.media_url,
+    mediaUrl,
+    url: videoUrl || mediaUrl,
     caption: p.caption,
     title: p.title,
     ageGroup: p.age_group,
@@ -54,6 +63,18 @@ function mapPost(p: SupabasePost): Post {
     createdAt: new Date(p.created_at),
     isFlagged: p.is_flagged,
   };
+}
+
+/** Detect if a URL points to video content based on extension or known patterns */
+function isVideoByUrl(url: string): boolean {
+  if (!url) return false;
+  const l = url.toLowerCase().split('?')[0];
+  return (
+    l.endsWith('.mp4') || l.endsWith('.webm') || l.endsWith('.mov') ||
+    l.endsWith('.avi') || l.endsWith('.mkv') || l.endsWith('.m4v') ||
+    l.includes('youtube') || l.includes('youtu.be') ||
+    l.includes('tiktok') || l.includes('instagram') || l.includes('vimeo')
+  );
 }
 
 // Simple in-memory cache so posts appear instantly on revisit
@@ -121,17 +142,43 @@ export function useRealtimeFeed(ageGroup: string, category: string = 'all') {
 // Stories go to the `stories` table; everything else goes to `posts`
 export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, _firestore?: any) {
   const results: string[] = [];
-
   const isStory = post.type === 'story';
 
+  // If media URL is a blob: or data: URL, upload it to Supabase Storage first
+  let mediaUrl = post.mediaUrl || post.url || '';
+  let videoUrl = post.url || post.mediaUrl || '';
+
+  const needsUpload = mediaUrl.startsWith('blob:') || mediaUrl.startsWith('data:') ||
+                      videoUrl.startsWith('blob:') || videoUrl.startsWith('data:');
+
+  if (needsUpload) {
+    try {
+      const { uploadMedia } = await import('../lib/media');
+      const effectiveUrl = mediaUrl || videoUrl;
+      // Fetch the blob and upload it
+      const res = await fetch(effectiveUrl);
+      const blob = await res.blob();
+      const ext = blob.type.includes('video') ? 'mp4' : blob.type.includes('gif') ? 'gif' : 'jpg';
+      const file = new File([blob], `local-upload.${ext}`, { type: blob.type });
+      const folder = blob.type.startsWith('video/') ? 'videos' : (isStory ? 'stories' : 'posts');
+      const result = await uploadMedia(file, folder as any);
+      if (result.success) {
+        mediaUrl = result.url;
+        videoUrl = result.url;
+      }
+      // If upload fails, keep blob URL — it will still display in current session
+    } catch (e) {
+      console.warn('[publishPost] blob upload failed:', e);
+    }
+  }
+
   if (isStory) {
-    // Stories live in a separate table with a 24-hour TTL
     try {
       const { data, error } = await supabase.from('stories').insert({
         user_id: post.userId || 'anonymous',
         user_name: post.userName || 'User',
         user_avatar: post.userAvatar || '',
-        media_url: post.mediaUrl || post.url || '',
+        media_url: mediaUrl,
         caption: post.caption || '',
         age_group: post.ageGroup || '14-17',
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -147,7 +194,6 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, _firesto
   }
 
   try {
-    // Category routing: lesson-category posts also write to lessons table
     const isLesson = post.category === 'lesson' || post.category === 'education' || (post.type as string) === 'lesson';
 
     const { data, error } = await supabase.from('posts').insert({
@@ -156,8 +202,8 @@ export async function publishPost(post: Omit<Post, 'id' | 'createdAt'>, _firesto
       user_avatar: post.userAvatar || '',
       title: post.title || post.caption,
       caption: post.caption,
-      media_url: post.mediaUrl || post.url || '',
-      video_url: post.url || post.mediaUrl || '',
+      media_url: mediaUrl,
+      video_url: videoUrl,
       category: post.category || 'general',
       age_group: post.ageGroup || '14-17',
       likes_count: 0,
