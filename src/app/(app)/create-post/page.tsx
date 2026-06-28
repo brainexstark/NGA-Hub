@@ -17,12 +17,13 @@ import { containsInappropriateWords } from '../../../lib/inappropriate-words';
 import { useUser } from '../../../firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { moderateContent } from '../../../ai/flows/moderate-content';
-import Image from 'next/image';
 import type { UserProfile } from '../../../lib/types';
 import { publishPost } from '../../../hooks/use-realtime-feed';
 import { cn, getEmbedUrl } from '../../../lib/utils';
 import { isVideoUrl as isVideoMedia } from '../../../lib/utils';
 import { supabase } from '../../../lib/supabase';
+import { uploadMedia } from '../../../lib/media';
+import { MediaRenderer, UploadProgress } from '../../../components/media-renderer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type NodeType = 'post' | 'story' | 'reel' | 'lesson';
@@ -66,18 +67,15 @@ function MediaPreview({ url, fileType, filter, textOverlay, textColor, musicUrl,
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
-      {isVideo ? (
-        isExternal ? (
-          <iframe src={getEmbedUrl(url)} className="w-full h-full border-none"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
-        ) : (
-          <video src={url} className="w-full h-full object-cover" autoPlay loop playsInline muted={muted}
-            style={{ filter: filter || 'none' }} />
-        )
-      ) : (
-        <Image src={url} alt="preview" fill className="object-cover"
-          style={{ filter: filter || 'none' }} unoptimized />
-      )}
+      <MediaRenderer
+        url={url}
+        fileType={fileType}
+        className="w-full h-full"
+        filter={filter}
+        controls={false}
+        loop
+        autoPlayOnView={false}
+      />
       {textOverlay && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <span className="font-black text-2xl drop-shadow-2xl px-4 text-center"
@@ -220,29 +218,18 @@ function CreatePostContent() {
     setUploadInProgress(true);
     setUploadedPath(null);
 
+    const folder = file.type.startsWith('video/') ? 'videos' : 'posts';
     const uploadFlow = (async () => {
-      const ext = file.name.split('.').pop() || 'bin';
-      const path = `posts/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { data, error } = await supabase.storage.from('media').upload(path, file, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: file.type,
-      });
-
-      if (error) {
-        throw error;
+      const result = await uploadMedia(file, folder as any);
+      if (result.success) {
+        setMediaUrl(result.url);
+        setUploadedPath(result.path);
+      } else {
+        // Keep showing blob URL — user can still preview & publish
+        // The publish handler will retry the upload if needed
+        console.warn('[create-post] Background upload failed:', result.error);
       }
-
-      const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-
-      const publicUrl = urlData?.publicUrl || '';
-      if (!publicUrl) {
-        throw new Error('Could not generate public media URL');
-      }
-
-      setMediaUrl(publicUrl); // replace local blob with real URL
-      setUploadedPath(path);
-      return publicUrl;
+      return result.url;
     })();
 
     uploadPromiseRef.current = uploadFlow;
@@ -250,7 +237,6 @@ function CreatePostContent() {
       await uploadFlow;
     } catch (err) {
       console.error('Upload failed', err);
-      toast({ variant: 'destructive', title: 'Upload failed', description: 'Could not upload your file. Please try again.' });
     } finally {
       setUploadInProgress(false);
       uploadPromiseRef.current = null;
@@ -310,41 +296,20 @@ function CreatePostContent() {
 
       const needsUpload = mediaFile && (isLocalPreviewUrl(mediaUrl) || !isSupabaseUrl(mediaUrl));
       if (needsUpload) {
-        try {
-          const file = mediaFile;
-          const ext = file.name.split('.').pop() || 'bin';
-          const path = uploadedPath || `posts/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-          setUploadInProgress(true);
-          const { data, error } = await supabase.storage.from('media').upload(path, file, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: file.type,
-          });
-          if (error) throw error;
-
-          const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-
-          const publicUrl = urlData?.publicUrl || '';
-          if (!publicUrl) {
-            throw new Error('Could not generate public media URL');
+        const folder = mediaFile?.type?.startsWith('video/') ? 'videos' : 'posts';
+        const result = await uploadMedia(mediaFile!, folder as any);
+        setUploadInProgress(false);
+        if (result.success) {
+          setMediaUrl(result.url);
+          setUploadedPath(result.path);
+        } else {
+          if (!result.url.startsWith('blob:')) {
+            toast({ variant: 'destructive', title: 'Upload failed', description: 'Could not store your file. Try again.' });
+            setIsSubmitting(false);
+            return;
           }
-
-          setMediaUrl(publicUrl);
-          setUploadedPath(path);
-        } catch (err) {
-          console.error('Publish-time upload failed', err);
-          toast({ variant: 'destructive', title: 'Could not upload media', description: 'Your file could not be stored. Please try again.' });
-          setIsSubmitting(false);
-          return;
-        } finally {
-          setUploadInProgress(false);
+          toast({ title: 'Note', description: 'Using local preview — may not persist after reload.' });
         }
-      }
-
-      if (isLocalPreviewUrl(mediaUrl) || !isSupabaseUrl(mediaUrl)) {
-        toast({ variant: 'destructive', title: 'Invalid media URL', description: 'Your file must be uploaded before publishing.' });
-        setIsSubmitting(false);
-        return;
       }
     } catch (err) {
       console.error(err);

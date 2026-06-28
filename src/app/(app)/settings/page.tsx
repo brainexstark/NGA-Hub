@@ -321,26 +321,17 @@ export default function SettingsPage() {
                       toast({ title: 'Uploading photo...' });
 
                       try {
-                        const { supabase } = await import('../../../lib/supabase');
-                        const ext = file.name.split('.').pop() || 'jpg';
-                        const path = `avatars/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-                        const { data, error } = await supabase.storage.from('media').upload(path, file, {
-                          cacheControl: '31536000', upsert: false,
-                        });
-                        let finalUrl = localBlob;
-                        if (data && !error) {
-                          const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-                          if (urlData?.publicUrl) finalUrl = urlData.publicUrl;
-                        } else {
-                          toast({ variant: 'destructive', title: 'Upload failed', description: 'Using local preview — save to keep it.' });
-                        }
+                        const { uploadMedia } = await import('../../../lib/media');
+                        const result = await uploadMedia(file, 'avatars');
+                        const finalUrl = result.success ? result.url : localBlob;
                         setProfilePicture(finalUrl);
-                        // Save real URL to Supabase
                         if (user && finalUrl.startsWith('http')) {
                           await supabase.from('app_users').update({ avatar: finalUrl }).eq('id', user.uid);
                           const { upsertAppUser } = await import('../../../hooks/use-realtime');
                           upsertAppUser({ id: user.uid, avatar: finalUrl });
                           toast({ title: 'Profile picture updated!' });
+                        } else if (!result.success) {
+                          toast({ variant: 'destructive', title: 'Upload failed', description: 'Using local preview for now.' });
                         }
                       } catch {
                         toast({ variant: 'destructive', title: 'Upload failed', description: 'Check your connection and try again.' });

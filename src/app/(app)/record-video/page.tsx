@@ -17,6 +17,7 @@ import { publishPost } from '@/hooks/use-realtime-feed';
 import type { UserProfile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { uploadMedia } from '@/lib/media';
 
 // ─── Filter definitions ───────────────────────────────────────────────────────
 const FILTERS = [
@@ -179,18 +180,12 @@ export default function RecordVideoPage() {
 
       // Upload blob to Supabase Storage so the URL persists beyond this session
       if (recordedBlob) {
-        const ext = recordedBlob.type.includes('mp4') ? 'mp4' : 'webm';
-        const path = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { data, error } = await supabase.storage.from('media').upload(path, recordedBlob, {
-          cacheControl: '3600',
-          contentType: recordedBlob.type,
-          upsert: false,
-        });
-        if (data && !error) {
-          const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-          if (urlData?.publicUrl) mediaUrl = urlData.publicUrl;
+        const blobFile = new File([recordedBlob], `recording.${recordedBlob.type.includes('mp4') ? 'mp4' : 'webm'}`, { type: recordedBlob.type });
+        const result = await uploadMedia(blobFile, 'videos');
+        if (result.success) {
+          mediaUrl = result.url;
         }
-        // If upload fails, fall back to blob URL — will work for the current session
+        // If upload fails, blob URL is kept — works for this session
       }
 
       await publishPost({

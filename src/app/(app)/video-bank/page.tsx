@@ -38,6 +38,7 @@ import { cn, getEmbedUrl } from "@/lib/utils";
 import { useUser } from '@/firebase';
 import { errorEmitter, DbPermissionError } from '@/lib/db';
 import { supabase } from "@/lib/supabase";
+import { uploadMedia } from "@/lib/media";
 import { moderateContent } from '@/ai/flows/moderate-content';
 import type { VideoEntry, UserProfile } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -180,12 +181,10 @@ export default function VideoBankPage() {
     setVideoTitle(prev => prev || file.name.replace(/\.[^.]+$/, ''));
     setUploadSource('local');
     try {
-      const ext = file.name.split('.').pop() || 'mp4';
-      const path = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { data, error } = await supabase.storage.from('media').upload(path, file, { cacheControl: '3600', upsert: false });
-      if (data && !error) {
-        const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-        if (urlData?.publicUrl) { setVideoUrl(urlData.publicUrl); toast({ title: 'Video uploaded' }); }
+      const result = await uploadMedia(file, 'videos');
+      if (result.success) {
+        setVideoUrl(result.url);
+        toast({ title: 'Video uploaded', description: 'Ready to deposit.' });
       }
     } catch { toast({ variant: 'destructive', title: 'Upload failed' }); }
   };

@@ -1,17 +1,16 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useRef, useEffect } from 'react';
-import Image from 'next/image';
-import { Heart, MessageCircle, Send, PlayCircle } from 'lucide-react';
+import { Heart, MessageCircle, Send } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Card, CardContent, CardFooter, CardHeader } from './ui/card';
 import { ShareDialog } from './share-dialog';
 import Link from 'next/link';
-import { cn, getEmbedUrl } from '../lib/utils';
+import { cn } from '../lib/utils';
 import { useUser } from '../firebase';
 import { supabase } from '../lib/supabase';
 import { useRealtimeLikes } from '../hooks/use-realtime';
+import { MediaRenderer } from './media-renderer';
 
 interface ContentCardProps {
   id?: string;
@@ -21,72 +20,6 @@ interface ContentCardProps {
   likesCount?: number;
   commentsCount?: number;
   hideActions?: boolean;
-}
-
-function isVideoUrl(url: string): boolean {
-  if (!url) return false;
-  const lower = url.toLowerCase();
-  return lower.includes('youtube') || lower.includes('youtu.be') ||
-    lower.includes('tiktok') || lower.includes('instagram') ||
-    lower.endsWith('.mp4') || lower.endsWith('.webm') ||
-    lower.endsWith('.mov') || lower.endsWith('.avi') ||
-    lower.endsWith('.mkv') || lower.startsWith('data:video') ||
-    lower.startsWith('blob:') ||
-    lower.includes('/storage/v1/object/') ||
-    lower.includes('/object/public/');
-}
-
-function InlinePlayer({ url, thumbnail }: { url: string; thumbnail: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const isVideo = isVideoUrl(url);
-  const isExternal = url?.includes('youtube') || url?.includes('youtu.be') ||
-    url?.includes('instagram') || url?.includes('tiktok');
-
-  useEffect(() => {
-    if (!isVideo) return; // photos never autoplay
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setPlaying(entry.isIntersecting && entry.intersectionRatio >= 0.6),
-      { threshold: 0.6 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [isVideo]);
-
-  const embedUrl = React.useMemo(() => {
-    const base = getEmbedUrl(url);
-    if (!playing) return base;
-    if (base.includes('youtube.com/embed')) {
-      return base.includes('?')
-        ? `${base}&autoplay=1&mute=0&playsinline=1`
-        : `${base}?autoplay=1&mute=0&playsinline=1`;
-    }
-    return base;
-  }, [url, playing]);
-
-  return (
-    <div ref={ref} className="absolute inset-0 w-full h-full">
-      {!isVideo ? (
-        <Image src={url || thumbnail} alt="post" fill className="object-cover" unoptimized />
-      ) : playing ? (
-        isExternal ? (
-          <iframe key="playing" src={embedUrl} className="w-full h-full border-none"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
-        ) : (
-          <video src={url} className="w-full h-full object-cover" autoPlay loop playsInline />
-        )
-      ) : (
-        <div className="absolute inset-0">
-          <Image src={thumbnail || url} alt="thumbnail" fill className="object-cover" unoptimized />
-          <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-            <PlayCircle className="h-12 w-12 text-white/80 drop-shadow-2xl" />
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function ContentCard({ id, title, creator, image, likesCount: initialLikes = 0, commentsCount: initialComments = 0, hideActions = false }: ContentCardProps) {
@@ -99,7 +32,7 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
       void (async () => {
         try {
           const { data } = await supabase.from('app_users').select('watch_history').eq('id', user.uid).single();
-          const history: string[] = data?.watch_history || [];
+          const history: string[] = (data as any)?.watch_history || [];
           if (!history.includes(id)) {
             await supabase.from('app_users').update({ watch_history: [...history, id] }).eq('id', user.uid);
           }
@@ -108,8 +41,8 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
     }
   };
 
-  // Use creator avatar from image data, or generate from creator name seed
   const avatarSrc = image?.userAvatar || image?.avatar || '';
+  const mediaUrl = image?.url || image?.imageUrl || '';
 
   return (
     <Card className={cn("border-none bg-transparent shadow-none w-full", hideActions ? "" : "space-y-4")} onClick={handleEngagement}>
@@ -133,7 +66,14 @@ export function ContentCard({ id, title, creator, image, likesCount: initialLike
         "p-0 overflow-hidden relative bg-black border-none shadow-2xl",
         hideActions ? "w-full h-full" : "aspect-[9/16] rounded-[2.5rem]"
       )}>
-        <InlinePlayer url={image?.url || image?.imageUrl} thumbnail={image?.imageUrl} />
+        <MediaRenderer
+          url={mediaUrl}
+          className="absolute inset-0 w-full h-full"
+          autoPlayOnView
+          loop
+          controls={false}
+          alt={title}
+        />
       </CardContent>
 
       {!hideActions && (
