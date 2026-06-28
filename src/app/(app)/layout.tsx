@@ -109,51 +109,40 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
   return (
     <div className="relative" ref={dropdownRef}>
       <button onClick={() => setOpen(p => !p)}
-        className="relative text-foreground/60 hover:text-primary transition-colors">
+        className="relative text-foreground/60 hover:text-foreground transition-colors">
         <Bell className="h-6 w-6" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full text-[9px] font-black text-white flex items-center justify-center border border-background animate-pulse">
+          <span className="nga-badge absolute -top-1 -right-1 border-2 border-background">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div
-          className="absolute right-0 top-10 w-80 rounded-3xl shadow-2xl z-[99999] overflow-hidden animate-in slide-in-from-top-2 duration-200 border border-purple-500/20"
-          style={{
-            background: gradients[bgIndex],
-            transition: 'background 2s ease-in-out',
-          }}
-        >
+        <div className="absolute right-0 top-10 w-80 rounded-2xl shadow-2xl z-[99999] overflow-hidden animate-in slide-in-from-top-2 duration-200 nga-card">
           {/* Header */}
-          <div className="p-4 border-b border-white/10 flex items-center justify-between backdrop-blur-xl">
-            <p className="font-black text-xs uppercase tracking-widest text-white">
+          <div className="px-4 py-3 nga-divider flex items-center justify-between">
+            <p className="text-sm font-semibold text-foreground">
               Notifications
-              {unreadCount > 0 && (
-                <span className="ml-2 bg-white/10 text-white/60 px-2 py-0.5 rounded-full text-[9px]">
-                  {unreadCount} new
-                </span>
-              )}
             </p>
             {unreadCount > 0 && (
               <button onClick={() => { markAllRead(); }}
-                className="text-[9px] font-black uppercase tracking-widest text-purple-300/60 hover:text-purple-300 transition-colors">
+                className="text-xs font-semibold text-nga-action hover:opacity-70 transition-opacity">
                 Mark all read
               </button>
             )}
           </div>
 
           {/* List */}
-          <div className="max-h-96 overflow-y-auto no-scrollbar divide-y divide-white/5">
+          <div className="max-h-80 overflow-y-auto no-scrollbar divide-y divide-border">
             {notifications.length === 0 ? (
               <div className="p-8 text-center space-y-2">
-                <Bell className="h-8 w-8 mx-auto opacity-20 text-white" />
-                <p className="text-xs font-black uppercase text-white/30">No notifications yet</p>
+                <Bell className="h-8 w-8 mx-auto text-muted-foreground opacity-30" />
+                <p className="text-xs text-muted-foreground">No notifications yet</p>
               </div>
             ) : notifications.slice(0, 20).map(n => (
               <div key={n.id}
-                className={`flex items-start gap-3 p-4 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98] ${!n.is_read ? 'border-l-2 border-purple-400' : ''}`}
+                className={`flex items-center gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors ${!n.is_read ? 'bg-nga-action/5' : ''}`}
                 onClick={() => {
                   setOpen(false);
                   markAllRead();
@@ -162,32 +151,30 @@ function NotificationBell({ userId, userName, userAvatar }: { userId: string; us
                   else if ((n.type as string) === 'follow') router.push('/network');
                   else if ((n.type as string) === 'message') router.push('/chat');
                 }}>
-                <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center shrink-0 text-base border border-white/10">
+                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0 text-sm">
                   {n.type === 'like' ? '❤️'
                     : n.type === 'comment' ? '💬'
                     : n.type === 'follow' ? '👤'
                     : (n.type as string) === 'message' ? '✉️'
                     : n.type === 'live' ? '🔴'
-                    : (n.type as string) === 'group' ? '👥'
-                    : (n.type as string) === 'mention' ? '@️'
                     : '🔔'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white/90 line-clamp-2 leading-relaxed">{n.message}</p>
-                  <p className="text-[9px] font-black uppercase text-purple-300/40 mt-1">
+                  <p className="text-[13px] text-foreground line-clamp-2 leading-[18px]">{n.message}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
                     {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-                {!n.is_read && <div className="h-2 w-2 rounded-full bg-white shrink-0 mt-1.5 animate-pulse" />}
+                {!n.is_read && <div className="h-2 w-2 rounded-full bg-nga-action shrink-0" />}
               </div>
             ))}
           </div>
 
           {/* Footer */}
-          <div className="p-3 border-t border-white/10">
+          <div className="px-4 py-3 nga-divider" style={{ borderTop: '1px solid' }}>
             <button onClick={() => { setOpen(false); router.push('/activity'); }}
-              className="w-full text-center text-[10px] font-black uppercase tracking-widest text-purple-300/60 hover:text-purple-300 transition-colors py-1">
-              View All Activity →
+              className="w-full text-center text-[13px] font-semibold text-nga-action hover:opacity-70 transition-opacity py-0.5">
+              See all
             </button>
           </div>
         </div>
@@ -654,8 +641,7 @@ export default function AppLayout({
         />
         <SidebarInset className="flex flex-col relative overflow-hidden bg-background">
           <header className={cn(
-              "flex md:hidden items-center justify-between p-4 sticky top-0 bg-background/80 backdrop-blur-xl z-[60] border-b border-white/5",
-              // Hide on HomeTon — it has its own header
+              "flex md:hidden items-center justify-between px-4 py-3 sticky top-0 nga-header backdrop-blur-xl z-[60]",
               pathname.startsWith('/HomeTon') ? "hidden" : "flex"
             )}>
               <div className="flex items-center gap-2">
@@ -693,28 +679,28 @@ export default function AppLayout({
                       <div className="flex justify-center">
                         <button
                           onClick={() => setNavCollapsed(p => !p)}
-                          className="bg-background/90 backdrop-blur-2xl border border-white/10 rounded-full px-6 py-1 mb-1 shadow-lg"
+                          className="nga-card border rounded-full px-6 py-1 mb-1 shadow-lg"
                         >
-                          <div className={cn("w-8 h-0.5 bg-white/30 rounded-full transition-transform", navCollapsed ? "rotate-180" : "")} />
+                          <div className={cn("w-8 h-0.5 bg-foreground/20 rounded-full transition-transform", navCollapsed ? "rotate-180" : "")} />
                         </button>
                       </div>
-                      {/* Nav items — icons only, no labels */}
+                      {/* Instagram-style bottom nav — icons only */}
                       <div className={cn(
-                        "bg-background/90 backdrop-blur-2xl border-t border-white/5 flex items-center justify-around px-6 transition-all duration-300 overflow-hidden",
-                        navCollapsed ? "h-0 border-none" : "h-16"
+                        "nga-nav flex items-center justify-around px-6 transition-all duration-300 overflow-hidden",
+                        navCollapsed ? "h-0 border-none" : "h-14"
                       )}>
-                          <Link href={`/HomeTon/${ageGroup}`} className={cn("flex items-center justify-center h-10 w-10 rounded-2xl transition-all", pathname.startsWith('/HomeTon') ? "text-primary bg-primary/10" : "text-foreground/40")}>
-                              <Home className="h-6 w-6" />
+                          <Link href={`/HomeTon/${ageGroup}`} className={cn("flex items-center justify-center h-10 w-10 transition-all active:opacity-50", pathname.startsWith('/HomeTon') ? "text-foreground" : "text-muted-foreground")}>
+                              <Home className={cn("h-6 w-6", pathname.startsWith('/HomeTon') ? "stroke-[2.5]" : "stroke-[1.5]")} />
                           </Link>
-                          <Link href="/search" className={cn("flex items-center justify-center h-10 w-10 rounded-2xl transition-all", pathname === '/search' ? "text-primary bg-primary/10" : "text-foreground/40")}>
-                              <Search className="h-6 w-6" />
+                          <Link href="/search" className={cn("flex items-center justify-center h-10 w-10 transition-all active:opacity-50", pathname === '/search' ? "text-foreground" : "text-muted-foreground")}>
+                              <Search className={cn("h-6 w-6", pathname === '/search' ? "stroke-[2.5]" : "stroke-[1.5]")} />
                           </Link>
                           <CreateModal ageGroup={ageGroup} />
-                          <Link href="/learning-hub" className={cn("flex items-center justify-center h-10 w-10 rounded-2xl transition-all", pathname === '/learning-hub' ? "text-primary bg-primary/10" : "text-foreground/40")}>
-                              <GraduationCap className="h-6 w-6" />
+                          <Link href="/learning-hub" className={cn("flex items-center justify-center h-10 w-10 transition-all active:opacity-50", pathname === '/learning-hub' ? "text-foreground" : "text-muted-foreground")}>
+                              <GraduationCap className={cn("h-6 w-6", pathname === '/learning-hub' ? "stroke-[2.5]" : "stroke-[1.5]")} />
                           </Link>
-                          <Link href="/settings" className={cn("flex items-center justify-center transition-all", pathname === '/settings' ? "opacity-100" : "opacity-50")}>
-                              <div className={cn("h-9 w-9 rounded-full overflow-hidden border-2 transition-all", pathname === '/settings' ? "border-pink-500" : "border-white/20")}>
+                          <Link href="/settings" className="flex items-center justify-center transition-all active:opacity-50">
+                              <div className={cn("h-7 w-7 rounded-full overflow-hidden border-2 transition-all", pathname === '/settings' ? "border-foreground" : "border-transparent")}>
                                 {(userProfile?.profilePicture || user?.photoURL) ? (
                                   <img
                                     src={userProfile?.profilePicture || user?.photoURL || ''}

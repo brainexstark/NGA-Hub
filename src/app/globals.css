@@ -4,196 +4,565 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   NGA HUB — Instagram-Inspired Design Token System
+   Clean, content-first, minimalist — media is the hero.
+   ============================================================ */
+
 @layer base {
+
+  /* ──────────────────────────────────────────────────────────
+     RAW DESIGN TOKENS — NGA Hub Instagram System
+     Use these anywhere via var(--nga-*)
+     ────────────────────────────────────────────────────────── */
   :root {
-    /* ── Dark theme (default) — rich slate background with Electric Indigo accents ── */
-    --background: 231 28% 10%;          /* #0F172A */
-    --foreground: 210 16% 95%;          /* soft white */
-    --card: 214 26% 20%;                /* #1E293B */
-    --card-foreground: 210 20% 96%;     /* near white */
-    --popover: 214 26% 18%;             /* subtle dark panel */
-    --popover-foreground: 210 20% 96%;  /* near white */
-    --primary: 250 89% 57%;             /* #4F46E5 Electric Indigo */
-    --primary-foreground: 250 12% 100%;
-    --secondary: 210 16% 96%;           /* #F8FAFC crisp canvas */
-    --secondary-foreground: 210 16% 8%;
-    --muted: 216 24% 25%;               /* slate boundary */
-    --muted-foreground: 210 14% 65%;
-    --accent: 344 85% 60%;              /* #F43F5E Coral Pink */
-    --accent-foreground: 0 0% 100%;     /* white */
-    --destructive: 344 85% 60%;         /* aligned to Coral Pink */
-    --destructive-foreground: 0 0% 100%;
-    --border: 216 24% 25%;              /* cool slate divider */
-    --input: 214 26% 16%;               /* dark input surface */
-    --ring: 162 68% 44%;                /* #10B981 Emerald Green */
-    --radius: 1.5rem;
+    /* Light Mode Neutrals */
+    --nga-light-bg-primary:        #FFFFFF;
+    --nga-light-bg-secondary:      #FAFAFA;
+    --nga-light-text-primary:      #262626;
+    --nga-light-text-secondary:    #8E8E8E;
+    --nga-light-border:            #DBDBDB;
+    --nga-light-border-muted:      #EFEFEF;
+
+    /* Dark Mode Neutrals (AMOLED) */
+    --nga-dark-bg-primary:         #000000;
+    --nga-dark-bg-secondary:       #121212;
+    --nga-dark-bg-elevated:        #1C1C1C;
+    --nga-dark-bg-tertiary:        #262626;
+    --nga-dark-text-primary:       #F5F5F5;
+    --nga-dark-text-secondary:     #A8A8A8;
+    --nga-dark-border:             #262626;
+    --nga-dark-border-muted:       #1A1A1A;
+
+    /* System Accents */
+    --nga-accent-action:           #0095F6;  /* Interactive blue */
+    --nga-accent-destructive:      #ED4956;  /* Red — likes/errors */
+    --nga-accent-success:          #29B473;  /* Green — success states */
+
+    /* Brand Gradient stops */
+    --nga-grad-stop-1:             #FCCC63;  /* Yellow */
+    --nga-grad-stop-2:             #F77737;  /* Orange */
+    --nga-grad-stop-3:             #E1306C;  /* Red-Pink */
+    --nga-grad-stop-4:             #C13584;  /* Purple */
+    --nga-grad-stop-5:             #405DE6;  /* Deep Blue */
+    --nga-brand-gradient:          linear-gradient(45deg, #FCCC63, #F77737, #E1306C, #C13584, #405DE6);
+    --nga-brand-gradient-text:     linear-gradient(45deg, #F77737, #E1306C, #C13584, #405DE6);
+
+    /* Typography */
+    --nga-font-sans:               'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+    --nga-font-mono:               'JetBrains Mono', 'Fira Code', monospace;
+
+    /* Spacing & Shape */
+    --nga-radius-sm:               8px;
+    --nga-radius-md:               12px;
+    --nga-radius-lg:               16px;
+    --nga-radius-xl:               24px;
+    --nga-radius-full:             9999px;
+
+    /* Motion */
+    --nga-duration-fast:           100ms;
+    --nga-duration-base:           200ms;
+    --nga-duration-slow:           350ms;
+    --nga-ease:                    cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* ── Light mode — crisp airy canvas with brand accents ── */
+  /* ──────────────────────────────────────────────────────────
+     DARK MODE (Default — AMOLED Black)
+     shadcn/radix CSS var bridge
+     ────────────────────────────────────────────────────────── */
+  :root {
+    /* Semantic bridge to shadcn tokens */
+    --background:                  0 0% 0%;          /* #000000 */
+    --foreground:                  0 0% 96%;          /* #F5F5F5 */
+    --card:                        0 0% 7%;           /* #121212 */
+    --card-foreground:             0 0% 96%;          /* #F5F5F5 */
+    --popover:                     0 0% 11%;          /* #1C1C1C */
+    --popover-foreground:          0 0% 96%;
+    --primary:                     207 100% 48%;      /* #0095F6 — IG blue */
+    --primary-foreground:          0 0% 100%;
+    --secondary:                   0 0% 15%;          /* #262626 */
+    --secondary-foreground:        0 0% 96%;
+    --muted:                       0 0% 11%;          /* #1C1C1C */
+    --muted-foreground:            0 0% 66%;          /* #A8A8A8 */
+    --accent:                      207 100% 48%;      /* #0095F6 */
+    --accent-foreground:           0 0% 100%;
+    --destructive:                 355 79% 60%;       /* #ED4956 */
+    --destructive-foreground:      0 0% 100%;
+    --border:                      0 0% 15%;          /* #262626 */
+    --input:                       0 0% 11%;          /* #1C1C1C */
+    --ring:                        207 100% 48%;      /* #0095F6 */
+    --radius:                      0.75rem;
+
+    /* Sidebar */
+    --sidebar-background:          0 0% 5%;
+    --sidebar-foreground:          0 0% 96%;
+    --sidebar-primary:             207 100% 48%;
+    --sidebar-primary-foreground:  0 0% 100%;
+    --sidebar-accent:              0 0% 11%;
+    --sidebar-accent-foreground:   0 0% 96%;
+    --sidebar-border:              0 0% 15%;
+    --sidebar-ring:                207 100% 48%;
+
+    /* Charts */
+    --chart-1:                     207 100% 48%;
+    --chart-2:                     355 79% 60%;
+    --chart-3:                     152 69% 45%;
+    --chart-4:                     291 63% 58%;
+    --chart-5:                     33 95% 60%;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     LIGHT MODE
+     ────────────────────────────────────────────────────────── */
   .light {
-    --background: 210 16% 98%;          /* #F8FAFC */
-    --foreground: 210 16% 8%;
-    --card: 210 14% 96%;                /* light card / content frame */
-    --card-foreground: 210 16% 8%;      /* dark text */
-    --popover: 210 14% 99%;
-    --popover-foreground: 210 16% 8%;    /* dark text */
-    --primary: 250 89% 57%;             /* #4F46E5 Electric Indigo */
-    --primary-foreground: 0 0% 100%;     /* white */
-    --secondary: 210 16% 90%;           /* #E2E8F0 cool gray */
-    --secondary-foreground: 210 16% 8%;
-    --muted: 210 12% 93%;
-    --muted-foreground: 210 14% 45%;    /* muted text */
-    --accent: 344 85% 60%;              /* coral accent */
-    --accent-foreground: 0 0% 100%;     /* white */
-    --border: 210 16% 80%;              /* soft cool gray */
-    --input: 210 14% 96%;
-    --ring: 162 68% 44%;                /* emerald */
+    --background:                  0 0% 100%;         /* #FFFFFF */
+    --foreground:                  0 0% 15%;          /* #262626 */
+    --card:                        0 0% 98%;          /* #FAFAFA */
+    --card-foreground:             0 0% 15%;          /* #262626 */
+    --popover:                     0 0% 100%;
+    --popover-foreground:          0 0% 15%;
+    --primary:                     207 100% 48%;      /* #0095F6 */
+    --primary-foreground:          0 0% 100%;
+    --secondary:                   0 0% 98%;          /* #FAFAFA */
+    --secondary-foreground:        0 0% 15%;
+    --muted:                       0 0% 96%;          /* #F5F5F5 */
+    --muted-foreground:            0 0% 56%;          /* #8E8E8E */
+    --accent:                      207 100% 48%;
+    --accent-foreground:           0 0% 100%;
+    --destructive:                 355 79% 60%;
+    --destructive-foreground:      0 0% 100%;
+    --border:                      0 0% 86%;          /* #DBDBDB */
+    --input:                       0 0% 100%;
+    --ring:                        207 100% 48%;
+
+    --sidebar-background:          0 0% 98%;
+    --sidebar-foreground:          0 0% 15%;
+    --sidebar-primary:             207 100% 48%;
+    --sidebar-primary-foreground:  0 0% 100%;
+    --sidebar-accent:              0 0% 96%;
+    --sidebar-accent-foreground:   0 0% 15%;
+    --sidebar-border:              0 0% 86%;
+    --sidebar-ring:                207 100% 48%;
   }
 
-  /* ── Pages that keep their own colour scheme (chat, edu, kids) ── */
-  .page-colourful {
-    /* These pages override background in their own components */
-    --background: 0 0% 4%;
+  /* ──────────────────────────────────────────────────────────
+     BASE RESET
+     ────────────────────────────────────────────────────────── */
+  * {
+    @apply border-border;
+    box-sizing: border-box;
   }
 
-  * { @apply border-border; }
+  html, body, #__next {
+    height: 100%;
+    width: 100%;
+    scroll-behavior: smooth;
+  }
 
   body {
     @apply bg-background text-foreground;
-    background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,255,255,0.04) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(255,255,255,0.025) 0%, transparent 50%);
-    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
-    transition: background-color 0.4s ease, color 0.4s ease;
+    font-family: var(--nga-font-sans);
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     overflow-x: hidden;
+    transition: background-color var(--nga-duration-slow) var(--nga-ease),
+                color var(--nga-duration-slow) var(--nga-ease);
   }
 
-  /* ── All buttons: turn blue on press (provides clear tap feedback) ── */
-  button:active:not([disabled]):not([aria-label]):not(.no-press-effect),
-  [role="button"]:active:not([disabled]) {
-    filter: brightness(0.85) saturate(1.5) hue-rotate(210deg);
-    transition: filter 0.08s ease;
-  }
+  /* Light mode body — clean white canvas */
+  .light body { background-color: var(--nga-light-bg-primary); }
 
-  /* ── Primary bg buttons specifically turn Indigo on press ── */
-  button.bg-primary:active:not([disabled]),
-  button[class*="bg-primary"]:active:not([disabled]) {
-    background-color: #4338ca !important;
-    color: #ffffff !important;
-  }
+  /* ──────────────────────────────────────────────────────────
+     TYPOGRAPHY SCALE
+     ────────────────────────────────────────────────────────── */
+  h1 { @apply text-2xl font-bold tracking-tight; }
+  h2 { @apply text-xl font-semibold tracking-tight; }
+  h3 { @apply text-base font-semibold; }
 
-  /* ── Dashboard/card text turns Indigo when clicked ── */
-  .card-clickable:active *,
-  [role="button"]:active p,
-  [role="button"]:active span,
-  [role="button"]:active h1,
-  [role="button"]:active h2,
-  [role="button"]:active h3 {
-    color: #4f46e5 !important;
-  }
-
-  /* ── Input text always clearly visible — never washed out ── */
+  /* ──────────────────────────────────────────────────────────
+     FORM ELEMENTS
+     ────────────────────────────────────────────────────────── */
   input, textarea, select {
     color: inherit;
     background-color: transparent;
-  }
-  /* In dark mode inputs: white text on dark bg */
-  input::placeholder,
-  textarea::placeholder {
-    color: rgba(255,255,255,0.35);
-  }
-  /* In light mode: dark text */
-  .light input,
-  .light textarea,
-  .light select {
-    color: #111111;
-  }
-  .light input::placeholder,
-  .light textarea::placeholder {
-    color: rgba(0,0,0,0.35);
+    font-family: inherit;
   }
 
-  /* Light mode body */
-  .light body,
-  html.light {
-    background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,0,0,0.03) 0%, transparent 60%);
+  input::placeholder, textarea::placeholder {
+    color: var(--nga-dark-text-secondary);
+    opacity: 0.7;
   }
 
-  /* ── WHITE boxes only: black text ── */
-  .bg-white { color: #000000 !important; }
-  .bg-white\/90, .bg-white\/95, .bg-white\/80, .bg-white\/70 { color: #000000 !important; }
-  button.bg-white, a.bg-white { color: #000000 !important; }
-  .bg-white input, .bg-white textarea { color: #000000 !important; }
-  .bg-white input::placeholder, .bg-white textarea::placeholder { color: rgba(0,0,0,0.45) !important; }
+  .light input::placeholder, .light textarea::placeholder {
+    color: var(--nga-light-text-secondary);
+    opacity: 0.8;
+  }
 
-  /* ── Text on white boxes turns blue when tapped ── */
-  .bg-white:active *,
-  .bg-white:active { color: #1d4ed8 !important; }
-  button.bg-white:active, a.bg-white:active { color: #1d4ed8 !important; }
+  .light input, .light textarea, .light select {
+    color: var(--nga-light-text-primary);
+  }
 
-  /* Hide scrollbars while keeping scroll */
+  /* ──────────────────────────────────────────────────────────
+     INTERACTIVE STATES
+     ────────────────────────────────────────────────────────── */
+  /* Tap feedback on buttons */
+  button:active:not([disabled]),
+  [role="button"]:active:not([disabled]) {
+    opacity: 0.75;
+    transform: scale(0.98);
+    transition: opacity var(--nga-duration-fast), transform var(--nga-duration-fast);
+  }
+
+  /* White containers — dark text */
+  .bg-white { color: #262626 !important; }
+  .bg-white input, .bg-white textarea { color: #262626 !important; }
+  .bg-white input::placeholder, .bg-white textarea::placeholder {
+    color: rgba(0, 0, 0, 0.45) !important;
+  }
+
+  /* Light mode — no radial vignettes */
+  .light body { background-image: none; }
+
+  /* ──────────────────────────────────────────────────────────
+     SCROLLBAR HIDDEN GLOBALLY
+     ────────────────────────────────────────────────────────── */
   * {
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
   *::-webkit-scrollbar { display: none; }
+}
 
-  html, body, #__next {
-    height: 100%;
+/* ============================================================
+   COMPONENT UTILITIES
+   ============================================================ */
+@layer components {
+
+  /* ── NGA Brand Gradient — story rings, active indicators ── */
+  .nga-brand-gradient {
+    background: var(--nga-brand-gradient);
+  }
+
+  .nga-brand-gradient-text {
+    background: var(--nga-brand-gradient-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  /* Story ring (Instagram-style gradient border) */
+  .nga-story-ring {
+    background: var(--nga-brand-gradient);
+    padding: 2.5px;
+    border-radius: 9999px;
+  }
+
+  .nga-story-ring-seen {
+    background: var(--nga-dark-border);
+    padding: 2.5px;
+    border-radius: 9999px;
+  }
+
+  .light .nga-story-ring-seen {
+    background: var(--nga-light-border);
+  }
+
+  /* ── Action button — IG interactive blue ── */
+  .nga-btn-action {
+    background-color: var(--nga-accent-action);
+    color: #FFFFFF;
+    font-weight: 600;
+    border-radius: var(--nga-radius-sm);
+    padding: 7px 16px;
+    font-size: 14px;
+    line-height: 18px;
+    border: none;
+    cursor: pointer;
+    transition: opacity var(--nga-duration-fast);
+  }
+
+  .nga-btn-action:hover { opacity: 0.85; }
+  .nga-btn-action:active { opacity: 0.7; }
+  .nga-btn-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* ── Ghost/outline button ── */
+  .nga-btn-outline {
+    background-color: transparent;
+    color: var(--nga-dark-text-primary);
+    font-weight: 600;
+    border-radius: var(--nga-radius-sm);
+    padding: 6px 16px;
+    font-size: 14px;
+    line-height: 18px;
+    border: 1px solid var(--nga-dark-border);
+    cursor: pointer;
+    transition: background-color var(--nga-duration-fast);
+  }
+
+  .light .nga-btn-outline {
+    color: var(--nga-light-text-primary);
+    border-color: var(--nga-light-border);
+  }
+
+  .nga-btn-outline:hover { background-color: rgba(255,255,255,0.06); }
+  .light .nga-btn-outline:hover { background-color: rgba(0,0,0,0.04); }
+
+  /* ── Input field ── */
+  .nga-input {
+    background-color: var(--nga-dark-bg-secondary);
+    border: 1px solid var(--nga-dark-border);
+    border-radius: var(--nga-radius-sm);
+    color: var(--nga-dark-text-primary);
+    font-size: 14px;
+    padding: 9px 12px;
     width: 100%;
+    outline: none;
+    transition: border-color var(--nga-duration-base);
+  }
+
+  .nga-input:focus { border-color: var(--nga-dark-text-secondary); }
+
+  .light .nga-input {
+    background-color: var(--nga-light-bg-secondary);
+    border-color: var(--nga-light-border);
+    color: var(--nga-light-text-primary);
+  }
+
+  .light .nga-input:focus { border-color: var(--nga-light-text-secondary); }
+
+  /* ── Card / sheet surface ── */
+  .nga-card {
+    background-color: var(--nga-dark-bg-secondary);
+    border: 1px solid var(--nga-dark-border);
+    border-radius: var(--nga-radius-lg);
+  }
+
+  .light .nga-card {
+    background-color: var(--nga-light-bg-primary);
+    border-color: var(--nga-light-border);
+  }
+
+  /* ── Bottom sheet / modal ── */
+  .nga-sheet {
+    background-color: var(--nga-dark-bg-secondary);
+    border-top: 1px solid var(--nga-dark-border);
+    border-radius: var(--nga-radius-xl) var(--nga-radius-xl) 0 0;
+  }
+
+  .light .nga-sheet {
+    background-color: var(--nga-light-bg-primary);
+    border-color: var(--nga-light-border);
+  }
+
+  /* ── Divider ── */
+  .nga-divider {
+    height: 1px;
+    background-color: var(--nga-dark-border);
+    border: none;
+  }
+
+  .light .nga-divider { background-color: var(--nga-light-border); }
+
+  /* ── Post / feed media container ── */
+  .nga-media {
+    background-color: var(--nga-dark-bg-secondary);
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ── Username / handle text ── */
+  .nga-username {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--nga-dark-text-primary);
+    line-height: 1;
+  }
+
+  .light .nga-username { color: var(--nga-light-text-primary); }
+
+  /* ── Caption text ── */
+  .nga-caption {
+    font-size: 14px;
+    color: var(--nga-dark-text-primary);
+    line-height: 18px;
+  }
+
+  .light .nga-caption { color: var(--nga-light-text-primary); }
+
+  /* ── Muted / secondary text ── */
+  .nga-text-muted {
+    font-size: 12px;
+    color: var(--nga-dark-text-secondary);
+    line-height: 16px;
+  }
+
+  .light .nga-text-muted { color: var(--nga-light-text-secondary); }
+
+  /* ── Like count / action count ── */
+  .nga-action-count {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--nga-dark-text-primary);
+  }
+
+  .light .nga-action-count { color: var(--nga-light-text-primary); }
+
+  /* ── Active like heart ── */
+  .nga-heart-active { color: var(--nga-accent-destructive); fill: var(--nga-accent-destructive); }
+
+  /* ── Notification badge ── */
+  .nga-badge {
+    background-color: var(--nga-accent-destructive);
+    color: #FFFFFF;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 9999px;
+    min-width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    line-height: 1;
+  }
+
+  /* ── Follow button (unfollow variant) ── */
+  .nga-btn-following {
+    background-color: transparent;
+    color: var(--nga-dark-text-primary);
+    border: 1px solid var(--nga-dark-border);
+    font-weight: 600;
+    border-radius: var(--nga-radius-sm);
+    padding: 6px 16px;
+    font-size: 14px;
+  }
+
+  .light .nga-btn-following {
+    color: var(--nga-light-text-primary);
+    border-color: var(--nga-light-border);
+  }
+
+  /* ── Glass panel (dark elevated surfaces) ── */
+  .glass-panel {
+    background-color: rgba(18, 18, 18, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--nga-dark-border);
+  }
+
+  .light .glass-panel {
+    background-color: rgba(255, 255, 255, 0.85);
+    border-color: var(--nga-light-border);
+  }
+
+  /* ── Navigation bar ── */
+  .nga-nav {
+    background-color: var(--nga-dark-bg-primary);
+    border-top: 1px solid var(--nga-dark-border);
+  }
+
+  .light .nga-nav {
+    background-color: var(--nga-light-bg-primary);
+    border-color: var(--nga-light-border);
+  }
+
+  /* ── Header bar ── */
+  .nga-header {
+    background-color: var(--nga-dark-bg-primary);
+    border-bottom: 1px solid var(--nga-dark-border);
+  }
+
+  .light .nga-header {
+    background-color: var(--nga-light-bg-primary);
+    border-color: var(--nga-light-border);
   }
 }
 
+/* ============================================================
+   UTILITY CLASSES
+   ============================================================ */
 @layer utilities {
-  /* Glass panels — slightly more opaque for depth */
-  .glass-panel {
-    @apply bg-card/70 backdrop-blur-xl border border-white/10 shadow-2xl;
-  }
 
-  /* Subtle card glow on hover */
-  .card-hover {
-    @apply transition-all duration-200 hover:border-white/20 hover:shadow-white/5;
+  /* ── No-scrollbar ── */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
 
-  /* Section dividers — subtle, not blank */
-  .section-divider {
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
-    height: 1px;
-  }
-
-  /* ── Logo text — colourful gradient ── */
-  .logo-dynamics {
-    @apply bg-clip-text text-transparent font-black;
-    background-image: linear-gradient(135deg, #ffffff 0%, #cccccc 50%, #ffffff 100%);
-    background-size: 200% auto;
-    animation: shimmerText 3s linear infinite;
-  }
-
-  @keyframes shimmerText {
-    0%   { background-position: 0% center; }
-    100% { background-position: 200% center; }
-  }
-
-  /* ── Dynamic text — colourful cycling gradient (used on welcome page) ── */
-  .dynamic-text-mesh {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, #ff007f, #9d00ff, #0044ff, #00c3ff, #ff007f);
+  /* ── NGA Brand Gradient text (animated) ── */
+  .nga-gradient-text {
+    background: var(--nga-brand-gradient);
     background-size: 300% auto;
-    animation: colorCycleText 5s linear infinite;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: ngaGradientShift 4s linear infinite;
   }
 
-  @keyframes colorCycleText {
+  @keyframes ngaGradientShift {
     0%   { background-position: 0% center; }
     100% { background-position: 300% center; }
   }
 
-  /* ── Animations (class names kept so existing code doesn't break) ── */
-  @keyframes subtlePulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.65; }
+  /* ── Dynamic text for hero sections (kept for existing usage) ── */
+  .dynamic-text-mesh {
+    background: linear-gradient(135deg, #F77737, #E1306C, #C13584, #405DE6, #F77737);
+    background-size: 300% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: ngaGradientShift 5s linear infinite;
   }
 
+  /* ── Logo shimmer ── */
+  .logo-dynamics {
+    background: linear-gradient(135deg, #ffffff 0%, #A8A8A8 50%, #ffffff 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    font-weight: 800;
+    animation: logoShimmer 3s linear infinite;
+  }
+
+  @keyframes logoShimmer {
+    0%   { background-position: 0% center; }
+    100% { background-position: 200% center; }
+  }
+
+  /* ── Skeleton loading ── */
+  .skeleton {
+    background: linear-gradient(90deg,
+      var(--nga-dark-bg-tertiary) 25%,
+      var(--nga-dark-bg-elevated) 50%,
+      var(--nga-dark-bg-tertiary) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeletonWave 1.5s ease-in-out infinite;
+  }
+
+  .light .skeleton {
+    background: linear-gradient(90deg, #EFEFEF 25%, #FAFAFA 50%, #EFEFEF 75%);
+    background-size: 200% 100%;
+  }
+
+  @keyframes skeletonWave {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ── Animate utilities kept for existing components ── */
   .animate-text-color-sync {
     animation: subtlePulse 4s ease-in-out infinite;
   }
@@ -205,7 +574,7 @@
   }
 
   .animate-topbar-cycle {
-    background: rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.06);
     animation: subtlePulse 4s ease-in-out infinite;
   }
 
@@ -213,22 +582,39 @@
     animation: floatLogo 6s ease-in-out infinite;
   }
 
+  @keyframes subtlePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
   @keyframes floatLogo {
     0%, 100% { transform: translateY(0) rotate(0deg); }
-    50% { transform: translateY(-10px) rotate(2deg); }
+    50%       { transform: translateY(-8px) rotate(1.5deg); }
   }
 
-  /* ── No-scrollbar utility ── */
-  .no-scrollbar {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  .no-scrollbar::-webkit-scrollbar { display: none; }
+  /* ── Accent color utilities ── */
+  .text-nga-action   { color: var(--nga-accent-action); }
+  .text-nga-red      { color: var(--nga-accent-destructive); }
+  .bg-nga-action     { background-color: var(--nga-accent-action); }
+  .bg-nga-red        { background-color: var(--nga-accent-destructive); }
+  .border-nga        { border-color: var(--nga-dark-border); }
+  .light .border-nga { border-color: var(--nga-light-border); }
 
-  /* ── Feed skeleton pulse ── */
-  @keyframes feedPulse {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.15; }
+  /* ── Section divider ── */
+  .section-divider {
+    height: 1px;
+    background: var(--nga-dark-border);
+    border: none;
+    margin: 0;
   }
-  .skeleton { animation: feedPulse 1.5s ease-in-out infinite; }
+
+  .light .section-divider { background: var(--nga-light-border); }
+
+  /* ── Card hover ── */
+  .card-hover {
+    transition: border-color var(--nga-duration-base) var(--nga-ease);
+  }
+
+  .card-hover:hover { border-color: var(--nga-dark-text-secondary); }
+  .light .card-hover:hover { border-color: var(--nga-light-text-secondary); }
 }
