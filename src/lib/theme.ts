@@ -34,7 +34,7 @@ export const nga = {
 
   // ─── Brand Gradient ───────────────────────────────────────────────────────
   gradient: {
-    brand: 'linear-gradient(45deg, #FCCC63, #F77737, #E1306C, #C13584, #405DE6)',
+    brand: 'linear-gradient(to top right, #FCCC63, #F77737, #E1306C, #C13584, #405DE6)',
     brandStops: ['#FCCC63', '#F77737', '#E1306C', '#C13584', '#405DE6'],
   },
 } as const;

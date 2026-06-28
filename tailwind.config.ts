@@ -126,8 +126,8 @@ const config = {
 
       // ─── Background images — brand gradient ────────────────────────────────
       backgroundImage: {
-        'nga-brand': 'linear-gradient(45deg, #FCCC63, #F77737, #E1306C, #C13584, #405DE6)',
-        'nga-brand-text': 'linear-gradient(45deg, #F77737, #E1306C, #C13584, #405DE6)',
+        'nga-brand': 'linear-gradient(to top right, #FCCC63, #F77737, #E1306C, #C13584, #405DE6)',
+        'nga-brand-text': 'linear-gradient(to top right, #F77737, #E1306C, #C13584, #405DE6)',
         'nga-brand-radial': 'radial-gradient(circle at bottom left, #FCCC63, #F77737, #E1306C, #C13584, #405DE6)',
         'nga-dark-vignette': 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%)',
       },

@@ -45,8 +45,8 @@
     --nga-grad-stop-3:             #E1306C;  /* Red-Pink */
     --nga-grad-stop-4:             #C13584;  /* Purple */
     --nga-grad-stop-5:             #405DE6;  /* Deep Blue */
-    --nga-brand-gradient:          linear-gradient(45deg, #FCCC63, #F77737, #E1306C, #C13584, #405DE6);
-    --nga-brand-gradient-text:     linear-gradient(45deg, #F77737, #E1306C, #C13584, #405DE6);
+    --nga-brand-gradient:          linear-gradient(to top right, #FCCC63, #F77737, #E1306C, #C13584, #405DE6);
+    --nga-brand-gradient-text:     linear-gradient(to top right, #F77737, #E1306C, #C13584, #405DE6);
 
     /* Typography */
     --nga-font-sans:               'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
@@ -255,7 +255,7 @@
 
   /* Story ring (Instagram-style gradient border) */
   .nga-story-ring {
-    background: var(--nga-brand-gradient);
+    background: linear-gradient(to top right, #FCCC63, #F77737, #E1306C, #C13584, #405DE6);
     padding: 2.5px;
     border-radius: 9999px;
   }
