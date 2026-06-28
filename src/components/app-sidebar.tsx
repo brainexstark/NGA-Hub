@@ -167,34 +167,29 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
 
   const renderMenuItems = (items: {href: string, label: string, icon: React.ElementType}[], section: string) => {
     return items.map((item) => {
-      const isEdu = section === 'educational';
-      const isActive = pathname === item.href;
+      const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
       return (
         <SidebarMenuItem key={item.label}>
           <Link href={item.href} onClick={() => setOpenMobile(false)}>
-            <SidebarMenuButton 
-              isActive={isActive} 
-              tooltip={item.label} 
+            <SidebarMenuButton
+              isActive={isActive}
+              tooltip={item.label}
               className={cn(
-                "py-6 px-4 group overflow-hidden transition-all duration-300",
-                isUnder13 && "hover:bg-white/10 rounded-2xl",
-                isActive ? "bg-primary/20 border-r-4 border-primary" : "hover:bg-primary/10"
+                "py-2.5 px-3 rounded-lg transition-colors duration-150 group",
+                isActive
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               )}
             >
               <item.icon className={cn(
-                  "h-5 w-5 transition-colors duration-300 shrink-0",
-                  isUnder13 
-                    ? (isEdu ? "text-orange-400 group-hover:text-orange-300" : "text-cyan-400 group-hover:text-cyan-300") 
-                    : (isActive ? 'text-primary' : 'text-foreground/60 group-hover:text-primary')
+                "h-5 w-5 shrink-0 transition-colors",
+                isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
               )} />
               <span className={cn(
-                  "font-black text-sm uppercase tracking-tight transition-all duration-500 ml-3 relative flex items-center group-hover:translate-x-1",
-                  isActive ? "text-foreground font-black" : "text-foreground group-hover:text-primary"
+                "text-sm ml-3 transition-colors",
+                isActive ? "font-semibold text-foreground" : "font-normal text-muted-foreground group-hover:text-foreground"
               )}>
                 {item.label}
-                {isActive && (
-                    <div className="h-2 w-2 rounded-full bg-primary ml-2 animate-pulse" />
-                )}
               </span>
             </SidebarMenuButton>
           </Link>
@@ -204,11 +199,8 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
   }
 
   return (
-    <Sidebar collapsible="offcanvas" side="left" className={cn(
-        "border-r border-white/5 backdrop-blur-3xl transition-all duration-500",
-        isUnder13 ? "bg-[#05051a]/95" : "bg-background/80"
-    )}>
-      <SidebarHeader className="py-10 px-6">
+    <Sidebar collapsible="offcanvas" side="left" className="nga-nav border-r border-border">
+      <SidebarHeader className="px-4 py-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Back arrow — navigates to previous page */}
@@ -231,59 +223,75 @@ export function AppSidebar({ remainingSeconds, ageGroup = 'under-10' }: { remain
           </button>
         </div>
       </SidebarHeader>
-      <SidebarContent className="px-4 pb-20">
-        <SidebarMenu className="space-y-1">
-          <div className="px-4 py-2 text-[11px] font-black uppercase tracking-[0.25em] text-primary mb-2 border-b border-primary/10">
-            Core Network
+      <SidebarContent className="px-2 pb-20">
+        <SidebarMenu className="space-y-0.5">
+          {/* Section: Main */}
+          <div className="px-3 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+            Home
           </div>
           {renderMenuItems(mainMenuItems, 'main')}
-          
-          <div className="pt-8 pb-2 px-4 text-[11px] font-black uppercase tracking-[0.25em] text-orange-400 mb-2 border-b border-orange-400/10">
-            Educational Node
+
+          {/* Section: Learn */}
+          <div className="px-3 pt-5 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+            Learn
           </div>
           {renderMenuItems(educationalMenuItems, 'educational')}
-          
-          <div className="pt-8 pb-2 px-4 text-[11px] font-black uppercase tracking-[0.25em] text-accent mb-2 border-b border-accent/10">
-            Creation Protocols
+
+          {/* Section: Create */}
+          <div className="px-3 pt-5 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+            Create
           </div>
           {renderMenuItems(createMenuItems, 'create')}
-          
-          <div className="pt-8 pb-2 px-4 text-[11px] font-black uppercase tracking-[0.25em] text-cyan-400 mb-2 border-b border-cyan-400/10">
-            Intelligence Suite
+
+          {/* Section: Tools */}
+          <div className="px-3 pt-5 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+            Tools
           </div>
           {renderMenuItems(toolsMenuItems, 'tools')}
-          
-          <div className="pt-8 pb-2 px-4 text-[11px] font-black uppercase tracking-[0.25em] text-foreground mb-2 border-b border-white/10">
-            System Configuration
+
+          {/* Section: Account */}
+          <div className="px-3 pt-5 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+            Account
           </div>
           {renderMenuItems(accountMenuItems, 'system')}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter className="py-10 bg-black/40 mt-auto border-t border-white/5">
-        <div className="flex flex-col items-center gap-6 px-6">
+      <SidebarFooter className="p-4 border-t border-border mt-auto">
+        <div className="flex flex-col gap-4">
+            {/* Social links */}
             {!isUnder13 && (
-                <div className="grid grid-cols-4 gap-4 py-4 border-b border-white/5 w-full">
-                    <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-primary transition-all hover:scale-110 flex justify-center" title="X"><XIcon className="h-4 w-4" /></a>
-                    <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-primary transition-all hover:scale-110 flex justify-center" title="Instagram"><Instagram className="h-4 w-4" /></a>
-                    <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-primary transition-all hover:scale-110 flex justify-center" title="Facebook"><Facebook className="h-4 w-4" /></a>
-                    <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-primary transition-all hover:scale-110 flex justify-center" title="YouTube"><Youtube className="h-4 w-4" /></a>
-                    <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-primary transition-all hover:scale-110 flex justify-center" title="LinkedIn"><Linkedin className="h-4 w-4" /></a>
-                    <a href="https://pinterest.com" target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-primary transition-all hover:scale-110 flex justify-center" title="Pinterest"><PinterestIcon className="h-4 w-4" /></a>
-                    <a href="https://reddit.com" target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-primary transition-all hover:scale-110 flex justify-center" title="Reddit"><RedditIcon className="h-4 w-4" /></a>
-                    <a href="https://whatsapp.com" target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-primary transition-all hover:scale-110 flex justify-center" title="WhatsApp"><WhatsAppIcon className="h-4 w-4" /></a>
+                <div className="grid grid-cols-4 gap-3 pb-3 border-b border-border">
+                    <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors flex justify-center" title="X"><XIcon className="h-4 w-4" /></a>
+                    <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors flex justify-center" title="Instagram"><Instagram className="h-4 w-4" /></a>
+                    <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors flex justify-center" title="Facebook"><Facebook className="h-4 w-4" /></a>
+                    <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors flex justify-center" title="YouTube"><Youtube className="h-4 w-4" /></a>
+                    <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors flex justify-center" title="LinkedIn"><Linkedin className="h-4 w-4" /></a>
+                    <a href="https://pinterest.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors flex justify-center" title="Pinterest"><PinterestIcon className="h-4 w-4" /></a>
+                    <a href="https://reddit.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors flex justify-center" title="Reddit"><RedditIcon className="h-4 w-4" /></a>
+                    <a href="https://whatsapp.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors flex justify-center" title="WhatsApp"><WhatsAppIcon className="h-4 w-4" /></a>
                 </div>
             )}
-            
+
             {userProfile?.timerNotifications === true && (
                 <UsageTimer remainingSeconds={remainingSeconds} />
             )}
-            <div className="w-full rounded-2xl bg-primary/10 border border-primary/20 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary text-center shadow-inner">
-                Protocol: STARK-B v1.0
-            </div>
+
+            {/* User info */}
             {user && (
-                <div className="flex flex-col items-center gap-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-foreground">Authorized Node</p>
-                    <p className="text-[9px] font-bold italic truncate max-w-[140px] text-primary">{user.displayName || user.email}</p>
+                <div className="flex items-center gap-2.5 px-1">
+                    <div className="h-8 w-8 rounded-full bg-muted overflow-hidden shrink-0 border border-border">
+                        {(userProfile?.profilePicture || user.photoURL) ? (
+                            <img src={userProfile?.profilePicture || user.photoURL || ''} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs font-semibold text-muted-foreground">
+                                {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-foreground truncate">{user.displayName || 'NGA User'}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
+                    </div>
                 </div>
             )}
         </div>

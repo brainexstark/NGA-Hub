@@ -156,11 +156,11 @@ export default function SignInPage() {
           <form onSubmit={handleSignIn} className="space-y-4">
             {/* Email OR Username */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-white/50">Email or Username</label>
+              <label className="text-xs font-medium text-muted-foreground">Email or Username</label>
               <div className="relative">
                 {identifier.includes('@')
-                  ? <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
-                  : <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                  ? <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  : <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 }
                 <input
                   type="text"
@@ -169,46 +169,46 @@ export default function SignInPage() {
                   onChange={e => setIdentifier(e.target.value)}
                   placeholder="you@example.com or your_name"
                   autoComplete="username"
-                  className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-white/40 outline-none transition-all placeholder:text-white/20"
+                  className="nga-input pl-10 h-11"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-white/50">Password</label>
+              <label className="text-xs font-medium text-muted-foreground">Password</label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Password"
                   autoComplete="current-password"
-                  className="w-full h-12 pl-11 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-white/40 outline-none transition-all placeholder:text-white/20"
+                  className="nga-input pl-10 pr-11 h-11"
                 />
                 <button type="button" onClick={() => setShowPassword(p => !p)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60 transition-colors">
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                   {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 </button>
               </div>
               <div className="flex justify-end">
                 <button type="button" onClick={handleForgotPassword}
-                  className="text-[11px] text-white/40 hover:text-white transition-colors">
+                  className="text-[12px] text-nga-action hover:opacity-70 transition-opacity font-medium">
                   {resetSent ? '✓ Reset email sent' : 'Forgot password?'}
                 </button>
               </div>
             </div>
 
             <button type="submit" disabled={isLoading || isGoogleLoading}
-              className="w-full h-12 bg-primary text-primary-foreground rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 active:bg-blue-600 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl">
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Sign in <ArrowRight className="h-4 w-4" /></>}
+              className="nga-btn-action w-full h-11 flex items-center justify-center gap-2 disabled:opacity-50">
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Log in'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-white/30">
+          <p className="text-center text-sm text-muted-foreground">
             Don't have an account?{' '}
-            <Link href="/sign-up" className="text-white font-semibold hover:text-white/80 transition-colors">Sign up</Link>
+            <Link href="/sign-up" className="text-foreground font-semibold hover:opacity-70 transition-opacity">Sign up</Link>
           </p>
         </div>
       </div>
