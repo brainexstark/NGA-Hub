@@ -566,46 +566,22 @@ export default function AppLayout({
   React.useEffect(() => {
     if (!mounted || isUserLoading) return;
     if (!user) {
-      // Only redirect away from protected pages — never interrupt auth pages
-      const publicPaths = ['/sign-in', '/sign-up', '/add-phone', '/'];
+      const publicPaths = ['/sign-in', '/sign-up', '/add-phone', '/auth/', '/'];
       if (!publicPaths.some(p => pathname.startsWith(p))) {
         router.replace('/sign-in');
       }
       return;
     }
-    // Profile is loaded, proceed with routing
-    if (!profileLoading) {
-      const isAuthFlow = ['/sign-in', '/sign-up', '/add-phone'].includes(pathname);
-      if (userProfile && !userProfile.age_group) {
-        if (pathname !== '/sign-up') router.replace('/sign-up');
-        return;
+    // Wait for profile to load before routing
+    if (profileLoading) return;
+    const isAuthFlow = ['/sign-in', '/sign-up', '/add-phone'].includes(pathname) || pathname.startsWith('/auth/');
+    if (userProfile?.age_group) {
+      if (isAuthFlow || pathname === '/' || pathname === '/select-age') {
+        router.replace(`/HomeTon/${userProfile.age_group}`);
       }
-      if (userProfile === null) {
-        // Profile doc doesn't exist yet — only redirect if genuinely not on any app page
-        // Don't kick users out of chat, settings, network, search etc.
-        const isAnyAppPage = pathname.startsWith('/HomeTon') || pathname.startsWith('/feed') ||
-          pathname.startsWith('/reels') || pathname.startsWith('/chat') ||
-          pathname.startsWith('/settings') || pathname.startsWith('/network') ||
-          pathname.startsWith('/search') || pathname.startsWith('/learning-hub') ||
-          pathname.startsWith('/create-post') || pathname.startsWith('/comments') ||
-          pathname.startsWith('/activity') || pathname.startsWith('/video-bank') ||
-          pathname.startsWith('/live') || pathname.startsWith('/record') ||
-          pathname.startsWith('/stories') || pathname.startsWith('/favorites') ||
-          pathname.startsWith('/discussions') || pathname.startsWith('/announcements') ||
-          pathname.startsWith('/leaderboard') || pathname.startsWith('/ai-tools') ||
-          pathname.startsWith('/discover') || pathname.startsWith('/moderation') ||
-          pathname.startsWith('/security') || pathname.startsWith('/install') ||
-          pathname.startsWith('/feature-requests') || pathname.startsWith('/other-sm') ||
-          pathname.startsWith('/share-target') || pathname.startsWith('/adult-guidance') ||
-          pathname.startsWith('/dashboard') || pathname.startsWith('/stark-b');
-        if (pathname !== '/sign-up' && !isAnyAppPage) router.replace('/sign-up');
-        return;
-      }
-      if (userProfile?.age_group) {
-        if (isAuthFlow || pathname === '/' || pathname === '/select-age') {
-          router.replace(`/HomeTon/${userProfile.age_group}`);
-        }
-      }
+    } else if (!isAuthFlow) {
+      // User logged in but no age_group — send to sign-up to complete profile
+      router.replace('/sign-up');
     }
   }, [user, userProfile, isUserLoading, profileLoading, router, pathname, mounted]);
 

@@ -3,35 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "../../components/logo";
-import { Loader2, Eye, EyeOff, ArrowRight, Mail, Lock, User } from "lucide-react";
+import { Loader2, Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 import Link from "next/link";
-import { useAuth, useUser } from "../../auth";
 import { supabase } from "../../lib/supabase";
 import { useToast } from "../../hooks/use-toast";
 import { AnimatedBg } from "../../components/animated-bg";
-import { cn } from "../../lib/utils";
-
-function friendlyAuthError(code: string): string {
-  switch (code) {
-    case 'auth/user-not-found':
-    case 'auth/invalid-credential':
-    case 'auth/wrong-password':
-      return 'Email/username or password is incorrect.';
-    case 'auth/invalid-email':
-      return 'Please enter a valid email address.';
-    case 'auth/user-disabled':
-      return 'This account has been disabled. Contact support.';
-    case 'auth/too-many-requests':
-      return 'Too many attempts. Please wait a moment and try again.';
-    case 'auth/network-request-failed':
-      return 'Network error. Check your connection and try again.';
-    default:
-      return 'Sign in failed. Please check your details and try again.';
-  }
-}
 
 export default function SignInPage() {
-  const [identifier, setIdentifier] = useState(''); // email OR username
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -39,23 +18,30 @@ export default function SignInPage() {
   const [resetSent, setResetSent] = useState(false);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
-  const auth = useAuth();
-  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 
-  useEffect(() => {
-    setMounted(true);
-    setIsGoogleLoading(false);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
+  // Handle Google OAuth redirect result on page load
   useEffect(() => {
-    if (!mounted || isUserLoading) return;
-    if (user) {
-      router.replace('/');
-    }
-  }, [mounted, isUserLoading, router, user]);
+    if (!mounted) return;
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        // Check if user has a profile with age_group
+        const { data: profile } = await supabase
+          .from('app_users').select('age_group').eq('id', session.user.id).single();
+        if (profile?.age_group) {
+          router.replace(`/HomeTon/${profile.age_group}`);
+        } else {
+          // New Google user — needs to complete sign-up (age selection)
+          router.replace('/sign-up');
+        }
+        listener.subscription.unsubscribe();
+      }
+    });
+    return () => { listener.subscription.unsubscribe(); };
+  }, [mounted, router]);
 
-  // Resolve username → email via Supabase
   const resolveEmail = async (value: string): Promise<string> => {
     const v = value.trim();
     if (v.includes('@')) return v;
@@ -68,43 +54,60 @@ export default function SignInPage() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) { toast({ variant: 'destructive', title: 'App not ready' }); return; }
-    if (!identifier.trim() || !password.trim()) { toast({ variant: 'destructive', title: 'Fill in all fields' }); return; }
+    if (!identifier.trim() || !password.trim()) {
+      toast({ variant: 'destructive', title: 'Fill in all fields' }); return;
+    }
     setIsLoading(true);
     try {
       const email = await resolveEmail(identifier);
-      const { error } = await auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      router.push('/');
+      if (data.user) {
+        const { data: profile } = await supabase
+          .from('app_users').select('age_group').eq('id', data.user.id).single();
+        if (profile?.age_group) {
+          router.replace(`/HomeTon/${profile.age_group}`);
+        } else {
+          router.replace('/sign-up');
+        }
+      }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Sign in failed', description: friendlyAuthError(error?.code || '') });
+      const msg = error?.message || '';
+      let friendly = 'Sign in failed. Check your details and try again.';
+      if (msg.includes('Invalid login') || msg.includes('invalid_credentials')) friendly = 'Email or password is incorrect.';
+      if (msg.includes('Email not confirmed')) friendly = 'Please confirm your email first.';
+      if (msg.includes('Too many requests')) friendly = 'Too many attempts. Wait a moment and try again.';
+      toast({ variant: 'destructive', title: 'Sign in failed', description: friendly });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleGoogle = async () => {
-    if (!auth) return;
     setIsGoogleLoading(true);
-    const { error } = await auth.signInWithOAuth({
+    // signInWithOAuth redirects the browser to Google — nothing else runs after this
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/sign-in`,
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: { access_type: 'offline', prompt: 'consent' },
       },
     });
     if (error) {
       toast({ variant: 'destructive', title: 'Google sign in failed', description: error.message });
       setIsGoogleLoading(false);
     }
+    // If no error, browser is already redirecting to Google — don't do anything else
   };
 
   const handleForgotPassword = async () => {
-    if (!auth) return;
     const email = identifier.includes('@') ? identifier.trim() : '';
     if (!email) { toast({ variant: 'destructive', title: 'Enter your email address first' }); return; }
-    const { error } = await auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/sign-in`,
+    });
     if (error) {
-      toast({ variant: 'destructive', title: 'Could not send reset email', description: friendlyAuthError(error?.code || '') });
+      toast({ variant: 'destructive', title: 'Could not send reset email', description: error.message });
       return;
     }
     setResetSent(true);
@@ -154,61 +157,48 @@ export default function SignInPage() {
           </div>
 
           <form onSubmit={handleSignIn} className="space-y-4">
-            {/* Email OR Username */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Email or Username</label>
+              <label className="text-xs font-medium text-white/50">Email or Username</label>
               <div className="relative">
                 {identifier.includes('@')
-                  ? <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  : <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  ? <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+                  : <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
                 }
-                <input
-                  type="text"
-                  required
-                  value={identifier}
-                  onChange={e => setIdentifier(e.target.value)}
-                  placeholder="you@example.com or your_name"
-                  autoComplete="username"
-                  className="nga-input pl-10 h-11"
-                />
+                <input type="text" required value={identifier} onChange={e => setIdentifier(e.target.value)}
+                  placeholder="you@example.com or your_name" autoComplete="username"
+                  className="w-full h-11 pl-10 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white text-sm focus:border-white/30 outline-none transition-all placeholder:text-white/20" />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Password</label>
+              <label className="text-xs font-medium text-white/50">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Password"
-                  autoComplete="current-password"
-                  className="nga-input pl-10 pr-11 h-11"
-                />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+                <input type={showPassword ? 'text' : 'password'} required value={password} onChange={e => setPassword(e.target.value)}
+                  placeholder="Password" autoComplete="current-password"
+                  className="w-full h-11 pl-10 pr-11 bg-white/5 border border-white/10 rounded-2xl text-white text-sm focus:border-white/30 outline-none transition-all placeholder:text-white/20" />
                 <button type="button" onClick={() => setShowPassword(p => !p)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors">
                   {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 </button>
               </div>
               <div className="flex justify-end">
                 <button type="button" onClick={handleForgotPassword}
-                  className="text-[12px] text-nga-action hover:opacity-70 transition-opacity font-medium">
+                  className="text-xs text-white/40 hover:text-white transition-colors">
                   {resetSent ? '✓ Reset email sent' : 'Forgot password?'}
                 </button>
               </div>
             </div>
 
             <button type="submit" disabled={isLoading || isGoogleLoading}
-              className="nga-btn-action w-full h-11 flex items-center justify-center gap-2 disabled:opacity-50">
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Log in'}
+              className="w-full h-11 bg-white text-black rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl">
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-sm text-white/30">
             Don't have an account?{' '}
-            <Link href="/sign-up" className="text-foreground font-semibold hover:opacity-70 transition-opacity">Sign up</Link>
+            <Link href="/sign-up" className="text-white font-semibold hover:opacity-70 transition-opacity">Sign up</Link>
           </p>
         </div>
       </div>

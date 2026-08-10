@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { Logo } from "../../components/logo";
 import { Loader2, Eye, EyeOff, ArrowRight, ArrowLeft, Mail, Lock, User, Camera, Upload, Link2 } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
-import { useAuth, useUser } from "../../auth";
 import { supabase } from "../../lib/supabase";
 import { useToast } from "../../hooks/use-toast";
 import { upsertAppUser } from "../../hooks/use-realtime";
@@ -24,157 +22,131 @@ const AGE_GROUPS = [
 
 export default function SignUpPage() {
   const [step, setStep] = useState<Step>('account');
-  // Step 1
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  // Step 2 — profile picture
   const [profilePic, setProfilePic] = useState('');
   const [picMode, setPicMode] = useState<'upload' | 'url'>('upload');
   const [picUrl, setPicUrl] = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
-  // Step 3
   const [ageGroup, setAgeGroup] = useState<AgeGroup | ''>('');
-  // Step 4
   const [dob, setDob] = useState('');
   const [phone, setPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [uploadingPic, setUploadingPic] = useState(false);
   const [mounted, setMounted] = useState(false);
-
+  // Track if this is a Google OAuth return (user already authed, just needs age)
+  const [isGoogleUser, setIsGoogleUser] = useState(false);
+  const [googleUserId, setGoogleUserId] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const auth = useAuth();
   const { toast } = useToast();
 
-  const { user: currentUser } = useUser();
-  const [redirectHandled, setRedirectHandled] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
+  // On mount: check if we just returned from Google OAuth
+  // If session exists but no age_group → show age step only
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (!mounted) return;
+    supabase.auth.getSession().then(async ({ data }) => {
+      const user = data.session?.user;
+      if (!user) return; // not logged in — show normal sign-up form
 
-  useEffect(() => {
-    if (!currentUser || redirectHandled) return;
-    if (step !== 'account') return;
+      // Check if profile is complete
+      const { data: profile } = await supabase
+        .from('app_users').select('age_group').eq('id', user.id).single();
 
-    const handleExistingUser = async () => {
-      try {
-        const { data: existingProfile } = await supabase
-          .from('app_users').select('*').eq('id', currentUser.uid).single();
-        // Column is age_group (snake_case) in Supabase
-        if (existingProfile?.age_group) {
-          router.push(`/HomeTon/${existingProfile.age_group}`);
-          return;
-        }
-        // Google user exists but hasn't set age group yet — skip to age step
-        // Do NOT show password step for Google users
-        setEmail(currentUser.email || '');
-        setUsername(currentUser.displayName || '');
-        setProfilePic(currentUser.photoURL || '');
-        setStep('age'); // skip directly to age selection, no password needed
-      } catch {
-        // ignore — allow manual sign-up flow
-      } finally {
-        setRedirectHandled(true);
+      if (profile?.age_group) {
+        // Already complete — go to app
+        router.replace(`/HomeTon/${profile.age_group}`);
+        return;
       }
-    };
 
-    handleExistingUser();
-  }, [currentUser, redirectHandled, router, step]);
-
-  const [uploadingPic, setUploadingPic] = useState(false);
+      // Session exists but no profile yet — this is a Google return
+      // Pre-fill from OAuth metadata and jump straight to age selection
+      setIsGoogleUser(true);
+      setGoogleUserId(user.id);
+      setUsername(user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || '');
+      setEmail(user.email || '');
+      setProfilePic(user.user_metadata?.avatar_url || user.user_metadata?.photo_url || '');
+      setStep('age'); // skip account + profile steps
+    });
+  }, [mounted, router]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Show local preview immediately
-    const localUrl = URL.createObjectURL(file);
-    setProfilePic(localUrl);
+    setProfilePic(URL.createObjectURL(file));
     setUploadingPic(true);
-
     try {
-      const { supabase } = await import('../../lib/supabase');
       const ext = file.name.split('.').pop() || 'jpg';
       const path = `avatars/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { data, error } = await supabase.storage.from('media').upload(path, file, {
-        cacheControl: '31536000',
-        upsert: false,
-      });
+      const { data, error } = await supabase.storage.from('media').upload(path, file, { cacheControl: '31536000', upsert: false });
       if (data && !error) {
         const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-        if (urlData?.publicUrl) {
-          setProfilePic(urlData.publicUrl);
-        }
+        if (urlData?.publicUrl) setProfilePic(urlData.publicUrl);
       } else {
-        // Upload failed — clear so user isn't stuck with a blob URL that won't save
         setProfilePic('');
         toast({ variant: 'destructive', title: 'Photo upload failed', description: 'Try again or use a URL instead.' });
       }
     } catch {
       setProfilePic('');
-      toast({ variant: 'destructive', title: 'Photo upload failed', description: 'Check your connection and try again.' });
+      toast({ variant: 'destructive', title: 'Photo upload failed' });
     }
     setUploadingPic(false);
   };
 
-  const handleGoogle = async () => {
-    if (!auth) return;
+  const handleGoogle = () => {
     setIsGoogleLoading(true);
-
-    const { error } = await auth.signInWithOAuth({
+    // This redirects the browser entirely — code after this won't run
+    supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/sign-up`,
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: { access_type: 'offline', prompt: 'consent' },
       },
+    }).then(({ error }) => {
+      if (error) {
+        toast({ variant: 'destructive', title: 'Google sign up failed', description: error.message });
+        setIsGoogleLoading(false);
+      }
     });
-
-    if (error) {
-      toast({ variant: 'destructive', title: 'Google sign up failed', description: error.message });
-      setIsGoogleLoading(false);
-    }
   };
 
   const handleFinish = async () => {
-    if (!auth || !ageGroup) return;
+    if (!ageGroup) return;
     setIsLoading(true);
     try {
       const rawPic = profilePic || picUrl || '';
-      const isRealUrl = rawPic.startsWith('http://') || rawPic.startsWith('https://');
-      const safePhotoURL = isRealUrl ? rawPic : '';
+      const safePhoto = rawPic.startsWith('http') ? rawPic : '';
 
-      // If user is already signed in via Google, skip signUp — just save profile
-      if (currentUser) {
+      if (isGoogleUser && googleUserId) {
+        // Google user — already authenticated, just save profile
         await upsertAppUser({
-          id: currentUser.uid,
-          display_name: username || currentUser.displayName,
-          email: currentUser.email || '',
-          avatar: safePhotoURL || currentUser.photoURL || '',
+          id: googleUserId,
+          display_name: username,
+          email,
+          avatar: safePhoto,
           age_group: ageGroup,
           is_online: true,
         });
-        toast({ title: 'Profile saved!', description: 'Welcome to NGA Hub.' });
-        router.push(`/HomeTon/${ageGroup}`);
+        toast({ title: 'Welcome to NGA Hub!' });
+        router.replace(`/HomeTon/${ageGroup}`);
         return;
       }
 
       // Email/password sign-up
-      const { data, error } = await auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: {
-            full_name: username,
-            avatar_url: safePhotoURL,
-          },
-        },
+        options: { data: { full_name: username, avatar_url: safePhoto } },
       });
-
       if (error) throw error;
+
       const u = data.user;
       if (!u) {
-        toast({ title: 'Verify your email', description: 'Check your inbox to complete registration.' });
+        toast({ title: 'Check your email', description: 'Click the confirmation link to activate your account.' });
         setIsLoading(false);
         return;
       }
@@ -183,17 +155,17 @@ export default function SignUpPage() {
         id: u.id,
         display_name: username,
         email: u.email || '',
-        avatar: safePhotoURL,
+        avatar: safePhoto,
         age_group: ageGroup,
         is_online: true,
       });
 
       toast({ title: 'Account created!', description: 'Welcome to NGA Hub.' });
-      router.push(`/HomeTon/${ageGroup}`);
+      router.replace(`/HomeTon/${ageGroup}`);
     } catch (err: any) {
       let msg = err?.message || 'Something went wrong';
-      if (msg.includes('already registered') || msg.includes('already been registered')) msg = 'This email is already registered. Try signing in.';
-      if (msg.includes('Password should be')) msg = 'Password must be at least 6 characters.';
+      if (msg.includes('already registered') || msg.includes('already been registered')) msg = 'Email already registered. Try signing in.';
+      if (msg.includes('Password should be') || msg.includes('password')) msg = 'Password must be at least 6 characters.';
       toast({ variant: 'destructive', title: 'Sign up failed', description: msg });
     } finally {
       setIsLoading(false);
@@ -205,8 +177,7 @@ export default function SignUpPage() {
   const stepNum = step === 'account' ? 1 : step === 'profile' ? 2 : step === 'age' ? 3 : 4;
 
   return (
-    <main className="min-h-screen bg-black flex flex-col">
-      {/* Top bar */}
+    <AnimatedBg className="min-h-screen flex flex-col">
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
         <Logo />
         <Link href="/sign-in" className="text-xs font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors">
@@ -214,32 +185,28 @@ export default function SignUpPage() {
         </Link>
       </div>
 
-      {/* Background */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-white/3 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-white/3 rounded-full blur-[120px]" />
-      </div>
-
-      <div className="flex-1 flex items-center justify-center px-6 py-12 relative z-10">
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-          {/* Step indicator */}
+          {/* Step dots — only show relevant steps */}
           <div className="flex items-center gap-2 justify-center">
-            {[1,2,3,4].map(n => (
-              <div key={n} className={cn("h-1.5 rounded-full transition-all duration-300",
-                n === stepNum ? "w-8 bg-primary" : n < stepNum ? "w-4 bg-primary/40" : "w-4 bg-white/10")} />
-            ))}
+            {(isGoogleUser ? [3,4] : [1,2,3,4]).map((n, i) => {
+              const current = isGoogleUser ? (step === 'age' ? 3 : 4) : stepNum;
+              return (
+                <div key={n} className={cn("h-1.5 rounded-full transition-all duration-300",
+                  n === current ? "w-8 bg-primary" : n < current ? "w-4 bg-primary/40" : "w-4 bg-white/10")} />
+              );
+            })}
           </div>
 
-          {/* ── STEP 1: Account ── */}
-          {step === 'account' && (
+          {/* ── STEP 1: Account (email/password only, not shown for Google) ── */}
+          {step === 'account' && !isGoogleUser && (
             <div className="space-y-6">
               <div className="text-center space-y-1">
-                <h1 className="text-3xl font-black uppercase tracking-tight text-white">Create account</h1>
+                <h1 className="text-3xl font-black text-white">Create account</h1>
                 <p className="text-sm text-white/40">Join the NGA Hub community</p>
               </div>
 
-              {/* Google */}
               <button onClick={handleGoogle} disabled={isGoogleLoading}
                 className="w-full flex items-center justify-center gap-3 h-12 bg-white text-black rounded-2xl font-bold text-sm hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50">
                 {isGoogleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
@@ -255,7 +222,7 @@ export default function SignUpPage() {
 
               <div className="flex items-center gap-4">
                 <div className="flex-1 h-px bg-white/10" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-white/20">or</span>
+                <span className="text-[10px] text-white/20 uppercase tracking-widest">or</span>
                 <div className="flex-1 h-px bg-white/10" />
               </div>
 
@@ -265,7 +232,7 @@ export default function SignUpPage() {
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
                     <input value={username} onChange={e => setUsername(e.target.value)} placeholder="your_name"
-                      className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20" />
+                      className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white text-sm focus:border-white/30 outline-none placeholder:text-white/20" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
@@ -273,15 +240,15 @@ export default function SignUpPage() {
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
                     <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
-                      className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20" />
+                      className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white text-sm focus:border-white/30 outline-none placeholder:text-white/20" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Password</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
-                    <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
-                      className="w-full h-12 pl-11 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20" />
+                    <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 6 characters"
+                      className="w-full h-12 pl-11 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white text-sm focus:border-white/30 outline-none placeholder:text-white/20" />
                     <button type="button" onClick={() => setShowPassword(p => !p)}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60 transition-colors">
                       {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -290,15 +257,15 @@ export default function SignUpPage() {
                 </div>
                 <button onClick={() => {
                   if (!username.trim() || !email.trim() || !password.trim()) { toast({ variant: 'destructive', title: 'Fill all fields' }); return; }
+                  if (password.length < 6) { toast({ variant: 'destructive', title: 'Password too short', description: 'At least 6 characters required.' }); return; }
                   setStep('profile');
-                }}
-                  className="w-full h-12 bg-primary rounded-2xl font-black text-white text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-primary/90 active:bg-blue-600 active:scale-[0.98] transition-all shadow-xl shadow-primary/20">
+                }} className="w-full h-12 bg-white text-black rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-white/90 active:scale-[0.98] transition-all">
                   Next <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
               <p className="text-center text-xs text-white/30">
                 Already have an account?{' '}
-                <Link href="/sign-in" className="text-primary font-black hover:text-primary/80 transition-colors">Sign in</Link>
+                <Link href="/sign-in" className="text-white font-black hover:opacity-70 transition-opacity">Sign in</Link>
               </p>
             </div>
           )}
@@ -307,71 +274,59 @@ export default function SignUpPage() {
           {step === 'profile' && (
             <div className="space-y-6">
               <div className="text-center space-y-1">
-                <h1 className="text-3xl font-black uppercase tracking-tight text-white">Profile picture</h1>
-                <p className="text-sm text-white/40">Add a photo so people know it's you</p>
+                <h1 className="text-3xl font-black text-white">Profile picture</h1>
+                <p className="text-sm text-white/40">Add a photo — or skip for now</p>
               </div>
-
-              {/* Preview */}
               <div className="flex justify-center">
                 <div className="relative h-28 w-28">
-                  <div className="h-28 w-28 rounded-full overflow-hidden border-4 border-primary/30 bg-white/5">
+                  <div className="h-28 w-28 rounded-full overflow-hidden border-4 border-white/10 bg-white/5">
                     {profilePic || picUrl ? (
                       <img src={profilePic || picUrl} alt="preview" className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <User className="h-12 w-12 text-white/20" />
-                      </div>
+                      <div className="w-full h-full flex items-center justify-center"><User className="h-12 w-12 text-white/20" /></div>
                     )}
                   </div>
                   <button onClick={() => fileRef.current?.click()}
-                    className="absolute bottom-0 right-0 h-9 w-9 bg-primary rounded-full flex items-center justify-center border-2 border-background shadow-lg">
-                    {uploadingPic ? <Loader2 className="h-4 w-4 text-white animate-spin" /> : <Camera className="h-4 w-4 text-white" />}
+                    className="absolute bottom-0 right-0 h-9 w-9 bg-white rounded-full flex items-center justify-center border-2 border-black shadow-lg">
+                    {uploadingPic ? <Loader2 className="h-4 w-4 text-black animate-spin" /> : <Camera className="h-4 w-4 text-black" />}
                   </button>
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                 </div>
               </div>
-              {uploadingPic && <p className="text-center text-[10px] text-primary/60 font-bold">Uploading photo...</p>}
-
-              {/* Mode toggle */}
+              {uploadingPic && <p className="text-center text-[10px] text-white/40">Uploading...</p>}
               <div className="flex gap-2 bg-white/5 p-1 rounded-2xl">
                 {(['upload', 'url'] as const).map(m => (
                   <button key={m} onClick={() => setPicMode(m)}
                     className={cn("flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                      picMode === m ? "bg-primary text-white" : "text-white/40")}>
+                      picMode === m ? "bg-white text-black" : "text-white/40")}>
                     {m === 'upload' ? '📁 Upload' : '🔗 URL'}
                   </button>
                 ))}
               </div>
-
               {picMode === 'upload' ? (
                 <button onClick={() => fileRef.current?.click()}
-                  className="w-full h-12 border-2 border-dashed border-white/10 rounded-2xl text-white/40 text-sm font-bold hover:border-primary/40 hover:text-white/60 transition-all flex items-center justify-center gap-2">
+                  className="w-full h-12 border-2 border-dashed border-white/10 rounded-2xl text-white/40 text-sm font-bold hover:border-white/30 hover:text-white/60 transition-all flex items-center justify-center gap-2">
                   <Upload className="h-4 w-4" /> Choose from device
                 </button>
               ) : (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
-                    <input value={picUrl} onChange={e => { setPicUrl(e.target.value); setProfilePic(''); }}
-                      placeholder="https://example.com/photo.jpg"
-                      className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20" />
-                  </div>
+                <div className="relative">
+                  <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                  <input value={picUrl} onChange={e => { setPicUrl(e.target.value); setProfilePic(''); }}
+                    placeholder="https://example.com/photo.jpg"
+                    className="w-full h-12 pl-11 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white text-sm focus:border-white/30 outline-none placeholder:text-white/20" />
                 </div>
               )}
-
               <div className="flex gap-3">
                 <button onClick={() => setStep('account')}
                   className="flex-1 h-12 bg-white/5 border border-white/10 rounded-2xl font-black text-white/60 text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
                   <ArrowLeft className="h-4 w-4" /> Back
                 </button>
                 <button onClick={() => setStep('age')} disabled={uploadingPic}
-                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:bg-blue-600 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
-                  {uploadingPic ? <><Loader2 className="h-4 w-4 animate-spin" /> Uploading...</> : <>Next <ArrowRight className="h-4 w-4" /></>}
+                  className="flex-1 h-12 bg-white text-black rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50">
+                  {uploadingPic ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Next <ArrowRight className="h-4 w-4" /></>}
                 </button>
               </div>
-              <button onClick={() => setStep('age')} className="w-full text-center text-xs text-white/20 hover:text-white/40 transition-colors">
-                Skip for now
-              </button>
+              <button onClick={() => setStep('age')} className="w-full text-center text-xs text-white/20 hover:text-white/40 transition-colors">Skip for now</button>
             </div>
           )}
 
@@ -379,104 +334,79 @@ export default function SignUpPage() {
           {step === 'age' && (
             <div className="space-y-6">
               <div className="text-center space-y-1">
-                <h1 className="text-3xl font-black uppercase tracking-tight text-white">Your age group</h1>
+                <h1 className="text-3xl font-black text-white">Your age group</h1>
                 <p className="text-sm text-white/40">Choose carefully — this cannot be changed later</p>
-                <p className="text-[10px] text-amber-400/80 font-bold bg-amber-400/10 border border-amber-400/20 rounded-xl px-3 py-2 mt-2">
-                  ⚠️ Age group is permanent and locked after account creation
-                </p>
               </div>
-
               <div className="space-y-3">
                 {AGE_GROUPS.map(ag => (
                   <button key={ag.id} onClick={() => setAgeGroup(ag.id)}
                     className={cn("w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all active:scale-[0.98]",
-                      ageGroup === ag.id ? "border-primary bg-primary/10" : "border-white/10 bg-white/5 hover:bg-white/8")}>
+                      ageGroup === ag.id ? "border-white bg-white/10" : "border-white/10 bg-white/5 hover:border-white/20")}>
                     <span className="text-2xl">{ag.emoji}</span>
                     <div className="text-left">
-                      <p className={cn("font-black text-sm uppercase tracking-tight", ageGroup === ag.id ? "text-primary" : "text-white")}>{ag.label}</p>
-                      <p className="text-[10px] text-white/40 font-medium">{ag.desc}</p>
+                      <p className={cn("font-black text-sm", ageGroup === ag.id ? "text-white" : "text-white/70")}>{ag.label}</p>
+                      <p className="text-[10px] text-white/40">{ag.desc}</p>
                     </div>
-                    {ageGroup === ag.id && <div className="ml-auto h-5 w-5 rounded-full bg-primary flex items-center justify-center shrink-0">
-                      <span className="text-white text-xs">✓</span>
-                    </div>}
+                    {ageGroup === ag.id && <div className="ml-auto h-5 w-5 rounded-full bg-white flex items-center justify-center shrink-0"><span className="text-black text-xs font-black">✓</span></div>}
                   </button>
                 ))}
               </div>
-
               <div className="flex gap-3">
-                <button onClick={() => setStep('profile')}
-                  className="flex-1 h-12 bg-white/5 border border-white/10 rounded-2xl font-black text-white/60 text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
-                  <ArrowLeft className="h-4 w-4" /> Back
-                </button>
+                {!isGoogleUser && (
+                  <button onClick={() => setStep('profile')}
+                    className="flex-1 h-12 bg-white/5 border border-white/10 rounded-2xl font-black text-white/60 text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
+                    <ArrowLeft className="h-4 w-4" /> Back
+                  </button>
+                )}
                 <button onClick={() => { if (!ageGroup) { toast({ variant: 'destructive', title: 'Select your age group' }); return; } setStep('details'); }} disabled={!ageGroup}
-                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:bg-blue-600 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
+                  className="flex-1 h-12 bg-white text-black rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50">
                   Next <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 4: Date of Birth + Phone ── */}
+          {/* ── STEP 4: Details (DOB + Phone) ── */}
           {step === 'details' && (
             <div className="space-y-6">
               <div className="text-center space-y-1">
-                <h1 className="text-3xl font-black uppercase tracking-tight text-white">Your details</h1>
-                <p className="text-sm text-white/40">A little more info to finish setup</p>
+                <h1 className="text-3xl font-black text-white">Almost done</h1>
+                <p className="text-sm text-white/40">Just a little more info</p>
               </div>
-
               <div className="space-y-4">
-                {/* Date of birth — required for all */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Date of Birth <span className="text-primary">*</span></label>
-                  <input
-                    type="date"
-                    value={dob}
-                    onChange={e => setDob(e.target.value)}
-                    required
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Date of Birth <span className="text-white">*</span></label>
+                  <input type="date" value={dob} onChange={e => setDob(e.target.value)} required
                     max={new Date().toISOString().split('T')[0]}
-                    className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all"
-                  />
+                    className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-2xl text-white text-sm focus:border-white/30 outline-none" />
                 </div>
-
-                {/* Phone — required only for 18+ */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-white/40">
-                    Phone Number {ageGroup === '18+' && <span className="text-primary">*</span>}
+                    Phone {ageGroup === '18+' && <span className="text-white">*</span>}
+                    {ageGroup !== '18+' && <span className="text-white/20"> (optional)</span>}
                   </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    placeholder="+1 234 567 8900"
-                    required={ageGroup === '18+'}
-                    className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-2xl text-white font-medium text-sm focus:border-primary/50 outline-none transition-all placeholder:text-white/20"
-                  />
-                  <p className="text-[10px] text-amber-400/80 font-bold">
-                    {ageGroup === '18+' ? '⚠️ Phone number required for 18+ users' : 'Phone number required for 18+ users (optional for you)'}
-                  </p>
+                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 234 567 8900"
+                    className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-2xl text-white text-sm focus:border-white/30 outline-none placeholder:text-white/20" />
                 </div>
               </div>
-
               <div className="flex gap-3">
                 <button onClick={() => setStep('age')}
                   className="flex-1 h-12 bg-white/5 border border-white/10 rounded-2xl font-black text-white/60 text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
                   <ArrowLeft className="h-4 w-4" /> Back
                 </button>
-                <button
-                  onClick={() => {
-                    if (!dob) { toast({ variant: 'destructive', title: 'Date of birth required' }); return; }
-                    if (ageGroup === '18+' && !phone.trim()) { toast({ variant: 'destructive', title: 'Phone number required for 18+ users' }); return; }
-                    handleFinish();
-                  }}
-                  disabled={isLoading}
-                  className="flex-1 h-12 bg-primary rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 hover:bg-primary/90 active:bg-blue-600 active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50">
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Create account <ArrowRight className="h-4 w-4" /></>}
+                <button onClick={() => {
+                  if (!dob) { toast({ variant: 'destructive', title: 'Date of birth required' }); return; }
+                  if (ageGroup === '18+' && !phone.trim()) { toast({ variant: 'destructive', title: 'Phone required for 18+' }); return; }
+                  handleFinish();
+                }} disabled={isLoading}
+                  className="flex-1 h-12 bg-white text-black rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50">
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{isGoogleUser ? 'Finish' : 'Create account'} <ArrowRight className="h-4 w-4" /></>}
                 </button>
               </div>
             </div>
           )}
         </div>
       </div>
-    </main>
+    </AnimatedBg>
   );
 }
