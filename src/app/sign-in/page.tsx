@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Logo } from "../../components/logo";
 import { Loader2, Eye, EyeOff, ArrowRight, Mail, Lock, User } from "lucide-react";
 import Link from "next/link";
-import { useAuth, useUser } from "../../firebase";
+import { useAuth, useUser } from "../../auth";
 import { supabase } from "../../lib/supabase";
 import { useToast } from "../../hooks/use-toast";
 import { AnimatedBg } from "../../components/animated-bg";

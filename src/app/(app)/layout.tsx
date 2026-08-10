@@ -4,7 +4,7 @@ import * as React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { AppSidebar } from '../../components/app-sidebar';
 import { SidebarProvider, SidebarInset, useSidebar } from '../../components/ui/sidebar';
-import { useUser } from '../../firebase';
+import { useUser } from '../../auth';
 import { supabase } from '../../lib/supabase';
 import { updateDocNonBlocking, docRef } from '../../lib/db';
 import type { UserProfile } from '../../lib/types';
@@ -576,7 +576,7 @@ export default function AppLayout({
     // Profile is loaded, proceed with routing
     if (!profileLoading) {
       const isAuthFlow = ['/sign-in', '/sign-up', '/add-phone'].includes(pathname);
-      if (userProfile && !userProfile.ageGroup) {
+      if (userProfile && !userProfile.age_group) {
         if (pathname !== '/sign-up') router.replace('/sign-up');
         return;
       }
@@ -601,9 +601,9 @@ export default function AppLayout({
         if (pathname !== '/sign-up' && !isAnyAppPage) router.replace('/sign-up');
         return;
       }
-      if (userProfile?.ageGroup) {
+      if (userProfile?.age_group) {
         if (isAuthFlow || pathname === '/' || pathname === '/select-age') {
-          router.replace(`/HomeTon/${userProfile.ageGroup}`);
+          router.replace(`/HomeTon/${userProfile.age_group}`);
         }
       }
     }
@@ -623,9 +623,9 @@ export default function AppLayout({
     );
   }
 
-  if (isAuthFlow || pathname === '/') return <div className={`theme-${userProfile?.ageGroup || '14-17'}-v${themeVariant}`}>{children}</div>;
+  if (isAuthFlow || pathname === '/') return <div className={`theme-${userProfile?.age_group || '14-17'}-v${themeVariant}`}>{children}</div>;
 
-  const ageGroup = userProfile?.ageGroup || '14-17';
+  const ageGroup = userProfile?.age_group || '14-17';
   const isEducationalNode = educationalPaths.some(path => pathname.startsWith(path));
   const shouldShowLockdown = (protocolStatus === 'MISSION_REQUIRED' && !isEducationalNode) || (protocolStatus === 'EDU_LIMIT' && isEducationalNode);
   // Active timer to show in header

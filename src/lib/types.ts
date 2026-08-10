@@ -1,13 +1,19 @@
 
 export interface UserProfile {
     uid: string;
+    id?: string;
     displayName: string;
+    display_name?: string;
     email: string;
-    ageGroup: 'under-13' | '14-17' | '18+' | null;
+    ageGroup?: 'under-13' | '14-17' | '18+' | null;
+    age_group?: 'under-13' | '14-17' | '18+' | null;
     phoneNumber?: string;
+    phone?: string;
     dob?: string;
     profilePicture?: string;
+    avatar?: string;
     isBreached?: boolean;
+    themeVariant?: number;
     followersCount?: number;
     followingCount?: number;
     disciplesCount?: number;

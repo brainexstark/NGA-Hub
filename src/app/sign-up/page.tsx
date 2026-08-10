@@ -6,7 +6,7 @@ import { Logo } from "../../components/logo";
 import { Loader2, Eye, EyeOff, ArrowRight, ArrowLeft, Mail, Lock, User, Camera, Upload, Link2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useAuth, useUser } from "../../firebase";
+import { useAuth, useUser } from "../../auth";
 import { supabase } from "../../lib/supabase";
 import { useToast } from "../../hooks/use-toast";
 import { upsertAppUser } from "../../hooks/use-realtime";
@@ -60,24 +60,21 @@ export default function SignUpPage() {
 
     const handleExistingUser = async () => {
       try {
-        const { data: existingProfile } = await supabase.from('app_users').select('*').eq('id', currentUser.uid).single();
-        if (existingProfile?.ageGroup) {
-          router.push(`/HomeTon/${existingProfile.ageGroup}`);
+        const { data: existingProfile } = await supabase
+          .from('app_users').select('*').eq('id', currentUser.uid).single();
+        // Column is age_group (snake_case) in Supabase
+        if (existingProfile?.age_group) {
+          router.push(`/HomeTon/${existingProfile.age_group}`);
           return;
         }
-        await supabase.from('app_users').upsert({
-          id: currentUser.uid,
-          display_name: currentUser.displayName,
-          email: currentUser.email,
-          avatar: currentUser.photoURL || '',
-          last_seen: new Date().toISOString(),
-        }, { onConflict: 'id' });
+        // Google user exists but hasn't set age group yet — skip to age step
+        // Do NOT show password step for Google users
         setEmail(currentUser.email || '');
         setUsername(currentUser.displayName || '');
         setProfilePic(currentUser.photoURL || '');
-        setStep('age');
+        setStep('age'); // skip directly to age selection, no password needed
       } catch {
-        // ignore; allow the user to continue signing up manually if Firestore is not available
+        // ignore — allow manual sign-up flow
       } finally {
         setRedirectHandled(true);
       }
@@ -147,6 +144,22 @@ export default function SignUpPage() {
       const isRealUrl = rawPic.startsWith('http://') || rawPic.startsWith('https://');
       const safePhotoURL = isRealUrl ? rawPic : '';
 
+      // If user is already signed in via Google, skip signUp — just save profile
+      if (currentUser) {
+        await upsertAppUser({
+          id: currentUser.uid,
+          display_name: username || currentUser.displayName,
+          email: currentUser.email || '',
+          avatar: safePhotoURL || currentUser.photoURL || '',
+          age_group: ageGroup,
+          is_online: true,
+        });
+        toast({ title: 'Profile saved!', description: 'Welcome to NGA Hub.' });
+        router.push(`/HomeTon/${ageGroup}`);
+        return;
+      }
+
+      // Email/password sign-up
       const { data, error } = await auth.signUp({
         email,
         password,
@@ -162,6 +175,7 @@ export default function SignUpPage() {
       const u = data.user;
       if (!u) {
         toast({ title: 'Verify your email', description: 'Check your inbox to complete registration.' });
+        setIsLoading(false);
         return;
       }
 
@@ -177,11 +191,9 @@ export default function SignUpPage() {
       toast({ title: 'Account created!', description: 'Welcome to NGA Hub.' });
       router.push(`/HomeTon/${ageGroup}`);
     } catch (err: any) {
-      const code = err?.code || '';
       let msg = err?.message || 'Something went wrong';
-      if (code === 'auth/email-address-already-in-use') msg = 'This email is already registered. Try signing in.';
-      if (code === 'auth/weak-password') msg = 'Password must be at least 6 characters.';
-      if (code === 'auth/invalid-email') msg = 'Please enter a valid email address.';
+      if (msg.includes('already registered') || msg.includes('already been registered')) msg = 'This email is already registered. Try signing in.';
+      if (msg.includes('Password should be')) msg = 'Password must be at least 6 characters.';
       toast({ variant: 'destructive', title: 'Sign up failed', description: msg });
     } finally {
       setIsLoading(false);
